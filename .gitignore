@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local Admin & Dev Tools (local only, never on GitHub/Vercel)
+src/components/LocalDevStatsPanel*
+src/app/api/admin*
