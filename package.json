@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "postinstall": "node scripts/ensure-stubs.js",
+    "prebuild": "node scripts/ensure-stubs.js",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint"

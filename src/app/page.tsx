@@ -34,6 +34,7 @@ import PerformanceScoreCard from "@/components/PerformanceScoreCard";
 import AiCoachModal from "@/components/AiCoachModal";
 import { calculatePerformanceScore, detectDominantRole } from "@/lib/valorant/performanceScore";
 import type { LobbyItem } from "@/app/api/lobbies/route";
+import LocalDevStatsPanel, { type DevStatOverrides } from "@/components/LocalDevStatsPanel";
 
 function DebugPanel({ isOpen, onClose, onGenerate }: any) {
   return null;
@@ -55,6 +56,8 @@ export function HomeContent({
   const [isGuestMode, setIsGuestMode] = useState<boolean>(false);
   const [guestUser, setGuestUser] = useState<any>(null);
   const [loginModalOpen, setLoginModalOpen] = useState<boolean>(false);
+  const [devOverrides, setDevOverrides] = useState<DevStatOverrides | null>(null);
+  const [isLocalhost, setIsLocalhost] = useState<boolean>(false);
 
   const initGuestSession = useCallback(async (redirectToOnboarding = false) => {
     try {
@@ -129,6 +132,16 @@ export function HomeContent({
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [isGuestMode]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsLocalhost(
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        window.location.hostname.endsWith(".local")
+      );
+    }
+  }, []);
 
   const simulatedSession = useMemo(
     () => ({
@@ -619,6 +632,26 @@ export function HomeContent({
     return {};
   }, []);
 
+  const handleRiotKeyChange = useCallback((newKey: string | null) => {
+    const targetId = riotId || myRiotId || "Corbac#EU1";
+    setLoading(true);
+    setError("");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (newKey) headers["x-riot-dev-key"] = newKey;
+    fetch("/api/valorant/player", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ riotId: targetId }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) setError(d.error);
+        else setPlayerData(d);
+      })
+      .catch(() => setError("Serveur inaccessible."))
+      .finally(() => setLoading(false));
+  }, [riotId, myRiotId]);
+
   const goHome = () => {
     if (myRiotId) {
       setRiotId(myRiotId);
@@ -991,24 +1024,60 @@ export function HomeContent({
     };
   }, [rawStats, gameMode, selectedSeason, filteredMatches]);
 
+  const isSearchingOther = Boolean(riotId && myRiotId && riotId.toLowerCase() !== myRiotId.toLowerCase());
+  const activeDevOverrides = isSearchingOther ? null : devOverrides;
+
   const dominantRole = useMemo(() => {
+    if (activeDevOverrides && activeDevOverrides.enabled && activeDevOverrides.role !== "Auto") {
+      return activeDevOverrides.role;
+    }
     return detectDominantRole(filteredAgents);
-  }, [filteredAgents]);
+  }, [filteredAgents, activeDevOverrides]);
 
   const effectiveStats = useMemo(() => {
-    return filteredStats || rawStats;
-  }, [filteredStats, rawStats]);
+    const s = filteredStats || rawStats;
+    if (activeDevOverrides && activeDevOverrides.enabled) {
+      const deaths = s?.deaths || 100;
+      return {
+        ...(s || {}),
+        kdRatio: activeDevOverrides.kd,
+        kills: Math.round(activeDevOverrides.kd * deaths),
+        deaths,
+        assists: s?.assists || 40,
+        acs: activeDevOverrides.acs,
+        headshotPct: activeDevOverrides.hs,
+        winRate: activeDevOverrides.winRate,
+        kast: activeDevOverrides.kast,
+        adr: activeDevOverrides.adr,
+        ddDelta: activeDevOverrides.dd,
+        matchesPlayed: activeDevOverrides.matchesCount,
+      };
+    }
+    return s;
+  }, [filteredStats, rawStats, activeDevOverrides]);
 
-  const effectiveMatches = filteredMatches;
+  const effectiveMatches = useMemo(() => {
+    if (activeDevOverrides && activeDevOverrides.enabled) {
+      return Array.from({ length: activeDevOverrides.matchesCount }).map((_, i) => ({
+        firstBloods: activeDevOverrides.firstBloods,
+        clutches: i < activeDevOverrides.clutches ? 1 : 0,
+        won: i < (activeDevOverrides.matchesCount * (activeDevOverrides.winRate / 100)),
+        kills: Math.round(activeDevOverrides.kd * 15),
+        deaths: 15,
+        acs: activeDevOverrides.acs,
+      }));
+    }
+    return filteredMatches;
+  }, [filteredMatches, activeDevOverrides]);
 
   const performanceScoreResult = useMemo(() => {
     const s = effectiveStats;
     if (!s) return null;
-    const playerTier = playerData?.rankTier ?? playerData?.player?.rankTier ?? 0;
+    const playerTier = playerData?.rankTier ?? playerData?.player?.rankTier ?? (activeDevOverrides?.enabled ? 21 : 0);
     const rankName = playerData?.rank || playerData?.player?.rank || "Non classé";
     const accountLevel = playerData?.level ?? playerData?.player?.level ?? playerData?.player?.accountLevel ?? 1;
     return calculatePerformanceScore(s, effectiveMatches, dominantRole, playerTier, { rankName, accountLevel });
-  }, [effectiveStats, effectiveMatches, dominantRole, playerData]);
+  }, [effectiveStats, effectiveMatches, dominantRole, playerData, activeDevOverrides]);
 
   // Apply logged-in user's theme to body
   useEffect(() => {
@@ -2040,6 +2109,22 @@ export function HomeContent({
           agentStats={playerData?.player?.agentStats}
           stats={playerData?.player?.stats}
           playerName={playerData?.player?.name}
+        />
+      )}
+
+      {/* Panneau Admin Développeur Local (Strictement actif sur localhost, jamais actif sur Vercel/production) */}
+      {isLocalhost && (
+        <LocalDevStatsPanel
+          currentRole={dominantRole}
+          onOverridesChange={setDevOverrides}
+          currentRiotId={
+            playerData?.player
+              ? `${playerData.player.gameName}#${playerData.player.tagLine}`
+              : riotId || myRiotId || "Gr4phØ#0001"
+          }
+          onRiotKeyChange={handleRiotKeyChange}
+          isLiveRiotData={playerData?.isMock === false}
+          playerStats={playerData?.player?.stats || playerData?.stats}
         />
       )}
     </>
