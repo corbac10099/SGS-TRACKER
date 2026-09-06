@@ -49,6 +49,20 @@ const RANK_TIER_NAMES: Record<number, string> = {
   27: "Radiant",
 };
 
+interface CachedPlayerProfile {
+  data: ValorantProfileResponse;
+  timestamp: number;
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __playerProfileCache: Map<string, CachedPlayerProfile> | undefined;
+}
+
+const PLAYER_CACHE = globalThis.__playerProfileCache ?? new Map<string, CachedPlayerProfile>();
+globalThis.__playerProfileCache = PLAYER_CACHE;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes de validité
+
 async function handlePlayerRequest(
   gameName: string,
   tagLine: string,
@@ -57,6 +71,9 @@ async function handlePlayerRequest(
 ) {
   try {
     const activeKey = customApiKey?.trim() || getDynamicRiotApiKey();
+    const cleanGameName = gameName.trim();
+    const cleanTagLine = tagLine.trim();
+    const cacheKey = `${cleanGameName.toLowerCase()}#${cleanTagLine.toLowerCase()}@${region}_${activeKey ? "live" : "mock"}`;
 
     // Check Neon database for registered user & custom settings
     let customOwnerSettings: any = null;
@@ -100,6 +117,30 @@ async function handlePlayerRequest(
 
     let profileData: ValorantProfileResponse | null = null;
     let apiStatusInfo: any = null;
+
+    // Vérification du cache mémoire : retourne directement la donnée pour éviter toute fluctuation
+    if (PLAYER_CACHE.has(cacheKey)) {
+      const cached = PLAYER_CACHE.get(cacheKey)!;
+      if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
+        const cachedProfile: ValorantProfileResponse = JSON.parse(JSON.stringify(cached.data));
+        cachedProfile.player.isOwner = isOwner;
+        cachedProfile.player.canEdit = isOwner;
+        if (customOwnerSettings) {
+          cachedProfile.player = {
+            ...cachedProfile.player,
+            theme: customOwnerSettings.theme || null,
+            bannerUrl: customOwnerSettings.bannerUrl || null,
+            bannerOffsetY: customOwnerSettings.bannerOffsetY || 0,
+            isPublic: customOwnerSettings.isPublic ?? true,
+            hiddenStats: customOwnerSettings.hiddenStats || null,
+            dashboardGrid: customOwnerSettings.dashboardGrid || null,
+            badge: customOwnerSettings.badge || cachedProfile.player.badge,
+            showBadge: customOwnerSettings.showBadge ?? cachedProfile.player.showBadge,
+          };
+        }
+        return NextResponse.json(cachedProfile);
+      }
+    }
 
     // 1. If an API key is available, attempt real live data
     if (activeKey && activeKey.startsWith("HDEV-")) {
@@ -225,9 +266,9 @@ async function handlePlayerRequest(
       }
     }
 
-    // 2. Fallback to mock if no real profile could be fetched
+    // 2. Fallback déterministe si aucun profil réel n'a pu être extrait
     if (!profileData) {
-      profileData = generateMockProfile(gameName, tagLine);
+      profileData = generateDeterministicProfile(cleanGameName, cleanTagLine, undefined, region);
       profileData.player.isOwner = isOwner;
       profileData.player.canEdit = isOwner;
       profileData.isMock = true;
@@ -235,6 +276,12 @@ async function handlePlayerRequest(
         profileData.apiStatus = apiStatusInfo;
       }
     }
+
+    // Mise en cache du profil de base (sans personnalisations dynamiques Neon)
+    PLAYER_CACHE.set(cacheKey, {
+      data: JSON.parse(JSON.stringify(profileData)),
+      timestamp: Date.now(),
+    });
 
     // 3. Attach custom Neon user configuration
     if (customOwnerSettings) {

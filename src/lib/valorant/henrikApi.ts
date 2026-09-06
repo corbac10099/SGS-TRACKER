@@ -229,7 +229,7 @@ export async function fetchHenrikPlayerData(
         const pTierName = p.currenttier_patched || "Ascendant 1";
 
         const teamPlayerObj = {
-          puuid: p.puuid || `player-${Math.random()}`,
+          puuid: p.puuid || `player-${p.name || "anon"}-${myTeam.length + enemyTeam.length}`,
           name: p.name || (isMePlayer ? realName : "Joueur"),
           tag: p.tag || "EU1",
           agent: pAgentName,
@@ -377,7 +377,21 @@ export async function fetchHenrikPlayerData(
       deaths: Math.max(0, Math.floor(deaths / 5) + (duelIdx % 3 === 0 ? 1 : 0)),
     }));
 
-    const fb = Math.floor(Math.random() * 2) + 1;
+    // Calcul déterministe des First Bloods : extraction depuis raw.kills si disponible, sinon calcul stable basé sur les frags
+    let fb = 0;
+    if (Array.isArray(raw.kills) && raw.kills.length > 0) {
+      const firstKillOfRound: Record<number, { killerPuuid: string; time: number }> = {};
+      raw.kills.forEach((k: any) => {
+        const rNum = k.round ?? 0;
+        const time = k.kill_time_in_round ?? k.time_in_round ?? 999999;
+        if (!firstKillOfRound[rNum] || time < firstKillOfRound[rNum].time) {
+          firstKillOfRound[rNum] = { killerPuuid: k.killer_puuid || k.killer?.puuid || "", time };
+        }
+      });
+      fb = Object.values(firstKillOfRound).filter((fk) => fk.killerPuuid === puuid).length;
+    } else {
+      fb = kills >= 20 ? 4 : kills >= 15 ? 3 : kills >= 10 ? 2 : kills >= 5 ? 1 : 0;
+    }
     totalFirstBloods += fb;
 
     parsedMatches.push({
