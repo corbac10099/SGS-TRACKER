@@ -1,9 +1,26 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback, useLayoutEffect } from "react";
+import { calculateSingleMatchSPI, PerformanceGrade } from "@/lib/valorant/performanceScore";
+import { sounds } from "@/lib/soundEffects";
+import { IconChart } from "./icons/SpyIcons";
+
+export type MetricType = "kd" | "acs" | "hs" | "spi";
 
 export interface PerformanceChartsProps {
   matchHistory: any[];
+  chartId?: string;
+  title?: string;
+  allowedMetrics?: MetricType[];
+  initialMetric?: MetricType;
+  onActiveMetricChange?: (metric: MetricType) => void;
+  canDetach?: boolean;
+  onDetachMetric?: (metric: MetricType) => void;
+  availableTargetCharts?: { id: string; label: string }[];
+  onAttachMetric?: (metric: MetricType, targetChartId: string) => void;
+  isDetached?: boolean;
+  isEditing?: boolean;
+  spiDynamicColors?: boolean;
 }
 
 function getCubicBezierPath(points: { x: number; y: number }[]): string {
@@ -30,8 +47,186 @@ function getCubicBezierPath(points: { x: number; y: number }[]): string {
   return d;
 }
 
-function PerformanceChartsComponent({ matchHistory }: PerformanceChartsProps) {
-  const [activeMetric, setActiveMetric] = useState<"kd" | "acs" | "hs">("kd");
+function PerformanceChartsComponent({
+  matchHistory,
+  chartId = "chart",
+  title = "Progression",
+  allowedMetrics = ["kd", "acs", "hs", "spi"],
+  initialMetric,
+  onActiveMetricChange,
+  canDetach = true,
+  onDetachMetric,
+  availableTargetCharts,
+  onAttachMetric,
+  isDetached = false,
+  isEditing = false,
+  spiDynamicColors,
+}: PerformanceChartsProps) {
+  // Garantit que si ce graphique est unique, SPI est toujours présent dans la liste autorisée
+  const validAllowedMetrics = useMemo(() => {
+    let list = allowedMetrics && allowedMetrics.length > 0 ? allowedMetrics : (["kd", "acs", "hs", "spi"] as MetricType[]);
+    if (chartId === "chart" && (!availableTargetCharts || availableTargetCharts.length === 0)) {
+      if (!list.includes("spi")) {
+        list = [...list, "spi"];
+      }
+    }
+    return list;
+  }, [allowedMetrics, chartId, availableTargetCharts]);
+
+  const [internalMetric, setInternalMetric] = useState<MetricType>(() => {
+    if (initialMetric && validAllowedMetrics.includes(initialMetric)) return initialMetric;
+    return validAllowedMetrics[0] || "kd";
+  });
+
+  const activeMetric = validAllowedMetrics.includes(internalMetric) ? internalMetric : validAllowedMetrics[0] || "kd";
+
+  const handleSelectMetric = (m: MetricType) => {
+    sounds.playTabSwitch();
+    setInternalMetric(m);
+    if (onActiveMetricChange) onActiveMetricChange(m);
+  };
+
+  // État et animation de la pilule rouge glissante pour les onglets de métriques
+  const metricContainerRef = useRef<HTMLDivElement>(null);
+  const metricBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [metricPillStyle, setMetricPillStyle] = useState({ left: 0, width: 0, opacity: 0 });
+
+  const updateMetricPill = useCallback(() => {
+    if (!metricContainerRef.current) return;
+    const btn = metricBtnRefs.current[activeMetric];
+    const container = metricContainerRef.current;
+    if (!btn || !container) {
+      setMetricPillStyle((prev) => ({ ...prev, opacity: 0 }));
+      return;
+    }
+    const containerRect = container.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    if (btnRect.width > 0) {
+      setMetricPillStyle({
+        left: btnRect.left - containerRect.left,
+        width: btnRect.width,
+        opacity: 1,
+      });
+    }
+  }, [activeMetric]);
+
+  useLayoutEffect(() => {
+    updateMetricPill();
+    const t = setTimeout(updateMetricPill, 40);
+    return () => clearTimeout(t);
+  }, [activeMetric, validAllowedMetrics, updateMetricPill]);
+
+  // Option SPI multi-couleurs dynamique (activée par défaut dans les paramètres Fonctionnalités)
+  const [spiDynamicEnabled, setSpiDynamicEnabled] = useState<boolean>(() => {
+    if (spiDynamicColors !== undefined) return spiDynamicColors;
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("spycam_spi_dynamic_chart_color") !== "false";
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (spiDynamicColors !== undefined) {
+      setSpiDynamicEnabled(spiDynamicColors);
+      return;
+    }
+    const handleSettingsUpdated = (e: any) => {
+      const stored = typeof window !== "undefined" ? localStorage.getItem("spycam_spi_dynamic_chart_color") !== "false" : true;
+      setSpiDynamicEnabled(stored);
+    };
+    window.addEventListener("spycam_settings_updated", handleSettingsUpdated);
+    return () => window.removeEventListener("spycam_settings_updated", handleSettingsUpdated);
+  }, [spiDynamicColors]);
+
+  // État pour le détachement/glisser-déposer interactif d'onglets (style onglet Chrome)
+  const [draggedTabMetric, setDraggedTabMetric] = useState<{
+    metric: MetricType;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+    label: string;
+    isTorn: boolean;
+  } | null>(null);
+
+  const handleTabPointerDown = (e: React.PointerEvent, m: { id: MetricType; label: string }) => {
+    if (!isEditing) return;
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+
+    const onPointerMove = (moveEvt: PointerEvent) => {
+      moveEvt.preventDefault();
+      const deltaX = moveEvt.clientX - startX;
+      const deltaY = moveEvt.clientY - startY;
+      const dist = Math.hypot(deltaX, deltaY);
+      if (dist > 8) {
+        setDraggedTabMetric({
+          metric: m.id,
+          startX,
+          startY,
+          currentX: moveEvt.clientX,
+          currentY: moveEvt.clientY,
+          label: m.label,
+          isTorn: true,
+        });
+      }
+    };
+
+    const onPointerUp = (upEvt: PointerEvent) => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+
+      const deltaX = upEvt.clientX - startX;
+      const deltaY = upEvt.clientY - startY;
+      const dist = Math.hypot(deltaX, deltaY);
+
+      if (dist > 20) {
+        const elemBelow = document.elementFromPoint(upEvt.clientX, upEvt.clientY);
+        const targetChartCard = elemBelow?.closest("[data-chart-id]") as HTMLElement | null;
+        const targetChartId = targetChartCard?.getAttribute("data-chart-id");
+
+        if (targetChartId && targetChartId !== chartId && onAttachMetric) {
+          sounds.playLockIn();
+          onAttachMetric(m.id, targetChartId);
+        } else if ((!targetChartCard || targetChartId !== chartId) && canDetach) {
+          sounds.playGrabWidget();
+          if (onDetachMetric) onDetachMetric(m.id);
+        }
+      }
+      setDraggedTabMetric(null);
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+  };
+
+  const handleDragStart = (e: React.DragEvent, mId: MetricType) => {
+    if (!isEditing) return;
+    e.dataTransfer.setData("application/spycam-metric", JSON.stringify({ chartId, metric: mId }));
+    e.dataTransfer.effectAllowed = "move";
+    sounds.playGrabWidget();
+  };
+
+  const handleChartDrop = (e: React.DragEvent) => {
+    if (!isEditing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const raw = e.dataTransfer.getData("application/spycam-metric");
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data.chartId && data.chartId !== chartId && data.metric && onAttachMetric) {
+        sounds.playLockIn();
+        onAttachMetric(data.metric, chartId);
+      }
+    } catch {}
+  };
+
   const [matchLimit, setMatchLimit] = useState<number | "all">(20);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -68,6 +263,7 @@ function PerformanceChartsComponent({ matchHistory }: PerformanceChartsProps) {
         m.headshots && m.kills
           ? Math.round((m.headshots / (m.kills + m.assists || 1)) * 100)
           : m.headshotPct || 20;
+      const matchSpi = calculateSingleMatchSPI(m, m.role);
       return {
         index: idx + 1,
         matchId: m.matchId,
@@ -80,12 +276,25 @@ function PerformanceChartsComponent({ matchHistory }: PerformanceChartsProps) {
         kd,
         acs: m.acs || 0,
         hs,
+        spi: matchSpi.score,
+        spiGrade: matchSpi.grade,
+        spiColor: matchSpi.gradeColor,
       };
     });
   }, [matchHistory, matchLimit]);
 
   if (chartData.length < 2) {
-    return null;
+    return (
+      <div className="glass-panel rounded-2xl p-4 w-full h-full flex flex-col items-center justify-center text-center">
+        <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-[var(--color-text-secondary)] mb-1.5 text-sm">
+          <IconChart size={16} />
+        </div>
+        <p className="text-[11px] font-bold text-[var(--color-text-primary)]">{title}</p>
+        <p className="text-[10px] text-[var(--color-text-secondary)] mt-0.5">
+          {totalAvailable === 1 ? "1 seul match trouvé. Au moins 2 matchs requis pour tracer la courbe." : "Historique de parties insuffisant pour tracer la courbe."}
+        </p>
+      </div>
+    );
   }
 
   // Dynamic 1:1 pixel coordinate system matching physical element size - prevents text compression/stretching
@@ -113,6 +322,10 @@ function PerformanceChartsComponent({ matchHistory }: PerformanceChartsProps) {
     values = chartData.map((d) => d.acs);
     formatVal = (v: number) => `${Math.round(v)}`;
     threshold = 200;
+  } else if (activeMetric === "spi") {
+    values = chartData.map((d) => d.spi);
+    formatVal = (v: number) => `${Math.round(v)} pts`;
+    threshold = 500;
   } else {
     values = chartData.map((d) => d.hs);
     formatVal = (v: number) => `${Math.round(v)}%`;
@@ -125,7 +338,7 @@ function PerformanceChartsComponent({ matchHistory }: PerformanceChartsProps) {
 
   const points = chartData.map((d, i) => {
     const x = padding.left + (i / Math.max(1, chartData.length - 1)) * graphWidth;
-    const val = activeMetric === "kd" ? d.kd : activeMetric === "acs" ? d.acs : d.hs;
+    const val = activeMetric === "kd" ? d.kd : activeMetric === "acs" ? d.acs : activeMetric === "spi" ? d.spi : d.hs;
     const y = padding.top + graphHeight - ((val - minVal) / valRange) * graphHeight;
     return { ...d, x: Number.isFinite(x) ? x : 0, y: Number.isFinite(y) ? y : 0, currentVal: val };
   });
@@ -170,17 +383,62 @@ function PerformanceChartsComponent({ matchHistory }: PerformanceChartsProps) {
 
   const activePoint = hoveredIdx !== null && points[hoveredIdx] ? points[hoveredIdx] : null;
 
+  const isSpi = activeMetric === "spi";
+  const spiCurveGradientId = `spiCurveGradient-${chartId}`;
+  const strokeColor = isSpi
+    ? spiDynamicEnabled
+      ? `url(#${spiCurveGradientId})`
+      : "var(--color-val-red, #ff4655)"
+    : "var(--color-val-red, #ff4655)";
+  const gradientColor = isSpi
+    ? spiDynamicEnabled
+      ? "#f59e0b"
+      : "var(--color-val-red, #ff4655)"
+    : "var(--color-val-red, #ff4655)";
+  const gradientId = `chartGradient-${chartId}`;
+  const glowId = `chartGlow-${chartId}`;
+
   return (
-    <div className="glass-panel rounded-2xl p-2 sm:p-3 mb-0 animate-in fade-in duration-500 w-full h-full flex flex-col justify-between overflow-hidden">
+    <div
+      data-chart-id={chartId}
+      onDragOver={(e) => {
+        if (isEditing) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+        }
+      }}
+      onDrop={handleChartDrop}
+      className={`glass-panel rounded-2xl p-2 sm:p-3 mb-0 animate-in fade-in duration-500 w-full h-full flex flex-col justify-between overflow-hidden relative ${
+        isEditing ? "ring-1 ring-white/10" : ""
+      }`}
+    >
+      {/* Floating Ghost Tab during pointer drag (Chrome-tab tear-off style) */}
+      {draggedTabMetric?.isTorn && (
+        <div
+          className="fixed z-50 pointer-events-none px-3 py-1.5 rounded-xl bg-gradient-to-r from-[var(--color-val-red)] to-amber-500 text-white font-black text-xs shadow-2xl border border-white/30 flex items-center gap-1.5 animate-pulse"
+          style={{
+            left: draggedTabMetric.currentX + 12,
+            top: draggedTabMetric.currentY + 12,
+          }}
+        >
+          <span>↗</span>
+          <span>Détacher {draggedTabMetric.label}</span>
+        </div>
+      )}
+
       {/* Header controls */}
       <div className="flex flex-row items-center justify-between gap-1 mb-1 flex-nowrap flex-shrink-0">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-[var(--color-text-primary)] truncate">
-            Progression
+            {title}
           </span>
 
           {/* Range Selector: 10, 20, Tous */}
-          <div className="hidden xs:flex items-center gap-0.5 bg-[var(--color-background)]/80 p-0.5 rounded-lg border border-[var(--color-border)]">
+          <div
+            data-no-card-drag="true"
+            onMouseDown={(e) => e.stopPropagation()}
+            className="hidden xs:flex items-center gap-0.5 bg-[var(--color-background)]/80 p-0.5 rounded-lg border border-[var(--color-border)]"
+          >
             {[
               { id: 10, label: "10" },
               { id: 20, label: "20" },
@@ -188,6 +446,8 @@ function PerformanceChartsComponent({ matchHistory }: PerformanceChartsProps) {
             ].map((r) => (
               <button
                 key={String(r.id)}
+                data-no-card-drag="true"
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => setMatchLimit(r.id as any)}
                 className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-all cursor-pointer ${
                   matchLimit === r.id
@@ -201,25 +461,93 @@ function PerformanceChartsComponent({ matchHistory }: PerformanceChartsProps) {
           </div>
         </div>
 
-        {/* Metric Selector (K/D, ACS, Headshot %) */}
-        <div className="flex items-center gap-0.5 bg-[var(--color-surface)] p-0.5 rounded-lg border border-[var(--color-border)] flex-shrink-0">
-          {[
-            { id: "kd", label: "K/D" },
-            { id: "acs", label: "ACS" },
-            { id: "hs", label: "HS%" },
-          ].map((m) => (
-            <button
-              key={m.id}
-              onClick={() => setActiveMetric(m.id as any)}
-              className={`px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold transition-all cursor-pointer ${
-                activeMetric === m.id
-                  ? "bg-[var(--color-val-red)] text-white shadow-md shadow-[var(--color-val-red)]/30"
-                  : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]"
+        {/* Metric Selector (K/D, ACS, Headshot %, SPI) + Action Rattacher */}
+        <div className="flex items-center gap-1.5 flex-shrink-0" data-no-card-drag="true" onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            ref={metricContainerRef}
+            data-no-card-drag="true"
+            onMouseDown={(e) => e.stopPropagation()}
+            className="relative flex items-center gap-0.5 bg-[var(--color-surface)] p-0.5 rounded-lg border border-[var(--color-border)]"
+          >
+            {/* Pilule rouge animée glissante (comme sur les onglets de page) */}
+            <div
+              className={`absolute top-0.5 bottom-0.5 rounded-md pointer-events-none z-0 transition-all ${
+                activeMetric === "spi" && spiDynamicEnabled
+                  ? "bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.5)]"
+                  : "bg-[var(--color-val-red)] shadow-[0_0_12px_rgba(255,70,85,0.5)]"
               }`}
+              style={{
+                transform: `translateX(${metricPillStyle.left}px)`,
+                width: `${metricPillStyle.width}px`,
+                opacity: metricPillStyle.opacity,
+                transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+              }}
+            />
+
+            {[
+              { id: "kd" as MetricType, label: "K/D" },
+              { id: "acs" as MetricType, label: "ACS" },
+              { id: "hs" as MetricType, label: "HS%" },
+              { id: "spi" as MetricType, label: "SPI" },
+            ]
+              .filter((m) => validAllowedMetrics.includes(m.id))
+              .map((m) => {
+                const isActive = activeMetric === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    ref={(el) => {
+                      metricBtnRefs.current[m.id] = el;
+                    }}
+                    data-no-card-drag="true"
+                    onClick={() => handleSelectMetric(m.id)}
+                    draggable={isEditing}
+                    onDragStart={(e) => handleDragStart(e, m.id)}
+                    onPointerDown={(e) => handleTabPointerDown(e, m)}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    title={
+                      isEditing
+                        ? `Glisser pour détacher l'onglet ${m.label} (style Chrome) ou fusionner avec un autre graphique`
+                        : m.label
+                    }
+                    className={`relative z-10 px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold transition-colors duration-200 flex items-center gap-1 active:scale-95 select-none ${
+                      isEditing ? "cursor-grab active:cursor-grabbing hover:ring-1 hover:ring-white/40" : "cursor-pointer"
+                    } ${
+                      isActive
+                        ? m.id === "spi" && spiDynamicEnabled
+                          ? "text-black font-black"
+                          : "text-white font-black"
+                        : "text-[var(--color-text-secondary)] hover:text-white"
+                    }`}
+                  >
+                    {isEditing && (
+                      <span className="opacity-40 text-[8px] font-mono select-none" title="Glisser pour détacher">
+                        ⋮⋮
+                      </span>
+                    )}
+                    <span>{m.label}</span>
+                  </button>
+                );
+              })}
+          </div>
+
+          {/* Bouton Rattacher la courbe au graphique principal (visible uniquement en mode modification) */}
+          {isEditing && isDetached && availableTargetCharts && availableTargetCharts.length > 0 && onAttachMetric && (
+            <button
+              type="button"
+              data-no-card-drag="true"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => onAttachMetric(activeMetric, availableTargetCharts[0].id)}
+              title={`Rattacher cette courbe à ${availableTargetCharts[0].label}`}
+              className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 border border-emerald-500/30 hover:border-emerald-500 text-emerald-300 hover:text-white transition-all text-[10px] font-bold flex items-center gap-1 cursor-pointer"
             >
-              {m.label}
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              <span>Rattacher</span>
             </button>
-          ))}
+          )}
         </div>
       </div>
 
@@ -237,11 +565,26 @@ function PerformanceChartsComponent({ matchHistory }: PerformanceChartsProps) {
           onMouseLeave={handleMouseLeave}
         >
           <defs>
-            <linearGradient id="chartGradientFull" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="var(--color-val-red, #ff4655)" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="var(--color-val-red, #ff4655)" stopOpacity="0.0" />
+            {isSpi && spiDynamicEnabled && (
+              <linearGradient
+                id={spiCurveGradientId}
+                gradientUnits="userSpaceOnUse"
+                x1={padding.left}
+                y1={0}
+                x2={width - padding.right}
+                y2={0}
+              >
+                {points.map((p, idx) => {
+                  const pct = points.length > 1 ? ((idx / (points.length - 1)) * 100).toFixed(1) : "0";
+                  return <stop key={idx} offset={`${pct}%`} stopColor={p.spiColor || "#f59e0b"} />;
+                })}
+              </linearGradient>
+            )}
+            <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor={gradientColor} stopOpacity="0.4" />
+              <stop offset="100%" stopColor={gradientColor} stopOpacity="0.0" />
             </linearGradient>
-            <filter id="glowFull" x="-20%" y="-20%" width="140%" height="140%">
+            <filter id={glowId} x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="3" result="blur" />
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
@@ -304,29 +647,47 @@ function PerformanceChartsComponent({ matchHistory }: PerformanceChartsProps) {
           )}
 
           {/* Area Fill */}
-          <path d={areaD} fill="url(#chartGradientFull)" />
+          <path d={areaD} fill={`url(#${gradientId})`} />
+
+          {/* Subtle Glow underlay */}
+          <path
+            d={pathD}
+            fill="none"
+            stroke={isSpi ? (spiDynamicEnabled ? "#f59e0b" : "var(--color-val-red, #ff4655)") : "var(--color-val-red, #ff4655)"}
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="0.2"
+          />
 
           {/* Main Smooth Curved Trend Line */}
           <path
             d={pathD}
             fill="none"
-            stroke="var(--color-val-red, #ff4655)"
+            stroke={strokeColor}
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
-            filter="url(#glowFull)"
           />
 
           {/* Points */}
           {points.map((p, i) => {
             const isSelected = hoveredIdx === i;
+            const pointFill = isSpi
+              ? spiDynamicEnabled
+                ? p.spiColor
+                : "var(--color-val-red, #ff4655)"
+              : p.won
+              ? "#10b981"
+              : "#ef4444";
+
             return (
               <circle
                 key={i}
                 cx={p.x}
                 cy={p.y}
                 r={isSelected ? 6 : 4}
-                fill={p.won ? "#10b981" : "#ef4444"}
+                fill={pointFill}
                 stroke="#0a0e13"
                 strokeWidth="2"
                 className="transition-all duration-150"
@@ -354,7 +715,7 @@ function PerformanceChartsComponent({ matchHistory }: PerformanceChartsProps) {
                   height="34"
                   rx="8"
                   fill="#121824"
-                  stroke="var(--color-val-red)"
+                  stroke={isSpi ? (spiDynamicEnabled ? (activePoint.spiColor || "#f59e0b") : "var(--color-val-red)") : "var(--color-val-red)"}
                   strokeWidth="1.5"
                   className="shadow-2xl"
                 />
@@ -367,7 +728,7 @@ function PerformanceChartsComponent({ matchHistory }: PerformanceChartsProps) {
                   fontWeight="900"
                   fontFamily="sans-serif"
                 >
-                  {formatVal(activePoint.currentVal)} • {activePoint.won ? "Victoire" : "Défaite"}
+                  {isSpi ? `${activePoint.spi} pts (${activePoint.spiGrade})` : formatVal(activePoint.currentVal)} • {activePoint.won ? "Victoire" : "Défaite"}
                 </text>
                 <text
                   x="60"

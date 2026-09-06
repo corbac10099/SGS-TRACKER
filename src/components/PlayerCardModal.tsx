@@ -4,13 +4,22 @@ import React, { useRef, useState } from "react";
 import { IconTrophy, IconShare } from "./icons/SpyIcons";
 import { sounds } from "@/lib/soundEffects";
 import { UserBadges, parseBadges, BADGES_REGISTRY } from "./UserBadges";
+import { PerformanceScoreResult } from "@/lib/valorant/performanceScore";
+import PerformanceStarBadge from "./PerformanceStarBadge";
 
 export interface PlayerCardModalProps {
   playerData: any;
   onClose: () => void;
+  performanceScoreResult?: PerformanceScoreResult | null;
+  isPublicSPI?: boolean;
 }
 
-export default function PlayerCardModal({ playerData, onClose }: PlayerCardModalProps) {
+export default function PlayerCardModal({
+  playerData,
+  onClose,
+  performanceScoreResult,
+  isPublicSPI = true,
+}: PlayerCardModalProps) {
   const [downloading, setDownloading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -183,7 +192,60 @@ export default function PlayerCardModal({ playerData, onClose }: PlayerCardModal
       ctx.font = "900 24px sans-serif";
       ctx.fillText(rank, 50, 168);
 
-      // 4. Top Right Rank Emblem with glow
+      // 4. Top Right: SPI Star Badge & Rank Emblem
+      if (isPublicSPI && performanceScoreResult) {
+        ctx.save();
+        const cx = 675;
+        const cy = 115;
+        const sqSize = 66;
+
+        // Subtle aura glow behind SPI star
+        const starAura = ctx.createRadialGradient(cx, cy, 5, cx, cy, 65);
+        starAura.addColorStop(0, performanceScoreResult.gradeBg || "rgba(255, 255, 255, 0.15)");
+        starAura.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = starAura;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 65, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.translate(cx, cy);
+
+        // 3 concentric rotated squares
+        [0, 22.5, 45].forEach((deg) => {
+          ctx.save();
+          ctx.rotate((deg * Math.PI) / 180);
+          ctx.fillStyle = performanceScoreResult.gradeBg || "rgba(255, 255, 255, 0.1)";
+          ctx.strokeStyle = performanceScoreResult.gradeColor || "#ffffff";
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          ctx.roundRect(-sqSize / 2, -sqSize / 2, sqSize, sqSize, 4);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        });
+
+        // Solid dark circular core for high readability
+        ctx.beginPath();
+        ctx.arc(0, 0, 24, 0, Math.PI * 2);
+        ctx.fillStyle = "#0b0f14";
+        ctx.fill();
+        ctx.strokeStyle = performanceScoreResult.gradeBorder || "rgba(255, 255, 255, 0.3)";
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+
+        // Grade letter inside star - large, bold and crystal clear
+        ctx.fillStyle = performanceScoreResult.gradeColor || "#ffffff";
+        ctx.font = performanceScoreResult.grade.length > 2 ? "900 20px sans-serif" : performanceScoreResult.grade.length === 2 ? "900 24px sans-serif" : "900 30px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
+        ctx.shadowBlur = 4;
+        ctx.fillText(performanceScoreResult.grade, 0, 1);
+
+        ctx.restore();
+      }
+
+      // Rank Emblem with glow
       const rankImg = await loadImage(rankUrl);
       if (rankImg) {
         ctx.save();
@@ -277,7 +339,7 @@ export default function PlayerCardModal({ playerData, onClose }: PlayerCardModal
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-5 sm:p-6 shadow-2xl overflow-hidden flex flex-col gap-4 animate-player-card-modal"
+        className="w-full max-w-2xl glass-modal rounded-3xl p-5 sm:p-6 overflow-hidden flex flex-col gap-4 animate-player-card-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between pb-3 border-b border-[var(--color-border)]">
@@ -352,14 +414,34 @@ export default function PlayerCardModal({ playerData, onClose }: PlayerCardModal
               </span>
             </div>
 
-            {/* Top Right Rank Emblem */}
-            <div className="relative flex items-center justify-center flex-shrink-0">
-              <div className="absolute inset-0 bg-[var(--color-val-red)]/30 rounded-full blur-xl animate-pulse" />
-              <img
-                src={rankUrl}
-                alt={rank}
-                className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-[0_0_20px_rgba(255,70,85,0.6)] relative z-10"
-              />
+            {/* Top Right: SPI Star & Rank Emblem */}
+            <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
+              {isPublicSPI && performanceScoreResult && (
+                <div
+                  className="flex items-center justify-center transition-transform hover:scale-105"
+                  title={`Score SPI : Grade ${performanceScoreResult.grade} (${performanceScoreResult.totalScore} pts)`}
+                >
+                  <PerformanceStarBadge
+                    grade={performanceScoreResult.grade}
+                    score={performanceScoreResult.totalScore}
+                    gradeColor={performanceScoreResult.gradeColor}
+                    gradeBg={performanceScoreResult.gradeBg}
+                    gradeBorder={performanceScoreResult.gradeBorder}
+                    gradeGlow={performanceScoreResult.gradeGlow}
+                    size="md"
+                    layout="icon-only"
+                  />
+                </div>
+              )}
+
+              <div className="relative flex items-center justify-center flex-shrink-0">
+                <div className="absolute inset-0 bg-[var(--color-val-red)]/30 rounded-full blur-xl animate-pulse" />
+                <img
+                  src={rankUrl}
+                  alt={rank}
+                  className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-[0_0_20px_rgba(255,70,85,0.6)] relative z-10"
+                />
+              </div>
             </div>
           </div>
 

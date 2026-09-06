@@ -2,6 +2,9 @@
 
 import React from "react";
 import { PerformanceScoreResult } from "@/lib/valorant/performanceScore";
+import { IconLock, IconChevronRight } from "./icons/SpyIcons";
+
+import PerformanceStarBadge from "./PerformanceStarBadge";
 
 interface PerformanceScoreCardProps {
   result: PerformanceScoreResult;
@@ -20,6 +23,28 @@ export default function PerformanceScoreCard({
 }: PerformanceScoreCardProps) {
   const { totalScore, grade, gradeColor, gradeBg, gradeBorder, gradeGlow, gradeTitle, dominantRole } = result;
 
+  // Option: Adapter au thème d'apparence SEULEMENT si l'utilisateur est le propriétaire (isOwner === true)
+  // Pour tout visiteur externe (!isOwner), la case reste strictement avec les couleurs d'origine officielles de son rang
+  const [themeAdapted, setThemeAdapted] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isOwner) {
+      setThemeAdapted(false);
+      return;
+    }
+    const checkThemeAdapt = () => {
+      const adapt = typeof window !== "undefined" && localStorage.getItem("spycam_spi_theme_adapt") === "true";
+      setThemeAdapted(adapt);
+    };
+    checkThemeAdapt();
+    window.addEventListener("spycam_settings_updated", checkThemeAdapt);
+    return () => window.removeEventListener("spycam_settings_updated", checkThemeAdapt);
+  }, [isOwner]);
+
+  const activeGradeColor = themeAdapted ? "var(--custom-accent, var(--color-val-red, #ff4655))" : gradeColor;
+  const activeGradeBg = themeAdapted ? "rgba(255, 70, 85, 0.12)" : gradeBg;
+  const activeGradeBorder = themeAdapted ? "rgba(255, 70, 85, 0.4)" : gradeBorder;
+
   // Si le score est masqué par l'utilisateur et que le viewer n'est pas le propriétaire
   if (!isPublic && !isOwner) {
     return (
@@ -28,7 +53,7 @@ export default function PerformanceScoreCard({
           compact ? "py-1.5 px-2.5" : "p-4"
         }`}
       >
-        <span className="text-base mb-1">🔒</span>
+        <span className="text-amber-400 mb-1"><IconLock size={16} /></span>
         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
           Score SPI Masqué
         </span>
@@ -42,28 +67,24 @@ export default function PerformanceScoreCard({
       <button
         type="button"
         onClick={onClickDetail}
-        title="Voir le bilan complet de votre Score de Performance (SPI)"
-        className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border transition-all hover:scale-105 cursor-pointer backdrop-blur-md shadow-lg"
-        style={{
-          backgroundColor: gradeBg,
-          borderColor: gradeBorder,
-          boxShadow: gradeGlow,
-        }}
+        title={`Score SPI : ${totalScore} pts (Grade ${grade})`}
+        className="relative transition-all hover:scale-110 cursor-pointer group flex items-center justify-center p-0.5 bg-transparent border-none drop-shadow-lg"
       >
-        <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs sm:text-sm tracking-tighter"
-          style={{ color: gradeColor, backgroundColor: "rgba(0,0,0,0.4)" }}
-        >
-          {grade}
-        </div>
-        <div className="flex flex-col text-left leading-tight">
-          <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-gray-300">
-            SPI {!isPublic && isOwner ? "• 🔒" : ""}
+        <PerformanceStarBadge
+          grade={grade}
+          score={totalScore}
+          gradeColor={activeGradeColor}
+          gradeBg={activeGradeBg}
+          gradeBorder={activeGradeBorder}
+          gradeGlow={gradeGlow}
+          size="sm"
+          layout="icon-only"
+        />
+        {!isPublic && isOwner && (
+          <span className="absolute -top-1 -right-1 p-0.5 bg-black/90 rounded-full border border-amber-500/40 text-amber-400" title="Score masqué au public">
+            <IconLock size={10} />
           </span>
-          <span className="text-xs sm:text-sm font-black text-white">
-            {totalScore} <span className="text-[9px] font-normal text-gray-300">pts</span>
-          </span>
-        </div>
+        )}
       </button>
     );
   }
@@ -73,27 +94,27 @@ export default function PerformanceScoreCard({
       onClick={onClickDetail}
       className="w-full h-full p-4 rounded-2xl glass-panel border border-white/10 hover:border-white/20 transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden"
       style={{
-        boxShadow: `inset 0 0 20px ${gradeBg}`,
+        boxShadow: `inset 0 0 20px ${activeGradeBg}`,
       }}
     >
       {/* BACKGROUND ACCENT */}
       <div
         className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full opacity-10 pointer-events-none blur-xl"
-        style={{ backgroundColor: gradeColor }}
+        style={{ backgroundColor: activeGradeColor }}
       />
 
       {/* TOP BAR */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: gradeColor }} />
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeGradeColor }} />
           <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
             Score SPI • {dominantRole}
           </span>
         </div>
 
         {!isPublic && isOwner && (
-          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-            🔒 Privé
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+            <IconLock size={10} /> Privé
           </span>
         )}
       </div>
@@ -107,29 +128,30 @@ export default function PerformanceScoreCard({
           </div>
           <span
             className="text-[11px] font-black uppercase tracking-wider"
-            style={{ color: gradeColor }}
+            style={{ color: activeGradeColor }}
           >
-            Grade {grade} • {gradeTitle}
+            Grade {grade}
           </span>
         </div>
 
-        <div
-          className="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-2xl tracking-tighter border shadow-lg group-hover:scale-110 transition-transform"
-          style={{
-            color: gradeColor,
-            backgroundColor: gradeBg,
-            borderColor: gradeBorder,
-            boxShadow: gradeGlow,
-          }}
-        >
-          {grade}
-        </div>
+        <PerformanceStarBadge
+          grade={grade}
+          score={totalScore}
+          gradeColor={activeGradeColor}
+          gradeBg={activeGradeBg}
+          gradeBorder={activeGradeBorder}
+          gradeGlow={gradeGlow}
+          size="md"
+          layout="icon-only"
+        />
       </div>
 
       {/* FOOTER */}
       <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-gray-400">
         <span>Cliquer pour le détail</span>
-        <span className="group-hover:translate-x-1 transition-transform">➔</span>
+        <span className="group-hover:translate-x-1 transition-transform">
+          <IconChevronRight size={12} />
+        </span>
       </div>
     </div>
   );

@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import StatCard from "./StatCard";
-import PerformanceCharts from "./PerformanceCharts";
+import PerformanceCharts, { MetricType } from "./PerformanceCharts";
 import WeaponHitmap from "./WeaponHitmap";
 import PerformanceScoreCard from "./PerformanceScoreCard";
+import AiCoachWidget from "./AiCoachWidget";
 import { PerformanceScoreResult } from "@/lib/valorant/performanceScore";
 import {
   IconCrosshair,
@@ -20,6 +21,7 @@ import {
   IconGamepad,
   IconAppGrid,
   IconSettings,
+  IconBrain,
 } from "./icons/SpyIcons";
 import { sounds } from "@/lib/soundEffects";
 
@@ -30,6 +32,12 @@ export interface GridItemConfig {
   colSpan: number;
   rowSpan: number;
   visible: boolean;
+}
+
+export interface ChartConfig {
+  id: string;
+  title: string;
+  metrics: MetricType[];
 }
 
 export interface DashboardGridProps {
@@ -43,6 +51,10 @@ export interface DashboardGridProps {
   initialGridData?: string | null;
   performanceScoreResult?: PerformanceScoreResult | null;
   onOpenPerformanceModal?: () => void;
+  onOpenCoachModal?: () => void;
+  agentStats?: any[];
+  playerName?: string;
+  onSaveGridData?: (gridJson: string) => void;
 }
 
 const DEFAULT_COLS = 29;
@@ -66,10 +78,12 @@ const DEFAULT_LAYOUT: GridItemConfig[] = [
   { id: "dd", x: 24, y: 8, colSpan: 5, rowSpan: 1, visible: true },
   { id: "wins", x: 0, y: 10, colSpan: 14, rowSpan: 1, visible: true },
   { id: "matches", x: 14, y: 10, colSpan: 15, rowSpan: 1, visible: true },
+  { id: "coach", x: 0, y: 11, colSpan: 29, rowSpan: 2, visible: true },
 ];
 
 export const ITEM_ICONS: Record<string, React.ReactNode> = {
   performanceScore: <IconTrophy size={14} />,
+  coach: <IconBrain size={14} />,
   chart: <IconChart size={14} />,
   weapons: <IconCrosshair size={14} />,
   kills: <IconCrosshair size={14} />,
@@ -90,6 +104,7 @@ export const ITEM_ICONS: Record<string, React.ReactNode> = {
 
 const ITEM_LABELS: Record<string, { label: string; desc: string }> = {
   performanceScore: { label: "Score de Performance (SPI)", desc: "Score intelligent sur 1 000 points" },
+  coach: { label: "Coach Tactique Spycam", desc: "Diagnostic télémétrique et débriefing en direct" },
   chart: { label: "Graphique de Progression", desc: "Courbe d'évolution K/D, ACS et Headshot" },
   weapons: { label: "Top Armes & Précision", desc: "Top 3 armes et zones de tir" },
   kills: { label: "Éliminations", desc: "Total des éliminations" },
@@ -110,7 +125,8 @@ const ITEM_LABELS: Record<string, { label: string; desc: string }> = {
 
 // Return strictly enforced minimum dimensions according to content needs
 export function getMinItemDimensions(itemId: string): { minCol: number; minRow: number } {
-  if (itemId === "chart") return { minCol: 8, minRow: 3 };
+  if (itemId === "chart" || itemId.startsWith("chart_")) return { minCol: 8, minRow: 3 };
+  if (itemId === "coach") return { minCol: 8, minRow: 2 };
   if (itemId === "weapons") return { minCol: 7, minRow: 3 };
   if (itemId === "performanceScore") return { minCol: 6, minRow: 2 };
   if (["fb", "ace", "kast", "dd"].includes(itemId)) return { minCol: 3, minRow: 1 };
@@ -203,13 +219,205 @@ export default function DashboardGrid({
   initialGridData,
   performanceScoreResult,
   onOpenPerformanceModal,
+  onOpenCoachModal,
+  agentStats = [],
+  playerName = "Joueur",
+  onSaveGridData,
 }: DashboardGridProps) {
   const storageKey = `spycam_grid_layout_v8_29_${userStorageKey}`;
+  const chartsStorageKey = `spycam_charts_config_v1_${userStorageKey}`;
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
   const gridCols = DEFAULT_COLS;
   const [layout, setLayout] = useState<GridItemConfig[]>(DEFAULT_LAYOUT);
-  const [isEditing, setIsEditing] = useState<boolean>(false);
+
+  // Mode édition persistant (ne se coupe pas lors du changement d'onglet ou de page)
+  const [isEditing, setIsEditing] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("spycam_dashboard_is_editing") === "true";
+    }
+    return false;
+  });
+
+  const setIsEditingPersistent = (val: boolean) => {
+    setIsEditing(val);
+    if (typeof window !== "undefined") {
+      if (val) {
+        sessionStorage.setItem("spycam_dashboard_is_editing", "true");
+      } else {
+        sessionStorage.removeItem("spycam_dashboard_is_editing");
+      }
+    }
+  };
+
+  // Instantanés pour annuler les modifications non confirmées
+  const [snapshotLayout, setSnapshotLayout] = useState<GridItemConfig[] | null>(null);
+  const [snapshotChartsConfig, setSnapshotChartsConfig] = useState<ChartConfig[] | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+
+  // Multi-charts configuration (main chart + any detached charts)
+  const [chartsConfig, setChartsConfig] = useState<ChartConfig[]>(() => {
+    const defaultConfigs: ChartConfig[] = [
+      { id: "chart", title: "Progression", metrics: ["kd", "acs", "hs", "spi"] },
+    ];
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(`spycam_charts_config_v1_${userStorageKey}`);
+        if (stored) {
+          const parsed: ChartConfig[] = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Migration automatique : garantir que "spi" est présent dans au moins un graphique
+            const allMetrics = parsed.flatMap((c) => c.metrics || []);
+            if (!allMetrics.includes("spi")) {
+              const main = parsed.find((c) => c.id === "chart") || parsed[0];
+              if (main) {
+                main.metrics = Array.from(new Set([...(main.metrics || []), "spi" as MetricType]));
+              } else {
+                parsed.unshift({ id: "chart", title: "Progression", metrics: ["kd", "acs", "hs", "spi"] });
+              }
+            }
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+    return defaultConfigs;
+  });
+
+  // Initialisation de l'instantané dès que le mode édition est actif
+  useEffect(() => {
+    if (isEditing && !snapshotLayout && layout && layout.length > 0) {
+      setSnapshotLayout(JSON.parse(JSON.stringify(layout)));
+      setSnapshotChartsConfig(JSON.parse(JSON.stringify(chartsConfig)));
+    }
+  }, [isEditing, snapshotLayout, layout, chartsConfig]);
+
+  const saveChartsConfig = (newConfigs: ChartConfig[]) => {
+    setChartsConfig(newConfigs);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(chartsStorageKey, JSON.stringify(newConfigs));
+      } catch {}
+    }
+  };
+
+  const handleStartEditing = () => {
+    sounds.playTabSwitch();
+    setSnapshotLayout(JSON.parse(JSON.stringify(layout)));
+    setSnapshotChartsConfig(JSON.parse(JSON.stringify(chartsConfig)));
+    setHasUnsavedChanges(false);
+    setIsEditingPersistent(true);
+  };
+
+  const handleCancelEditing = () => {
+    sounds.playClick();
+    if (snapshotLayout) {
+      setLayout(snapshotLayout);
+    }
+    if (snapshotChartsConfig) {
+      setChartsConfig(snapshotChartsConfig);
+    }
+    setHasUnsavedChanges(false);
+    setIsEditingPersistent(false);
+    setDrawerOpen(false);
+  };
+
+  const handleConfirmEditing = () => {
+    sounds.playLockIn();
+    saveState(layout, true);
+    saveChartsConfig(chartsConfig);
+    if (onSaveGridData) {
+      onSaveGridData(JSON.stringify({ cols: DEFAULT_COLS, items: layout }));
+    }
+    setSnapshotLayout(JSON.parse(JSON.stringify(layout)));
+    setSnapshotChartsConfig(JSON.parse(JSON.stringify(chartsConfig)));
+    setHasUnsavedChanges(false);
+    setIsEditingPersistent(false);
+    setDrawerOpen(false);
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 2500);
+  };
+
+  const handleDetachMetric = (fromChartId: string, metric: MetricType) => {
+    sounds.playClick();
+    const source = chartsConfig.find((c) => c.id === fromChartId);
+    if (!source || source.metrics.length <= 1) return;
+
+    const newMetrics = source.metrics.filter((m) => m !== metric);
+    const newChartId = `chart_${metric}`;
+    const metricNames: Record<MetricType, string> = {
+      kd: "K/D",
+      acs: "ACS",
+      hs: "Headshot %",
+      spi: "Score SPI",
+    };
+    const newChartConfig: ChartConfig = {
+      id: newChartId,
+      title: `Progression ${metricNames[metric] || metric.toUpperCase()}`,
+      metrics: [metric],
+    };
+
+    const updatedCharts = chartsConfig
+      .map((c) => (c.id === fromChartId ? { ...c, metrics: newMetrics } : c))
+      .filter((c) => c.id !== newChartId)
+      .concat(newChartConfig);
+
+    setChartsConfig(updatedCharts);
+    setHasUnsavedChanges(true);
+
+    // Insert detached chart into grid layout
+    setLayout((prev) => {
+      const sourceItem = prev.find((it) => it.id === fromChartId);
+      const targetY = sourceItem ? sourceItem.y + sourceItem.rowSpan : 0;
+      const newGridItem: GridItemConfig = {
+        id: newChartId,
+        x: 0,
+        y: targetY,
+        colSpan: sourceItem ? sourceItem.colSpan : DEFAULT_COLS,
+        rowSpan: sourceItem ? sourceItem.rowSpan : 4,
+        visible: true,
+      };
+      const resolved = resolveCollisions(
+        [...prev.filter((i) => i.id !== newChartId), newGridItem],
+        newChartId,
+        gridCols
+      );
+      if (!isEditing) {
+        saveState(resolved);
+        saveChartsConfig(updatedCharts);
+      }
+      return resolved;
+    });
+  };
+
+  const handleAttachMetric = (fromChartId: string, metric: MetricType, targetChartId: string) => {
+    sounds.playClick();
+    const source = chartsConfig.find((c) => c.id === fromChartId);
+    const target = chartsConfig.find((c) => c.id === targetChartId);
+    if (!source || !target) return;
+
+    const updatedSourceMetrics = source.metrics.filter((m) => m !== metric);
+    const updatedTargetMetrics = target.metrics.includes(metric)
+      ? target.metrics
+      : [...target.metrics, metric];
+
+    let updatedCharts = chartsConfig.map((c) => {
+      if (c.id === targetChartId) return { ...c, metrics: updatedTargetMetrics };
+      if (c.id === fromChartId) return { ...c, metrics: updatedSourceMetrics };
+      return c;
+    });
+
+    if (updatedSourceMetrics.length === 0 && fromChartId !== "chart") {
+      updatedCharts = updatedCharts.filter((c) => c.id !== fromChartId);
+      setLayout((prev) => prev.filter((it) => it.id !== fromChartId));
+    }
+
+    setChartsConfig(updatedCharts);
+    setHasUnsavedChanges(true);
+    if (!isEditing) {
+      saveChartsConfig(updatedCharts);
+    }
+  };
   
   // Custom Smooth Mouse Dragging State
   const [draggingItem, setDraggingItem] = useState<{
@@ -233,8 +441,10 @@ export default function DashboardGrid({
       if (gridContainerRef.current) {
         // Inner width excluding padding (16px on left and right when editing)
         const totalW = gridContainerRef.current.clientWidth;
-        const pad = isEditing ? 32 : 0;
-        setUsableWidth(Math.max(200, totalW - pad));
+        if (totalW > 0) {
+          const pad = isEditing ? 32 : 0;
+          setUsableWidth(Math.max(200, totalW - pad));
+        }
       }
     };
     updateWidth();
@@ -257,6 +467,8 @@ export default function DashboardGrid({
 
   // Load layout from Neon DB or localStorage
   useEffect(() => {
+    if (isEditing) return;
+
     // 1. If visiting a profile or have initialGridData from Neon DB:
     if (initialGridData) {
       try {
@@ -310,6 +522,39 @@ export default function DashboardGrid({
     } catch {}
   }, [storageKey, initialGridData]);
 
+  // Synchronise automatiquement les graphiques détachés (ex: chart_spi) avec layout
+  useEffect(() => {
+    setLayout((prev) => {
+      const existingIds = new Set(prev.map((i) => i.id));
+      const detachedCharts = chartsConfig.filter((c) => c.id !== "chart" && !existingIds.has(c.id));
+      if (detachedCharts.length === 0) return prev;
+
+      const mainChart = prev.find((i) => i.id === "chart");
+      let targetY = mainChart ? mainChart.y + mainChart.rowSpan : 0;
+      const baseSpan = mainChart ? mainChart.colSpan : DEFAULT_COLS;
+      const baseRow = mainChart ? mainChart.rowSpan : 4;
+
+      const newItems: GridItemConfig[] = detachedCharts.map((c) => {
+        const item: GridItemConfig = {
+          id: c.id,
+          x: 0,
+          y: targetY,
+          colSpan: baseSpan,
+          rowSpan: baseRow,
+          visible: true,
+        };
+        targetY += baseRow;
+        return item;
+      });
+
+      let updated = [...prev, ...newItems];
+      detachedCharts.forEach((c) => {
+        updated = resolveCollisions(updated, c.id, gridCols);
+      });
+      return updated;
+    });
+  }, [chartsConfig, gridCols]);
+
   // Save layout locally and sync to Neon DB
   const saveState = useCallback(
     (newLayout: GridItemConfig[], syncToDatabase = false) => {
@@ -331,7 +576,14 @@ export default function DashboardGrid({
   );
 
   const handleResetLayout = () => {
-    saveState(DEFAULT_LAYOUT, true);
+    sounds.playClick();
+    // Réinitialise les graphiques à l'état complet unifié avec le SPI
+    const defaultCharts: ChartConfig[] = [
+      { id: "chart", title: "Progression", metrics: ["kd", "acs", "hs", "spi"] },
+    ];
+    setChartsConfig(defaultCharts);
+    setLayout(DEFAULT_LAYOUT);
+    setHasUnsavedChanges(true);
     setDrawerOpen(false);
   };
 
@@ -346,7 +598,8 @@ export default function DashboardGrid({
       // Hide item
       sounds.playClick();
       const updated = layout.map((item) => (item.id === id ? { ...item, visible: false } : item));
-      saveState(updated);
+      setLayout(updated);
+      setHasUnsavedChanges(true);
       return;
     }
 
@@ -373,13 +626,20 @@ export default function DashboardGrid({
       return item;
     });
 
-    saveState(updated);
+    const resolved = resolveCollisions(updated, id, gridCols);
+    setLayout(resolved);
+    setHasUnsavedChanges(true);
   };
 
   // Custom 60fps Mouse Dragging (RAF Throttled, Zero Lag)
   const handleCardMouseDown = (e: React.MouseEvent, item: GridItemConfig) => {
     if (!isEditing || resizingItemId) return;
-    if ((e.target as HTMLElement).closest("button") || (e.target as HTMLElement).closest(".resize-handle")) {
+    const target = e.target as HTMLElement;
+    if (
+      target.closest("[data-no-card-drag]") ||
+      target.closest("button") ||
+      target.closest(".resize-handle")
+    ) {
       return;
     }
 
@@ -442,7 +702,7 @@ export default function DashboardGrid({
           it.id === item.id ? { ...it, x: currentTargetX, y: currentTargetY, visible: true } : it
         );
         const resolved = resolveCollisions(updated, item.id, gridCols);
-        saveState(resolved);
+        setHasUnsavedChanges(true);
         return resolved;
       });
     };
@@ -454,7 +714,12 @@ export default function DashboardGrid({
   // Custom Touch Dragging for Mobile / Tablets
   const handleCardTouchStart = (e: React.TouchEvent, item: GridItemConfig) => {
     if (!isEditing || resizingItemId) return;
-    if ((e.target as HTMLElement).closest("button") || (e.target as HTMLElement).closest(".resize-handle")) {
+    const target = e.target as HTMLElement;
+    if (
+      target.closest("[data-no-card-drag]") ||
+      target.closest("button") ||
+      target.closest(".resize-handle")
+    ) {
       return;
     }
     const touch = e.touches[0];
@@ -520,7 +785,7 @@ export default function DashboardGrid({
           it.id === item.id ? { ...it, x: currentTargetX, y: currentTargetY, visible: true } : it
         );
         const resolved = resolveCollisions(updated, item.id, gridCols);
-        saveState(resolved);
+        setHasUnsavedChanges(true);
         return resolved;
       });
     };
@@ -594,7 +859,7 @@ export default function DashboardGrid({
 
       setLayout((prev) => {
         const resolved = resolveCollisions(prev, itemId, gridCols);
-        saveState(resolved);
+        setHasUnsavedChanges(true);
         return resolved;
       });
     };
@@ -672,7 +937,7 @@ export default function DashboardGrid({
 
       setLayout((prev) => {
         const resolved = resolveCollisions(prev, itemId, gridCols);
-        saveState(resolved);
+        setHasUnsavedChanges(true);
         return resolved;
       });
     };
@@ -684,7 +949,8 @@ export default function DashboardGrid({
   // Restore all hidden items
   const handleRestoreAll = () => {
     const updated = layout.map((item) => ({ ...item, visible: true }));
-    saveState(updated);
+    setLayout(updated);
+    setHasUnsavedChanges(true);
     setDrawerOpen(false);
   };
 
@@ -692,7 +958,8 @@ export default function DashboardGrid({
   const activeItems = useMemo(() => {
     return layout.filter((item) => {
       if (!item.visible) return false;
-      if (!canEdit && hiddenStatsByPrivacy.includes(item.id)) return false;
+      // Par défaut, le Coach Tactique et les statistiques masquées sont invisibles pour les visiteurs externes
+      if (!canEdit && (item.id === "coach" || hiddenStatsByPrivacy?.includes(item.id))) return false;
       return true;
     });
   }, [layout, canEdit, hiddenStatsByPrivacy]);
@@ -728,9 +995,51 @@ export default function DashboardGrid({
 
   // Render individual widget content
   const renderItemContent = (id: string) => {
+    if (id === "chart" || id.startsWith("chart_")) {
+      const foundCfg = chartsConfig.find((c) => c.id === id);
+      const cfg = foundCfg || {
+        id,
+        title: id === "chart" ? "Progression" : `Progression ${id.replace("chart_", "").toUpperCase()}`,
+        metrics: id === "chart" ? (["kd", "acs", "hs", "spi"] as MetricType[]) : ([(id.replace("chart_", "") as MetricType) || "spi"]),
+      };
+      const otherCharts = chartsConfig
+        .filter((c) => c.id !== id)
+        .map((c) => ({ id: c.id, label: c.title }));
+
+      // Si c'est le graphique principal et qu'aucun autre graphique n'existe, garantir la présence de SPI
+      const effectiveMetrics = (id === "chart" && otherCharts.length === 0 && !cfg.metrics.includes("spi"))
+        ? [...cfg.metrics, "spi" as MetricType]
+        : cfg.metrics;
+
+      return (
+        <PerformanceCharts
+          key={id}
+          chartId={id}
+          title={cfg.title}
+          matchHistory={matchHistory}
+          allowedMetrics={effectiveMetrics}
+          canDetach={effectiveMetrics.length > 1}
+          onDetachMetric={(m) => handleDetachMetric(id, m)}
+          isDetached={id !== "chart"}
+          availableTargetCharts={otherCharts}
+          onAttachMetric={(m, targetId) => handleAttachMetric(id, m, targetId)}
+          isEditing={isEditing}
+        />
+      );
+    }
+
     switch (id) {
       case "performanceScore":
-        if (!performanceScoreResult) return null;
+        if (!performanceScoreResult) {
+          return (
+            <div className="w-full h-full p-4 rounded-2xl glass-panel border border-white/10 flex flex-col justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
+                Score SPI
+              </span>
+              <span className="text-xs text-[var(--color-text-secondary)]">Chargement du score...</span>
+            </div>
+          );
+        }
         return (
           <PerformanceScoreCard
             result={performanceScoreResult}
@@ -739,8 +1048,16 @@ export default function DashboardGrid({
             isPublic={!hiddenStatsByPrivacy?.includes("performanceScore")}
           />
         );
-      case "chart":
-        return <PerformanceCharts matchHistory={matchHistory} />;
+      case "coach":
+        return (
+          <AiCoachWidget
+            matches={matchHistory}
+            agentStats={agentStats}
+            stats={stats}
+            playerName={playerName}
+            onOpenModal={onOpenCoachModal || (() => {})}
+          />
+        );
       case "weapons":
         return <WeaponHitmap matchHistory={matchHistory} stats={stats} />;
       case "kills":
@@ -885,38 +1202,48 @@ export default function DashboardGrid({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    sounds.playClick();
-                    handleResetLayout();
-                  }}
+                  onClick={handleResetLayout}
                   className="px-3 py-1.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
                   title="Réinitialiser l'agencement d'origine"
                 >
                   Réinitialiser
                 </button>
 
+                {/* Bouton Annuler */}
                 <button
                   type="button"
-                  onClick={() => {
-                    sounds.playLockIn();
-                    setIsEditing(false);
-                    setDrawerOpen(false);
-                    saveState(layout, true);
-                    setSaveToast(true);
-                    setTimeout(() => setSaveToast(false), 2500);
-                  }}
-                  className="px-4 py-1.5 bg-[var(--color-val-red)] hover:bg-[#ff5865] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(255,70,85,0.4)] flex items-center gap-1.5 cursor-pointer"
+                  onClick={handleCancelEditing}
+                  className="px-3.5 py-1.5 bg-neutral-800/90 hover:bg-neutral-700 border border-white/10 hover:border-white/20 text-neutral-300 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Annuler les modifications et rétablir la disposition d'origine"
                 >
-                  <span>Terminer</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                  <span>Annuler</span>
+                </button>
+
+                {/* Bouton Confirmer */}
+                <button
+                  type="button"
+                  onClick={handleConfirmEditing}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-lg ${
+                    hasUnsavedChanges
+                      ? "bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/30 font-black ring-2 ring-emerald-300/60 animate-pulse"
+                      : "bg-[var(--color-val-red)] hover:bg-[#ff5865] text-white shadow-[0_0_15px_rgba(255,70,85,0.4)]"
+                  }`}
+                  title="Confirmer et enregistrer définitivement la disposition"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <span>Confirmer</span>
                 </button>
               </>
             ) : (
               <button
                 type="button"
-                onClick={() => {
-                  sounds.playTabSwitch();
-                  setIsEditing(true);
-                }}
+                onClick={handleStartEditing}
                 className="hidden md:flex px-3 py-1.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] border border-[var(--color-border)] hover:border-[var(--color-val-red)]/50 text-[var(--color-text-primary)] hover:text-[var(--color-val-red)] rounded-xl text-xs font-bold uppercase tracking-wider transition-all items-center gap-1.5 cursor-pointer shadow-sm group"
               >
                 <svg
@@ -953,14 +1280,33 @@ export default function DashboardGrid({
 
       {/* Live Resize Tooltip Hint */}
       {resizeHint && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-[#0f1923] border border-[var(--color-val-red)] text-white px-4 py-2 rounded-full shadow-2xl text-xs font-black uppercase tracking-wider animate-pulse">
-          📐 {resizeHint}
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-[#0f1923] border border-[var(--color-val-red)] text-white px-4 py-2 rounded-full shadow-2xl text-xs font-black uppercase tracking-wider animate-pulse flex items-center gap-1.5">
+          <IconSettings size={13} className="text-[var(--color-val-red)]" />
+          <span>{resizeHint}</span>
         </div>
       )}
 
       {/* Main Grid Container with exact padding boundary */}
       <div
         ref={gridContainerRef}
+        onDragOver={(e) => {
+          if (isEditing) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+          }
+        }}
+        onDrop={(e) => {
+          if (!isEditing) return;
+          try {
+            const raw = e.dataTransfer.getData("application/spycam-metric");
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (data.chartId && data.metric) {
+              sounds.playLockIn();
+              handleDetachMetric(data.chartId, data.metric);
+            }
+          } catch {}
+        }}
         className={`w-full transition-all duration-300 relative ${
           isEditing ? "p-3 sm:p-4 rounded-3xl border-2 border-dashed border-[var(--color-val-red)]/40 bg-black/25" : ""
         }`}
@@ -968,7 +1314,7 @@ export default function DashboardGrid({
         {/* Mobile helper notice during edit mode */}
         {isEditing && isMobile && (
           <div className="mb-3 px-3 py-2 bg-[var(--color-surface)]/90 border border-[var(--color-val-red)]/30 rounded-xl flex items-center gap-2 text-[11px] text-[var(--color-text-secondary)]">
-            <span>👉</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-val-red)] shrink-0"></span>
             <span>
               Faites défiler horizontalement pour accéder à toutes les cases et déplacer vos blocs.
             </span>
@@ -982,7 +1328,7 @@ export default function DashboardGrid({
           isMobile ? (
             <div className="w-full grid grid-cols-2 gap-2.5">
               {sortedActiveItems.map((item) => {
-                const isChart = item.id === "chart";
+                const isChart = item.id === "chart" || item.id.startsWith("chart_");
                 const isWeapons = item.id === "weapons";
                 const isFull = isChart || isWeapons;
 
@@ -1089,6 +1435,7 @@ export default function DashboardGrid({
                 const w = actualColSpan * cellSize + (actualColSpan - 1) * GRID_GAP;
                 const h = item.rowSpan * cellSize + (item.rowSpan - 1) * GRID_GAP;
 
+                const isChart = item.id === "chart" || item.id.startsWith("chart_");
                 const transform = isBeingDragged
                   ? `translate3d(${draggingItem.deltaX}px, ${draggingItem.deltaY}px, 0)`
                   : "none";
@@ -1116,7 +1463,7 @@ export default function DashboardGrid({
                         : "cursor-grab hover:shadow-xl"
                     }`}
                   >
-                    <div className="w-full h-full flex-1 flex flex-col min-h-0 overflow-hidden pointer-events-none">
+                    <div className={`w-full h-full flex-1 flex flex-col min-h-0 overflow-hidden ${isChart ? "pointer-events-auto" : "pointer-events-none"}`}>
                       {renderItemContent(item.id)}
                     </div>
 
@@ -1194,7 +1541,14 @@ export default function DashboardGrid({
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
             {hiddenDrawerItems.map((hiddenItem) => {
-              const meta = ITEM_LABELS[hiddenItem.id] || { label: hiddenItem.id, desc: "" };
+              const meta =
+                ITEM_LABELS[hiddenItem.id] ||
+                (hiddenItem.id.startsWith("chart_")
+                  ? {
+                      label: `Graphique ${hiddenItem.id.replace("chart_", "").toUpperCase()}`,
+                      desc: "Graphique de progression détaché",
+                    }
+                  : { label: hiddenItem.id, desc: "" });
               const iconEl = ITEM_ICONS[hiddenItem.id] || <IconChart size={14} />;
               return (
                 <div

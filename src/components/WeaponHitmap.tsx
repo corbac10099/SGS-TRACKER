@@ -146,7 +146,7 @@ export default function WeaponHitmap({ matchHistory, stats }: WeaponHitmapProps)
 
   return (
     <>
-      <div className="glass-panel rounded-2xl p-3 sm:p-4 w-full h-full flex flex-col justify-between overflow-hidden select-none bg-[#0c141d]/90 border border-white/10 shadow-xl">
+      <div className="glass-panel rounded-2xl p-3 sm:p-4 w-full h-full flex flex-col justify-between overflow-hidden select-none">
         {/* Top 3 Weapons List */}
         <div className="flex-1 flex flex-col justify-around divide-y divide-white/5 min-h-0">
           {top3Weapons.map((w) => {
@@ -250,7 +250,7 @@ export default function WeaponHitmap({ matchHistory, stats }: WeaponHitmapProps)
 
                 {/* Right: "Tue" and Kill Count */}
                 <div className="flex flex-col items-end flex-shrink-0 min-w-[40px] pl-1">
-                  <span className="text-[10px] sm:text-xs font-medium text-sky-300 tracking-wide">
+                  <span className="text-[10px] sm:text-xs font-semibold text-[var(--color-text-secondary)] tracking-wide">
                     Tue
                   </span>
                   <span className="text-base sm:text-lg font-black text-white leading-none mt-0.5">
@@ -286,7 +286,7 @@ export default function WeaponHitmap({ matchHistory, stats }: WeaponHitmapProps)
           }}
         >
           <div
-            className="w-full max-w-lg bg-[#0c141d] border border-white/15 rounded-3xl p-5 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
+            className="w-full max-w-lg glass-modal rounded-3xl p-5 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -320,7 +320,7 @@ export default function WeaponHitmap({ matchHistory, stats }: WeaponHitmapProps)
                 return (
                   <div
                     key={w.id}
-                    className="p-3 rounded-2xl bg-black/40 border border-white/5 hover:border-white/20 transition-all flex items-center justify-between gap-3"
+                    className="p-3 rounded-2xl glass-card flex items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="text-xs font-bold text-gray-500 font-mono w-4">
@@ -342,7 +342,7 @@ export default function WeaponHitmap({ matchHistory, stats }: WeaponHitmapProps)
 
                     <div className="flex items-center gap-4 flex-shrink-0">
                       <div className="flex items-center gap-2 text-xs font-mono">
-                        <span className="text-red-400 font-bold" title="Tête">{headPct}%</span>
+                        <span className="text-[var(--color-val-red)] font-bold" title="Tête">{headPct}%</span>
                         <span className="text-gray-500">/</span>
                         <span className="text-gray-200 font-bold" title="Corps">{bodyPct}%</span>
                         <span className="text-gray-500">/</span>
@@ -350,7 +350,7 @@ export default function WeaponHitmap({ matchHistory, stats }: WeaponHitmapProps)
                       </div>
 
                       <div className="text-right min-w-[45px]">
-                        <span className="text-xs text-sky-300 block text-[10px]">Tue</span>
+                        <span className="text-xs text-[var(--color-text-secondary)] block text-[10px] font-semibold">Tue</span>
                         <span className="text-sm font-black text-white">{w.kills}</span>
                       </div>
                     </div>

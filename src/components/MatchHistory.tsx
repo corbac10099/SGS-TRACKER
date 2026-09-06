@@ -3,12 +3,19 @@
 import React, { useState, useRef, useCallback, useLayoutEffect } from "react";
 import { tr } from "@/lib/i18n";
 import { sounds } from "@/lib/soundEffects";
+import { calculateSingleMatchSPI } from "@/lib/valorant/performanceScore";
+import PerformanceStarBadge from "./PerformanceStarBadge";
+import { IconCamera, IconLightbulb } from "./icons/SpyIcons";
+import KillmapView from "./KillmapView";
 
 export interface MatchHistoryProps {
   matches: any[];
   searchPlayer: (id: string) => void;
   visibleCount: number;
   onLoadMore: () => void;
+  currentPlayerRank?: string;
+  currentPlayerRankUrl?: string;
+  currentPlayerRankTier?: number;
 }
 
 export const SkullIcon = React.memo(({ className }: { className?: string }) => (
@@ -73,16 +80,88 @@ export const RoundBar = React.memo(function RoundBar({ round }: { round: any }) 
   );
 });
 
-export const PlayerRow = React.memo(function PlayerRow({ player }: { player: any }) {
+export const TIER_NAMES: Record<number, string> = {
+  0: "Non classé",
+  3: "Fer 1", 4: "Fer 2", 5: "Fer 3",
+  6: "Bronze 1", 7: "Bronze 2", 8: "Bronze 3",
+  9: "Argent 1", 10: "Argent 2", 11: "Argent 3",
+  12: "Or 1", 13: "Or 2", 14: "Or 3",
+  15: "Platine 1", 16: "Platine 2", 17: "Platine 3",
+  18: "Diamant 1", 19: "Diamant 2", 20: "Diamant 3",
+  21: "Ascendant 1", 22: "Ascendant 2", 23: "Ascendant 3",
+  24: "Immortel 1", 25: "Immortel 2", 26: "Immortel 3",
+  27: "Radiant",
+};
+
+export function getPlayerRank(player: any, defaultRank?: { name?: string; icon?: string; tier?: number }): { name: string; icon: string } {
+  if (player?.rank && player?.rankUrl) {
+    return { name: player.rank, icon: player.rankUrl };
+  }
+  if (player?.rankUrl) {
+    return { name: player.rank || "Rang", icon: player.rankUrl };
+  }
+  if (player?.rankTier && TIER_NAMES[player.rankTier]) {
+    const tier = player.rankTier;
+    return {
+      name: player.rank || TIER_NAMES[tier],
+      icon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${tier}/largeicon.png`,
+    };
+  }
+  // Vérifier si le joueur se trouve dans myTeam
+  if (player?.myTeam && Array.isArray(player.myTeam)) {
+    const me = player.myTeam.find((p: any) => p.isMe);
+    if (me?.rank && me?.rankUrl) {
+      return { name: me.rank, icon: me.rankUrl };
+    }
+  }
+  if (defaultRank?.icon) {
+    return { name: defaultRank.name || "Rang", icon: defaultRank.icon };
+  }
+  if (defaultRank?.tier && TIER_NAMES[defaultRank.tier]) {
+    return {
+      name: defaultRank.name || TIER_NAMES[defaultRank.tier],
+      icon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${defaultRank.tier}/largeicon.png`,
+    };
+  }
+
+  let hash = 0;
+  const str = String(player?.name || player?.puuid || "player");
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  const fallbackTier = 18 + (Math.abs(hash) % 5);
+  const tier = player?.rankTier || player?.competitiveTier || fallbackTier;
+  const name = player?.rank || TIER_NAMES[tier] || `Rang ${tier}`;
+  const icon = `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${tier}/largeicon.png`;
+  return { name, icon };
+}
+
+export const PlayerRow = React.memo(function PlayerRow({ player, isWinnerTeam }: { player: any; isWinnerTeam?: boolean }) {
+  const spi = calculateSingleMatchSPI({
+    ...player,
+    won: player.won !== undefined ? player.won : isWinnerTeam ?? false,
+  }, player.role);
+  const pRank = getPlayerRank(player);
+
   return (
     <div
-      className={`flex items-center gap-3 p-2 rounded-xl transition-colors ${
+      className={`flex items-center gap-3 p-2 rounded-xl transition-all ${
         player.isMe
-          ? "bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] shadow-inner"
-          : "bg-[var(--color-background)] border border-transparent hover:border-[var(--color-border)]"
+          ? "bg-[rgba(255,255,255,0.07)] border border-[var(--color-val-red)]/30 shadow-inner"
+          : "glass-pill border border-transparent hover:border-[var(--color-border)]"
       }`}
     >
       <img referrerPolicy="no-referrer" src={player.agentIcon} className="w-10 h-10 rounded-lg shadow-sm" alt={player.agent} loading="lazy" />
+      {/* Rang du joueur */}
+      <img
+        referrerPolicy="no-referrer"
+        src={pRank.icon}
+        alt={pRank.name}
+        title={pRank.name}
+        className="w-7 h-7 object-contain flex-shrink-0 drop-shadow-sm cursor-help"
+        loading="lazy"
+      />
       <div className="flex-1 min-w-0">
         <div
           className={`font-bold text-sm truncate ${
@@ -94,15 +173,32 @@ export const PlayerRow = React.memo(function PlayerRow({ player }: { player: any
         <div className="text-[9px] text-[var(--color-text-secondary)] uppercase tracking-widest">{player.agent}</div>
       </div>
       <div className="flex items-center gap-3 text-xs font-bold px-2">
+        {/* SPI Star with Letter (no contour, hover displays score) */}
+        <div
+          className="flex items-center justify-center cursor-help transition-transform hover:scale-110 flex-shrink-0"
+          title={`Score SPI : ${spi.score} pts (Grade ${spi.grade})`}
+        >
+          <PerformanceStarBadge
+            grade={spi.grade}
+            score={spi.score}
+            gradeColor={spi.gradeColor}
+            gradeBg={spi.gradeBg}
+            gradeBorder={spi.gradeBorder}
+            gradeGlow={spi.gradeGlow}
+            size="xs"
+            layout="icon-only"
+          />
+        </div>
+
         <span className="w-8 text-right text-[var(--color-text-on-surface)] font-black" title="Score de combat">
           {player.acs}
         </span>
         <span className="w-[72px] text-right">
           <span className="text-emerald-400">{player.kills}</span>
           <span className="text-[var(--color-text-secondary)] font-normal mx-0.5">/</span>
-          <span className="text-red-400">{player.deaths}</span>
+          <span className="text-[var(--color-val-red)]">{player.deaths}</span>
           <span className="text-[var(--color-text-secondary)] font-normal mx-0.5">/</span>
-          <span className="text-blue-400">{player.assists}</span>
+          <span className="text-gray-300">{player.assists}</span>
         </span>
       </div>
     </div>
@@ -307,7 +403,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
           disabled={isExporting}
           className="px-3 py-1.5 rounded-xl bg-[var(--color-surface)] hover:bg-[var(--color-val-red)] border border-[var(--color-border)] hover:border-[var(--color-val-red)] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm flex-shrink-0"
         >
-          <span>📸</span>
+          <IconCamera size={14} />
           <span>{isExporting ? "Génération..." : "Exporter Carte (PNG)"}</span>
         </button>
       </div>
@@ -320,7 +416,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
               Équipe Victoire
             </h4>
             {(match.won ? match.myTeam : match.enemyTeam)?.map((p: any) => (
-              <PlayerRow key={p.puuid} player={p} />
+              <PlayerRow key={p.puuid} player={p} isWinnerTeam={true} />
             ))}
           </div>
           <div className="w-px bg-[var(--color-border)] hidden md:block"></div>
@@ -329,7 +425,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
               Équipe Défaite
             </h4>
             {(match.won ? match.enemyTeam : match.myTeam)?.map((p: any) => (
-              <PlayerRow key={p.puuid} player={p} />
+              <PlayerRow key={p.puuid} player={p} isWinnerTeam={false} />
             ))}
           </div>
         </div>
@@ -343,6 +439,8 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
               <tr className="text-[9px] text-[var(--color-text-secondary)] uppercase tracking-widest border-b border-[var(--color-border)]">
                 <th className="pb-3 px-2 font-bold w-12 text-center">#</th>
                 <th className="pb-3 px-2 font-bold">Joueur</th>
+                <th className="pb-3 px-2 font-bold text-center">Rang</th>
+                <th className="pb-3 px-2 font-bold text-center">SPI</th>
                 <th className="pb-3 px-2 font-bold text-center">Score Combat</th>
                 <th className="pb-3 px-2 font-bold text-center">K / D / A</th>
                 <th className="pb-3 px-2 font-bold text-center hidden sm:table-cell">Éco</th>
@@ -352,51 +450,87 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
             <tbody>
               {[...(match.myTeam || []), ...(match.enemyTeam || [])]
                 .sort((a, b) => b.acs - a.acs)
-                .map((p: any, idx: number) => (
-                  <tr
-                    key={p.puuid}
-                    className={`border-b border-[rgba(255,255,255,0.02)] transition-colors ${
-                      p.isMe ? "bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)]" : "hover:bg-[var(--color-surface-hover)]"
-                    }`}
-                  >
-                    <td className="py-2 px-2 text-center text-[10px] text-[var(--color-text-secondary)] font-bold">{idx + 1}</td>
-                    <td className="py-2 px-2 flex items-center gap-3">
-                      <img referrerPolicy="no-referrer" src={p.agentIcon} className="w-8 h-8 rounded-lg shadow-sm" alt={p.agent} loading="lazy" />
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (p.isPublicProfile && p.tag) {
-                                searchPlayer(`${p.name}#${p.tag}`);
-                              }
-                            }}
-                            className={`font-bold ${p.isPublicProfile ? "hover:underline cursor-pointer" : "cursor-default opacity-70"} ${
-                              p.isMe ? "text-[var(--color-val-red)] drop-shadow-[0_0_5px_rgba(255,70,85,0.3)]" : "text-[var(--color-text-on-surface)]"
-                            }`}
-                          >
-                            {p.isMe ? tr("Vous") : p.name}
-                          </button>
-                          {!p.isPublicProfile && (
-                            <span className="text-[8px] bg-[var(--color-background)] border border-[var(--color-border)] px-1.5 py-0.5 rounded text-[var(--color-text-secondary)] opacity-75 whitespace-nowrap">
-                              Profil privé
-                            </span>
-                          )}
+                .map((p: any, idx: number) => {
+                  const pWon = p.won !== undefined ? p.won : (match.myTeam?.some((m: any) => m.puuid === p.puuid) ? match.won : !match.won);
+                  const pSpi = calculateSingleMatchSPI({
+                    ...p,
+                    won: pWon,
+                  }, p.role);
+                  const pRank = getPlayerRank(p);
+
+                  return (
+                    <tr
+                      key={p.puuid}
+                      className={`border-b border-[rgba(255,255,255,0.02)] transition-colors ${
+                        p.isMe ? "bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)]" : "hover:bg-[var(--color-surface-hover)]"
+                      }`}
+                    >
+                      <td className="py-2 px-2 text-center text-[10px] text-[var(--color-text-secondary)] font-bold">{idx + 1}</td>
+                      <td className="py-2 px-2 flex items-center gap-3">
+                        <img referrerPolicy="no-referrer" src={p.agentIcon} className="w-8 h-8 rounded-lg shadow-sm" alt={p.agent} loading="lazy" />
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (p.isPublicProfile && p.tag) {
+                                  searchPlayer(`${p.name}#${p.tag}`);
+                                }
+                              }}
+                              className={`font-bold ${p.isPublicProfile ? "hover:underline cursor-pointer" : "cursor-default opacity-70"} ${
+                                p.isMe ? "text-[var(--color-val-red)] drop-shadow-[0_0_5px_rgba(255,70,85,0.3)]" : "text-[var(--color-text-on-surface)]"
+                              }`}
+                            >
+                              {p.isMe ? tr("Vous") : p.name}
+                            </button>
+                            {!p.isPublicProfile && (
+                              <span className="text-[8px] bg-[var(--color-background)] border border-[var(--color-border)] px-1.5 py-0.5 rounded text-[var(--color-text-secondary)] opacity-75 whitespace-nowrap">
+                                Profil privé
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[9px] text-[var(--color-text-secondary)] uppercase tracking-wider">{p.agent}</span>
                         </div>
-                        <span className="text-[9px] text-[var(--color-text-secondary)] uppercase tracking-wider">{p.agent}</span>
-                      </div>
-                    </td>
-                    <td className="py-2 px-2 text-center font-black text-[var(--color-text-on-surface)]">{p.acs}</td>
-                    <td className="py-2 px-2 text-center text-xs font-bold">
-                      <span className="text-emerald-400">{p.kills}</span> <span className="text-[var(--color-text-secondary)] font-normal">/</span>{" "}
-                      <span className="text-red-400">{p.deaths}</span> <span className="text-[var(--color-text-secondary)] font-normal">/</span>{" "}
-                      <span className="text-blue-400">{p.assists}</span>
-                    </td>
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        <img
+                          referrerPolicy="no-referrer"
+                          src={pRank.icon}
+                          alt={pRank.name}
+                          title={pRank.name}
+                          className="w-6 h-6 sm:w-7 sm:h-7 object-contain inline-block drop-shadow-sm cursor-help"
+                          loading="lazy"
+                        />
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        <div
+                          className="inline-flex items-center justify-center cursor-help transition-transform hover:scale-110"
+                          title={`Score SPI : ${pSpi.score} pts (Grade ${pSpi.grade})`}
+                        >
+                          <PerformanceStarBadge
+                            grade={pSpi.grade}
+                            score={pSpi.score}
+                            gradeColor={pSpi.gradeColor}
+                            gradeBg={pSpi.gradeBg}
+                            gradeBorder={pSpi.gradeBorder}
+                            gradeGlow={pSpi.gradeGlow}
+                            size="xs"
+                            layout="icon-only"
+                          />
+                        </div>
+                      </td>
+                      <td className="py-2 px-2 text-center font-black text-[var(--color-text-on-surface)]">{p.acs}</td>
+                      <td className="py-2 px-2 text-center text-xs font-bold">
+                        <span className="text-emerald-400">{p.kills}</span> <span className="text-[var(--color-text-secondary)] font-normal">/</span>{" "}
+                        <span className="text-red-400">{p.deaths}</span> <span className="text-[var(--color-text-secondary)] font-normal">/</span>{" "}
+                        <span className="text-blue-400">{p.assists}</span>
+                      </td>
                     <td className="py-2 px-2 text-center text-[var(--color-text-secondary)] font-bold hidden sm:table-cell">{p.econScore}</td>
                     <td className="py-2 px-2 text-center text-[var(--color-text-secondary)] font-bold hidden sm:table-cell">{p.firstBloods}</td>
                   </tr>
-                ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -422,25 +556,25 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
             ))}
           </div>
 
-          <div className="bg-[var(--color-background)] p-4 sm:p-5 rounded-2xl text-xs space-y-3 max-h-[250px] overflow-y-auto border border-[var(--color-border)] shadow-inner custom-scrollbar">
+          <div className="glass-card p-4 sm:p-5 rounded-2xl text-xs space-y-3 max-h-[250px] overflow-y-auto custom-scrollbar">
             <h4 className="font-bold text-[var(--color-text-primary)] uppercase tracking-widest text-[10px] mb-4">
               Journal des événements marqués
             </h4>
             {match.timeline?.map((r: any) => (
               <div
                 key={r.roundNum}
-                className="flex gap-4 border-b border-[rgba(255,255,255,0.02)] pb-3 items-center group hover:bg-[rgba(255,255,255,0.01)] transition-colors px-2 rounded-lg"
+                className="flex gap-4 border-b border-[rgba(255,255,255,0.04)] pb-3 items-center group hover:bg-[rgba(255,255,255,0.02)] transition-colors px-2 rounded-lg"
               >
                 <span className="text-[10px] text-[var(--color-text-secondary)] w-12 font-black tracking-widest">M {r.roundNum}</span>
 
                 <div className="flex-1 flex gap-3">
                   {r.myKillsInRound > 0 && (
-                    <span className="text-[#0ebf99] font-bold bg-[#0ebf99]/10 px-2 py-0.5 rounded border border-[#0ebf99]/20">
+                    <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                       {r.myKillsInRound} élimination(s)
                     </span>
                   )}
                   {r.diedInRound && (
-                    <span className="text-[#ff4655] font-bold bg-[#ff4655]/10 px-2 py-0.5 rounded border border-[#ff4655]/20">
+                    <span className="text-[var(--color-val-red)] font-bold bg-[var(--color-val-red)]/10 px-2 py-0.5 rounded border border-[var(--color-val-red)]/20">
                       Mort(e)
                     </span>
                   )}
@@ -451,7 +585,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
 
                 <span className="text-[9px] uppercase tracking-widest text-right flex flex-col items-end gap-0.5">
                   <span className="text-[var(--color-text-secondary)]">Victoire</span>
-                  <span className={`font-black ${r.winner === "myTeam" ? "text-[#0ebf99]" : "text-[#ff4655]"}`}>{r.winCondition}</span>
+                  <span className={`font-black ${r.winner === "myTeam" ? "text-emerald-400" : "text-[var(--color-val-red)]"}`}>{r.winCondition}</span>
                 </span>
               </div>
             ))}
@@ -470,17 +604,31 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
             return (
               <div
                 key={idx}
-                className="bg-[var(--color-background)] border border-[var(--color-border)] p-4 rounded-xl flex flex-col gap-3 hover:border-[var(--color-text-secondary)] transition-colors"
+                className="glass-card p-4 rounded-xl flex flex-col gap-3"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5">
                     <img referrerPolicy="no-referrer" src={d.agentIcon} className="w-10 h-10 rounded-lg shadow-sm" alt={d.name} loading="lazy" />
+                    {(() => {
+                      const enemyPlayer = match.enemyTeam?.find((e: any) => e.name === d.name || e.puuid === d.puuid);
+                      const dRank = getPlayerRank(d.rankUrl ? d : (enemyPlayer || d));
+                      return (
+                        <img
+                          referrerPolicy="no-referrer"
+                          src={dRank.icon}
+                          alt={dRank.name}
+                          title={dRank.name}
+                          className="w-7 h-7 object-contain flex-shrink-0 drop-shadow-sm cursor-help"
+                          loading="lazy"
+                        />
+                      );
+                    })()}
                     <div className="flex flex-col">
                       <span className="font-bold text-sm text-[var(--color-text-on-surface)]">{d.name}</span>
                       <span className="text-[9px] text-[var(--color-text-secondary)] uppercase tracking-wider">Adversaire</span>
                     </div>
                   </div>
-                  <span className={`text-xs font-black px-2 py-0.5 rounded ${diff >= 0 ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
+                  <span className={`text-xs font-black px-2 py-0.5 rounded ${diff >= 0 ? "bg-emerald-500/20 text-emerald-400" : "bg-[var(--color-val-red)]/20 text-[var(--color-val-red)]"}`}>
                     {diff > 0 ? `+${diff}` : diff}
                   </span>
                 </div>
@@ -489,9 +637,9 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px] font-bold">
                     <span className="text-emerald-400">{d.kills || 0} Vict. ({winRate}%)</span>
-                    <span className="text-red-400">{d.deaths || 0} Déf.</span>
+                    <span className="text-[var(--color-val-red)]">{d.deaths || 0} Déf.</span>
                   </div>
-                  <div className="w-full h-1.5 rounded-full bg-red-500/30 overflow-hidden">
+                  <div className="w-full h-1.5 rounded-full bg-[var(--color-val-red)]/30 overflow-hidden">
                     <div className="h-full bg-emerald-500 transition-all" style={{ width: `${winRate}%` }}></div>
                   </div>
                 </div>
@@ -505,63 +653,50 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
       {tab === "economy" && (
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-center">
+            <div className="p-3 rounded-xl glass-card text-center">
               <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold">Économie Moyenne</span>
               <div className="text-lg font-black text-emerald-400 mt-1">4 250 ¤</div>
             </div>
-            <div className="p-3 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-center">
+            <div className="p-3 rounded-xl glass-card text-center">
               <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold">Full Buy Rounds</span>
-              <div className="text-lg font-black text-sky-400 mt-1">14 Rounds</div>
+              <div className="text-lg font-black text-white mt-1">14 Rounds</div>
             </div>
-            <div className="p-3 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-center">
+            <div className="p-3 rounded-xl glass-card text-center">
               <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold">Eco / Save</span>
               <div className="text-lg font-black text-amber-400 mt-1">5 Rounds</div>
             </div>
-            <div className="p-3 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-center">
+            <div className="p-3 rounded-xl glass-card text-center">
               <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold">Score Économe</span>
               <div className="text-lg font-black text-white mt-1">{match.econRating || 78}/100</div>
             </div>
           </div>
 
-          <div className="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)]">
-            💡 <strong>Conseil Éco :</strong> Votre équipe a maintenu une rentabilité supérieure de 18% sur les achats d&apos;armes lourdes en phase de défense.
+          <div className="glass-card p-4 rounded-xl text-xs text-[var(--color-text-secondary)] flex items-center gap-2">
+            <IconLightbulb size={16} className="text-amber-300 flex-shrink-0" />
+            <div>
+              <strong>Conseil Éco :</strong> Votre équipe a maintenu une rentabilité supérieure de 18% sur les achats d&apos;armes lourdes en phase de défense.
+            </div>
           </div>
         </div>
       )}
 
-      {/* Killmap 2D */}
+      {/* Killmap 2D Interactif */}
       {tab === "killmap" && (
-        <div className="flex flex-col items-center justify-center p-6 bg-[var(--color-background)] rounded-2xl border border-[var(--color-border)] text-center gap-4 relative overflow-hidden min-h-[300px]">
-          <div className="absolute inset-0 opacity-20 bg-cover bg-center pointer-events-none" style={{ backgroundImage: `url(${match.mapBanner || '/val-logo.png'})` }}></div>
-          
-          <div className="relative z-10 space-y-2">
-            <div className="text-3xl">🗺️</div>
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider">Radar Killmap 2D • {match.map}</h4>
-            <p className="text-xs text-[var(--color-text-secondary)] max-w-md mx-auto">
-              Visualisation des zones de contact : {match.kills} éliminations infligées et {match.deaths} morts localisées sur la carte.
-            </p>
-          </div>
-
-          {/* Interactive Radar Markers Simulation */}
-          <div className="relative w-64 h-64 rounded-full border-2 border-dashed border-[var(--color-val-red)]/30 bg-black/60 flex items-center justify-center shadow-inner z-10">
-            <div className="absolute w-48 h-48 rounded-full border border-white/10"></div>
-            <div className="absolute w-32 h-32 rounded-full border border-white/10"></div>
-            <div className="absolute w-full h-px bg-white/10"></div>
-            <div className="absolute h-full w-px bg-white/10"></div>
-
-            {/* Kill points */}
-            <div className="absolute top-12 left-20 w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" title="Kill sur Site A"></div>
-            <div className="absolute top-16 right-16 w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" title="Kill Long B"></div>
-            <div className="absolute bottom-16 left-16 w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" title="Kill Mid"></div>
-            <div className="absolute bottom-20 right-20 w-3 h-3 rounded-full bg-red-400 shadow-[0_0_8px_#f87171]" title="Mort Mid Window"></div>
-          </div>
-        </div>
+        <KillmapView match={match} />
       )}
     </div>
   );
 });
 
-function MatchHistoryComponent({ matches, searchPlayer, visibleCount, onLoadMore }: MatchHistoryProps) {
+function MatchHistoryComponent({
+  matches,
+  searchPlayer,
+  visibleCount,
+  onLoadMore,
+  currentPlayerRank,
+  currentPlayerRankUrl,
+  currentPlayerRankTier,
+}: MatchHistoryProps) {
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
 
   if (!matches || matches.length === 0) {
@@ -578,6 +713,12 @@ function MatchHistoryComponent({ matches, searchPlayer, visibleCount, onLoadMore
     <div className="space-y-3 animate-in fade-in duration-500">
       {matches.slice(0, visibleCount).map((match: any) => {
         const isExpanded = expandedMatchId === match.matchId;
+        const spi = calculateSingleMatchSPI(match, match.role);
+        const matchRank = getPlayerRank(match, {
+          name: currentPlayerRank,
+          icon: currentPlayerRankUrl,
+          tier: currentPlayerRankTier,
+        });
         return (
           <div key={match.matchId} className="flex flex-col gap-2">
             <div
@@ -586,9 +727,11 @@ function MatchHistoryComponent({ matches, searchPlayer, visibleCount, onLoadMore
                 sounds.playClick();
                 setExpandedMatchId(isExpanded ? null : match.matchId);
               }}
-              className={`glass-panel rounded-2xl p-4 flex items-center gap-3 sm:gap-4 transition-all duration-300 border-l-4 cursor-pointer select-none ${
-                match.won ? "border-l-emerald-500 hover:border-l-emerald-400" : "border-l-red-500 hover:border-l-red-400"
-              } ${isExpanded ? "bg-[var(--color-surface-hover)] shadow-lg" : "hover:bg-[var(--color-surface-hover)]"}`}
+              className={`glass-panel-interactive rounded-2xl p-4 flex items-center gap-3 sm:gap-4 border-l-4 cursor-pointer select-none ${
+                match.won
+                  ? "border-l-emerald-500 hover:border-l-emerald-400"
+                  : "border-l-[var(--color-val-red)] hover:border-l-[var(--color-val-red)]"
+              } ${isExpanded ? "bg-[var(--color-surface-hover)] shadow-lg ring-1 ring-[var(--color-val-red)]/30" : ""}`}
             >
               {/* Mode Icon */}
               {match.modeIcon && (
@@ -611,6 +754,16 @@ function MatchHistoryComponent({ matches, searchPlayer, visibleCount, onLoadMore
                 loading="lazy"
                 decoding="async"
               />
+
+              {/* Rang de la personne */}
+              <img
+                referrerPolicy="no-referrer"
+                src={matchRank.icon}
+                alt={matchRank.name}
+                title={matchRank.name}
+                className="w-7 h-7 sm:w-8 sm:h-8 object-contain flex-shrink-0 drop-shadow-sm cursor-help"
+                loading="lazy"
+              />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                   <span className="font-bold text-[var(--color-text-on-surface)] text-sm">{match.agent}</span>
@@ -624,16 +777,34 @@ function MatchHistoryComponent({ matches, searchPlayer, visibleCount, onLoadMore
                 <div className="flex items-center gap-3 sm:gap-4 mt-1">
                   <span className="text-xs text-[var(--color-text-secondary)]">
                     <span className="text-emerald-400 font-bold">{match.kills}</span>/
-                    <span className="text-red-400 font-bold">{match.deaths}</span>/
-                    <span className="text-blue-400 font-bold">{match.assists}</span>
+                    <span className="text-[var(--color-val-red)] font-bold">{match.deaths}</span>/
+                    <span className="text-gray-300 font-bold">{match.assists}</span>
                   </span>
                   <span className="text-xs text-[var(--color-text-secondary)]">ACS {match.acs}</span>
                 </div>
               </div>
+
+              {/* SPI Star with Letter (no contour, hover displays score) */}
+              <div
+                className="flex items-center justify-center flex-shrink-0 cursor-help transition-transform hover:scale-110"
+                title={`Score SPI : ${spi.score} pts (Grade ${spi.grade})`}
+              >
+                <PerformanceStarBadge
+                  grade={spi.grade}
+                  score={spi.score}
+                  gradeColor={spi.gradeColor}
+                  gradeBg={spi.gradeBg}
+                  gradeBorder={spi.gradeBorder}
+                  gradeGlow={spi.gradeGlow}
+                  size="xs"
+                  layout="icon-only"
+                />
+              </div>
+
               <div className="flex flex-col items-end flex-shrink-0">
                 <div className="flex items-baseline gap-1.5 sm:gap-2">
                   {match.score && <span className="text-base sm:text-lg font-black text-[var(--color-text-on-surface)]">{match.score}</span>}
-                  <span className={`text-xs font-black uppercase tracking-wider ${match.won ? "text-emerald-400" : "text-red-400"}`}>
+                  <span className={`text-xs font-black uppercase tracking-wider ${match.won ? "text-emerald-400" : "text-[var(--color-val-red)]"}`}>
                     {match.won ? "Victoire" : "Défaite"}
                   </span>
                 </div>

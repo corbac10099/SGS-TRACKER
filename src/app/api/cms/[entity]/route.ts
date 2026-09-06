@@ -34,10 +34,36 @@ export async function GET(
         // Parse nodes JSON
         data = data.map(d => ({ ...d, nodes: d.nodes ? JSON.parse(d.nodes) : [] }));
         break;
-      case 'agents':
-        data = await prisma.agent.findMany({ where: includeDrafts ? undefined : { isDraft: false } });
-        data = data.map(d => ({ ...d, abilities: d.abilities ? JSON.parse(d.abilities) : {} }));
+      case 'agents': {
+        const agentItems = await prisma.agent.findMany({ where: includeDrafts ? undefined : { isDraft: false } });
+        if (agentItems.length === 0) {
+          try {
+            const fs = await import('fs');
+            const path = await import('path');
+            const localJsonPath = path.resolve(process.cwd(), '../AppControl/data/agents.json');
+            if (fs.existsSync(localJsonPath)) {
+              const raw = fs.readFileSync(localJsonPath, 'utf-8');
+              const localParsed = JSON.parse(raw);
+              if (Array.isArray(localParsed) && localParsed.length > 0) {
+                const filtered = includeDrafts ? localParsed : localParsed.filter((a: any) => !a.isDraft);
+                return setCORSHeaders(NextResponse.json(filtered));
+              }
+            }
+          } catch {}
+        }
+        data = agentItems.map(d => {
+          let parsedAb: any = {};
+          try { parsedAb = d.abilities ? JSON.parse(d.abilities) : {}; } catch {}
+          const meta = parsedAb._meta || {};
+          return {
+            ...d,
+            determinant: meta.determinant || d.name,
+            fullPortrait: meta.fullPortrait || null,
+            abilities: parsedAb.slots || parsedAb,
+          };
+        });
         break;
+      }
       case 'maps':
         data = await prisma.map.findMany({ where: includeDrafts ? undefined : { isDraft: false } });
         break;
@@ -74,18 +100,27 @@ export async function POST(
           }
         });
         break;
-      case 'agents':
+      case 'agents': {
+        const agentAbilities = body.abilities || {};
+        const metaAbilities = {
+          slots: agentAbilities,
+          _meta: {
+            determinant: body.determinant || body.name,
+            fullPortrait: body.fullPortrait || null,
+          }
+        };
         data = await prisma.agent.create({
           data: {
-            uuid: body.uuid,
+            uuid: body.uuid || `custom-${Date.now()}`,
             name: body.name,
-            role: body.role,
-            iconUrl: body.iconUrl,
-            abilities: JSON.stringify(body.abilities || {}),
+            role: body.role || "Flex",
+            iconUrl: body.iconUrl || null,
+            abilities: JSON.stringify(metaAbilities),
             isDraft: body.isDraft ?? true,
           }
         });
         break;
+      }
       case 'maps':
         data = await prisma.map.create({
           data: {

@@ -34,7 +34,15 @@ export async function PUT(
           }
         });
         break;
-      case 'agents':
+      case 'agents': {
+        const updateAbilities = body.abilities || {};
+        const updateMetaAbilities = {
+          slots: updateAbilities,
+          _meta: {
+            determinant: body.determinant || body.name,
+            fullPortrait: body.fullPortrait || null,
+          }
+        };
         data = await prisma.agent.update({
           where: { id },
           data: {
@@ -42,11 +50,12 @@ export async function PUT(
             name: body.name,
             role: body.role,
             iconUrl: body.iconUrl,
-            abilities: body.abilities ? JSON.stringify(body.abilities) : undefined,
+            abilities: JSON.stringify(updateMetaAbilities),
             isDraft: body.isDraft,
           }
         });
         break;
+      }
       case 'maps':
         data = await prisma.map.update({
           where: { id },

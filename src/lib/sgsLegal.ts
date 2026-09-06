@@ -1,4 +1,4 @@
-﻿import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 export interface SgsLegalData {
   companyName: string;
@@ -23,9 +23,7 @@ export const DEFAULT_SGS_LEGAL: SgsLegalData = {
   hostAddress: "440 N Barranca Ave #4133, Covina, CA 91723, USA",
   dbHost: "Neon Tech Inc., San Francisco, CA, USA",
   storageHost: "Cloudflare Inc., San Francisco, CA, USA",
-  riotDisclaimer: `Spycam a été créé selon la politique "Legal Jibber Jabber" de Riot Games en utilisant des ressources appartenant à Riot Games. Riot Games ne cautionne ni ne sponsorise ce projet. VALORANT et Riot Games sont des marques commerciales ou des marques déposées de Riot Games, Inc.
-
-Spycam was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project.`,
+  riotDisclaimer: `« Spycam et tout l’écosystème SGS » est un projet indépendant qui n’est pas approuvé par Riot Games et ne reflète pas les opinions ou les avis de Riot Games ou de toute personne officiellement impliquée dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques ou des marques déposées de Riot Games, Inc.`,
   mentionsLegales: `## 1. Éditeur de la Plateforme
 Le site web et les services de l'écosystème SGS (Smart Gaming Suite), incluant l'application **Spycam** (Valorant Performance Tracker), sont édités par l'équipe **SGS**.
 - **Contact électronique** : contact@sgs.gg

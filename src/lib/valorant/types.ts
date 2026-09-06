@@ -75,6 +75,9 @@ export interface MatchPlayerDuel {
   puuid: string;
   name: string;
   agentIcon: string;
+  rank?: string;
+  rankUrl?: string;
+  rankTier?: number;
   kills: number;
   deaths: number;
 }
@@ -105,6 +108,9 @@ export interface ValorantMatchData {
   map: string;
   agent: string;
   agentIcon: string;
+  rank?: string;
+  rankUrl?: string;
+  rankTier?: number;
   won: boolean;
   score: string;
   kills: number;
@@ -152,6 +158,17 @@ export interface ValorantProfileResponse {
   weapons: WeaponPerformanceStat[];
   matchHistory: ValorantMatchData[];
   warnings?: Record<string, string>;
+  isMock?: boolean;
+  apiStatus?: {
+    connected?: boolean;
+    verified?: boolean;
+    accountVerified?: boolean;
+    isDevKey?: boolean;
+    matchSource?: string;
+    puuid?: string;
+    message?: string;
+    error?: string;
+  };
 }
 
 export interface LeaderboardPlayerEntry {

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from "react";
 import { IconShield, IconLock, IconCheck, IconTrash, IconX } from "@/components/icons/SpyIcons";
@@ -16,8 +16,64 @@ export default function SgsAccountSettings() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [riotInput, setRiotInput] = useState("");
+  const [discordInput, setDiscordInput] = useState("");
+  const [twitchInput, setTwitchInput] = useState("");
+  const [linkedDiscord, setLinkedDiscord] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("spycam_linked_discord") || "";
+    }
+    return "";
+  });
+  const [linkedTwitch, setLinkedTwitch] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("spycam_linked_twitch") || "";
+    }
+    return "";
+  });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const handleLinkDiscord = () => {
+    if (!discordInput.trim()) return;
+    sounds.playLockIn();
+    const clean = discordInput.trim();
+    setLinkedDiscord(clean);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("spycam_linked_discord", clean);
+    }
+    setDiscordInput("");
+    setMsg({ text: `Compte Discord (${clean}) lié avec succès !`, type: "success" });
+  };
+
+  const handleUnlinkDiscord = () => {
+    sounds.playCancel();
+    setLinkedDiscord("");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("spycam_linked_discord");
+    }
+    setMsg({ text: "Compte Discord délié.", type: "success" });
+  };
+
+  const handleLinkTwitch = () => {
+    if (!twitchInput.trim()) return;
+    sounds.playLockIn();
+    const clean = twitchInput.trim().replace(/^https?:\/\/(www\.)?twitch\.tv\//i, "");
+    setLinkedTwitch(clean);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("spycam_linked_twitch", clean);
+    }
+    setTwitchInput("");
+    setMsg({ text: `Chaîne Twitch (${clean}) associée avec succès !`, type: "success" });
+  };
+
+  const handleUnlinkTwitch = () => {
+    sounds.playCancel();
+    setLinkedTwitch("");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("spycam_linked_twitch");
+    }
+    setMsg({ text: "Chaîne Twitch dissociée.", type: "success" });
+  };
 
   const fetchAccount = async () => {
     try {
@@ -282,6 +338,120 @@ export default function SgsAccountSettings() {
             </span>
             <span className="text-[10px] text-gray-500 font-medium">Synchronisé</span>
           </div>
+        </div>
+
+        {/* DISCORD */}
+        <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-white/10 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-[#5865F2]/20 border border-[#5865F2]/30 flex items-center justify-center text-[#5865F2] font-black text-xs">
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                </svg>
+              </span>
+              <div>
+                <h4 className="text-xs font-bold text-white uppercase">Discord</h4>
+                <p className="text-[10px] text-gray-400">Notifications & communauté SGS</p>
+              </div>
+            </div>
+            {linkedDiscord ? (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">
+                Lié
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-500/20 text-gray-400">
+                Non lié
+              </span>
+            )}
+          </div>
+
+          {linkedDiscord ? (
+            <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span className="text-[#5865F2]">@</span>{linkedDiscord}
+              </span>
+              <button
+                onClick={handleUnlinkDiscord}
+                className="text-[10px] text-red-400 hover:text-red-300 font-bold uppercase underline cursor-pointer"
+              >
+                Délier
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={discordInput}
+                onChange={(e) => setDiscordInput(e.target.value)}
+                placeholder="ex: pseudo#1234 ou pseudo"
+                className="flex-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#5865F2]"
+              />
+              <button
+                onClick={handleLinkDiscord}
+                disabled={!discordInput.trim()}
+                className="px-3 py-2 rounded-xl bg-[#5865F2] hover:bg-[#4752c4] text-white text-xs font-bold uppercase transition-all disabled:opacity-50 cursor-pointer"
+              >
+                Lier
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* TWITCH */}
+        <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-white/10 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-[#9146FF]/20 border border-[#9146FF]/30 flex items-center justify-center text-[#9146FF] font-black text-xs">
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>
+                </svg>
+              </span>
+              <div>
+                <h4 className="text-xs font-bold text-white uppercase">Twitch</h4>
+                <p className="text-[10px] text-gray-400">Diffusion & intégration live</p>
+              </div>
+            </div>
+            {linkedTwitch ? (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">
+                Lié
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-500/20 text-gray-400">
+                Non lié
+              </span>
+            )}
+          </div>
+
+          {linkedTwitch ? (
+            <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span className="text-[#9146FF]">twitch.tv/</span>{linkedTwitch}
+              </span>
+              <button
+                onClick={handleUnlinkTwitch}
+                className="text-[10px] text-red-400 hover:text-red-300 font-bold uppercase underline cursor-pointer"
+              >
+                Délier
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={twitchInput}
+                onChange={(e) => setTwitchInput(e.target.value)}
+                placeholder="ex: nom_de_chaine"
+                className="flex-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#9146FF]"
+              />
+              <button
+                onClick={handleLinkTwitch}
+                disabled={!twitchInput.trim()}
+                className="px-3 py-2 rounded-xl bg-[#9146FF] hover:bg-[#772ce8] text-white text-xs font-bold uppercase transition-all disabled:opacity-50 cursor-pointer"
+              >
+                Lier
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

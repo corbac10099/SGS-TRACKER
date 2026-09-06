@@ -15,6 +15,8 @@ import {
   IconUsers,
   IconKeyboard,
   IconLogOut,
+  IconClock,
+  IconStar,
 } from "./icons/SpyIcons";
 
 export interface HeaderProps {
@@ -230,7 +232,7 @@ export default function Header({
   ];
 
   return (
-    <header className="w-full z-30 border-b border-[var(--color-border)] bg-[var(--color-surface)]/95 backdrop-blur-md sticky top-0 mb-6 sm:mb-8 flex flex-col shadow-lg">
+    <header className="w-full z-30 border-b border-[var(--color-border)] bg-[var(--color-surface)]/80 backdrop-blur-2xl sticky top-0 mb-6 sm:mb-8 flex flex-col shadow-lg shadow-black/20">
       {/* Top Navbar */}
       <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 sm:py-3.5 w-full gap-2 lg:gap-4">
 
@@ -258,7 +260,7 @@ export default function Header({
           <div className="hidden md:flex flex-1 items-center justify-center min-w-0 px-1">
             <div
               ref={navContainerRef}
-              className="relative flex items-center gap-0.5 p-1 rounded-2xl bg-black/30 border border-white/10 backdrop-blur-md"
+              className="relative flex items-center gap-0.5 p-1 rounded-2xl glass-pill"
             >
               {/* Animated Sliding Red Pill Background */}
               <div
@@ -327,7 +329,7 @@ export default function Header({
 
             {/* Smart Search Suggestions Dropdown with Spring Pop-In */}
             {isFocused && (
-              <div className="absolute left-0 right-0 top-full mt-2 bg-[var(--color-surface)]/95 backdrop-blur-xl border border-[var(--color-border)] rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-50 overflow-hidden animate-search-dropdown p-2">
+              <div className="absolute left-0 right-0 top-full mt-2 glass-modal rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-50 overflow-hidden animate-search-dropdown p-2">
                 {/* Recent Searches */}
                 {recentSearches.length > 0 && (
                   <div className="mb-1">
@@ -358,7 +360,7 @@ export default function Header({
                           className="flex items-center justify-between w-full p-2 rounded-xl hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer text-left group"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-[var(--color-text-secondary)]">🕑</span>
+                            <IconClock size={12} className="text-[var(--color-text-secondary)]" />
                             <span className="text-xs font-medium text-[var(--color-text-primary)]">{search}</span>
                           </div>
                           <button
@@ -377,8 +379,9 @@ export default function Header({
                 {/* Favorites in Search */}
                 {favorites.length > 0 && (
                   <div className="border-t border-[var(--color-border)]/50 pt-1 mt-1">
-                    <span className="text-[10px] font-black uppercase text-[var(--color-text-secondary)] tracking-wider px-2 py-1 block">
-                      ★ Favoris
+                    <span className="text-[10px] font-black uppercase text-[var(--color-text-secondary)] tracking-wider px-2 py-1 flex items-center gap-1">
+                      <IconStar size={11} className="text-yellow-400" />
+                      <span>Favoris</span>
                     </span>
                     <div className="space-y-0.5">
                       {favorites.map((fav) => (
@@ -497,8 +500,9 @@ export default function Header({
       {/* Enhanced Favorites Bar */}
       {favorites.length > 0 && !settingsOpen && (
         <div className="w-full px-4 sm:px-6 py-2 flex items-center gap-2 border-t border-[var(--color-border)]/50 bg-[var(--color-background)]/50 overflow-x-auto custom-scrollbar">
-          <span className="text-[10px] text-[var(--color-text-secondary)] uppercase tracking-widest font-bold mr-1 flex-shrink-0 flex items-center gap-1">
-            <span className="text-yellow-400">★</span> Favoris
+          <span className="text-[10px] text-[var(--color-text-secondary)] uppercase tracking-widest font-bold mr-1 flex-shrink-0 flex items-center gap-1.5">
+            <IconStar size={11} className="text-yellow-400" />
+            <span>Favoris</span>
           </span>
           <div className="flex items-center gap-1.5 overflow-x-auto">
             {favorites.map((fav) => (

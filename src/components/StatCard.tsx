@@ -31,7 +31,7 @@ function StatCardComponent({
 
   return (
     <div
-      className={`glass-panel p-2.5 xs:p-3 sm:p-4 rounded-xl sm:rounded-2xl flex flex-col justify-between h-full border border-[var(--color-border)] hover:border-[var(--color-text-secondary)]/30 transition-all duration-300 min-w-0 shadow-sm ${
+      className={`glass-panel-interactive p-2.5 xs:p-3 sm:p-4 rounded-xl sm:rounded-2xl flex flex-col justify-between h-full min-w-0 ${
         colSpan ? `col-span-${colSpan}` : ""
       } ${ratingClass} ${className}`}
     >

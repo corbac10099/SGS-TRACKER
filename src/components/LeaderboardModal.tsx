@@ -52,12 +52,12 @@ export default function LeaderboardModal({ onClose }: LeaderboardModalProps) {
         {/* Region Selector & Search */}
         <div className="py-3 flex items-center justify-between gap-2 flex-wrap flex-shrink-0">
           <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
-            {["eu", "na", "ap", "kr"].map((r) => (
+            {["eu", "na", "ap", "kr", "br", "latam"].map((r) => (
               <button
                 key={r}
                 type="button"
                 onClick={() => setRegion(r)}
-                className={`px-3 py-1 rounded-lg text-xs font-black uppercase transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase transition-all cursor-pointer ${
                   region === r ? "bg-[var(--color-val-red)] text-white shadow-md" : "text-gray-400 hover:text-white"
                 }`}
               >

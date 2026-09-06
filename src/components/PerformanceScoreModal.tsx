@@ -2,6 +2,8 @@
 
 import React from "react";
 import { PerformanceScoreResult } from "@/lib/valorant/performanceScore";
+import PerformanceStarBadge from "./PerformanceStarBadge";
+import { IconLock, IconEye, IconLightbulb } from "./icons/SpyIcons";
 
 interface PerformanceScoreModalProps {
   isOpen: boolean;
@@ -50,7 +52,7 @@ export default function PerformanceScoreModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl bg-[#0c1017] border border-white/10 shadow-2xl p-5 sm:p-7 space-y-6 relative"
+        className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl glass-modal p-5 sm:p-7 space-y-6 relative"
         onClick={(e) => e.stopPropagation()}
         style={{
           boxShadow: `0 0 50px rgba(0,0,0,0.8), inset 0 0 30px ${gradeBg}`,
@@ -66,18 +68,18 @@ export default function PerformanceScoreModal({
         </button>
 
         {/* HEADER */}
-        <div className="flex items-center gap-3">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-2xl tracking-tighter border shadow-lg"
-            style={{
-              color: gradeColor,
-              backgroundColor: gradeBg,
-              borderColor: gradeBorder,
-              boxShadow: gradeGlow,
-            }}
-          >
-            {grade}
-          </div>
+        <div className="flex items-center gap-4">
+          <PerformanceStarBadge
+            grade={grade}
+            score={totalScore}
+            gradeColor={gradeColor}
+            gradeBg={gradeBg}
+            gradeBorder={gradeBorder}
+            gradeGlow={gradeGlow}
+            gradeTitle={gradeTitle}
+            size="lg"
+            layout="icon-only"
+          />
 
           <div className="space-y-0.5 min-w-0">
             <span className="text-[10px] font-black uppercase tracking-widest text-[var(--color-val-red,#ff4655)]">
@@ -95,14 +97,14 @@ export default function PerformanceScoreModal({
                   border: `1px solid ${gradeBorder}`,
                 }}
               >
-                Grade {grade} • {gradeTitle}
+                Grade {grade}
               </span>
             </div>
           </div>
         </div>
 
         {/* ROLE CONTEXT BADGE */}
-        <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-white/5 border border-white/10 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl glass-pill text-xs">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-gray-400 uppercase">Rôle Dominant :</span>
             <span className="px-2 py-0.5 rounded bg-[var(--color-val-red,#ff4655)]/20 text-[var(--color-val-red,#ff4655)] font-bold text-[11px] uppercase tracking-wider">
@@ -124,10 +126,46 @@ export default function PerformanceScoreModal({
               }`}
               title="Cliquez pour changer la visibilité de votre score aux visiteurs"
             >
-              <span>{isPublic ? "👁️ Public" : "🔒 Masqué aux Visiteurs"}</span>
+              {isPublic ? (
+                <>
+                  <IconEye size={13} />
+                  <span>Public</span>
+                </>
+              ) : (
+                <>
+                  <IconLock size={13} />
+                  <span>Masqué aux Visiteurs</span>
+                </>
+              )}
             </button>
           )}
         </div>
+
+        {/* CONTEXTE COMPÉTITIF & MATURATION DE SAISON */}
+        {(result.experienceLabel || result.tierLabel || result.consistencyLabel) && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+            {result.experienceLabel && (
+              <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Volume Saison</span>
+                <span className="font-semibold text-white truncate">{result.experienceLabel}</span>
+              </div>
+            )}
+            {result.tierLabel && (
+              <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Niveau Opposition</span>
+                <span className="font-semibold text-white truncate">
+                  {result.tierLabel} {result.tierMultiplier ? `(×${result.tierMultiplier.toFixed(2)})` : ""}
+                </span>
+              </div>
+            )}
+            {result.consistencyLabel && (
+              <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col col-span-2 sm:col-span-1">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Stabilité ACS</span>
+                <span className="font-semibold text-white truncate">{result.consistencyLabel}</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 5 PILIERS DE PERFORMANCE */}
         <div className="space-y-3.5">
@@ -139,7 +177,7 @@ export default function PerformanceScoreModal({
             {pillarList.map((p, idx) => (
               <div
                 key={idx}
-                className="p-3.5 rounded-2xl bg-black/40 border border-white/5 space-y-1.5 hover:border-white/10 transition-colors"
+                className="p-3.5 rounded-2xl glass-card space-y-1.5"
               >
                 <div className="flex items-center justify-between text-xs">
                   <div className="space-y-0.5">
@@ -178,7 +216,8 @@ export default function PerformanceScoreModal({
         {tips && tips.length > 0 && (
           <div className="p-4 rounded-2xl bg-[var(--color-val-red,#ff4655)]/10 border border-[var(--color-val-red,#ff4655)]/25 space-y-1.5">
             <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-val-red,#ff4655)] flex items-center gap-1.5">
-              💡 Recommandation Tactique Spycam
+              <IconLightbulb size={13} />
+              <span>Recommandation Tactique Spycam</span>
             </span>
             <p className="text-xs text-gray-300 leading-relaxed">{tips[0]}</p>
           </div>

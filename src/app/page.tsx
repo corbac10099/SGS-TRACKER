@@ -19,7 +19,7 @@ import MobileAppDrawer from "@/components/MobileAppDrawer";
 import { trackPageView } from "@/lib/analytics";
 import LandingPage from "@/components/landing/LandingPage";
 import { sounds } from "@/lib/soundEffects";
-import { IconShare } from "@/components/icons/SpyIcons";
+import { IconShare, IconBrain, IconSword } from "@/components/icons/SpyIcons";
 import { UserBadges } from "@/components/UserBadges";
 import LobbiesView from "@/components/LobbiesView";
 import LeaderboardViewComponent from "@/components/LeaderboardViewComponent";
@@ -31,8 +31,10 @@ import SgsLegalModal from "@/components/SgsLegalModal";
 import LoginModal from "@/components/LoginModal";
 import PerformanceScoreModal from "@/components/PerformanceScoreModal";
 import PerformanceScoreCard from "@/components/PerformanceScoreCard";
+import AiCoachModal from "@/components/AiCoachModal";
 import { calculatePerformanceScore, detectDominantRole } from "@/lib/valorant/performanceScore";
 import type { LobbyItem } from "@/app/api/lobbies/route";
+import LocalDevStatsPanel, { type DevStatOverrides } from "@/components/LocalDevStatsPanel";
 
 function DebugPanel({ isOpen, onClose, onGenerate }: any) {
   return null;
@@ -54,6 +56,7 @@ export function HomeContent({
   const [isGuestMode, setIsGuestMode] = useState<boolean>(false);
   const [guestUser, setGuestUser] = useState<any>(null);
   const [loginModalOpen, setLoginModalOpen] = useState<boolean>(false);
+  const [devOverrides, setDevOverrides] = useState<DevStatOverrides | null>(null);
 
   const initGuestSession = useCallback(async (redirectToOnboarding = false) => {
     try {
@@ -553,6 +556,7 @@ export function HomeContent({
   const [showLegalModal, setShowLegalModal] = useState<boolean>(false);
   const [legalModalTab, setLegalModalTab] = useState<"cgu" | "mentions" | "privacy" | "riot">("cgu");
   const [showPerformanceModal, setShowPerformanceModal] = useState<boolean>(false);
+  const [showCoachModal, setShowCoachModal] = useState<boolean>(false);
 
   const toggleFullscreen = () => {
     if (typeof document !== "undefined") {
@@ -609,6 +613,34 @@ export function HomeContent({
     return favorites.some((f) => f.riotId === `${gameName}#${tagLine}`);
   };
 
+  const getDevKeyHeader = useCallback((): Record<string, string> => {
+    if (typeof window !== "undefined") {
+      const k = localStorage.getItem("spycam_riot_dev_key");
+      if (k) return { "x-riot-dev-key": k };
+    }
+    return {};
+  }, []);
+
+  const handleRiotKeyChange = useCallback((newKey: string | null) => {
+    const targetId = riotId || myRiotId || "Corbac#EU1";
+    setLoading(true);
+    setError("");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (newKey) headers["x-riot-dev-key"] = newKey;
+    fetch("/api/valorant/player", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ riotId: targetId }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) setError(d.error);
+        else setPlayerData(d);
+      })
+      .catch(() => setError("Serveur inaccessible."))
+      .finally(() => setLoading(false));
+  }, [riotId, myRiotId]);
+
   const goHome = () => {
     if (myRiotId) {
       setRiotId(myRiotId);
@@ -618,7 +650,7 @@ export function HomeContent({
       pushUrl({ tab: activeTab, playerId: myRiotId, isOwnProfile: true });
       fetch("/api/valorant/player", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getDevKeyHeader() },
         body: JSON.stringify({ riotId: myRiotId }),
       })
         .then((r) => r.json())
@@ -640,7 +672,7 @@ export function HomeContent({
     pushUrl({ tab: activeTab, playerId: searchId, isOwnProfile: !!isOwn });
     fetch("/api/valorant/player", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getDevKeyHeader() },
       body: JSON.stringify({ riotId: searchId }),
     })
       .then((r) => r.json())
@@ -780,7 +812,7 @@ export function HomeContent({
             }
             fetch("/api/valorant/player", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...getDevKeyHeader() },
               body: JSON.stringify({ riotId: targetRiotId }),
             })
               .then((r) => r.json())
@@ -864,7 +896,7 @@ export function HomeContent({
         setPlayerData(null);
         fetch("/api/valorant/player", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getDevKeyHeader() },
           body: JSON.stringify({ riotId: urlRiotId }),
         })
           .then((r) => r.json())
@@ -981,15 +1013,60 @@ export function HomeContent({
     };
   }, [rawStats, gameMode, selectedSeason, filteredMatches]);
 
+  const isSearchingOther = Boolean(riotId && myRiotId && riotId.toLowerCase() !== myRiotId.toLowerCase());
+  const activeDevOverrides = isSearchingOther ? null : devOverrides;
+
   const dominantRole = useMemo(() => {
+    if (activeDevOverrides && activeDevOverrides.enabled && activeDevOverrides.role !== "Auto") {
+      return activeDevOverrides.role;
+    }
     return detectDominantRole(filteredAgents);
-  }, [filteredAgents]);
+  }, [filteredAgents, activeDevOverrides]);
+
+  const effectiveStats = useMemo(() => {
+    const s = filteredStats || rawStats;
+    if (activeDevOverrides && activeDevOverrides.enabled) {
+      const deaths = s?.deaths || 100;
+      return {
+        ...(s || {}),
+        kdRatio: activeDevOverrides.kd,
+        kills: Math.round(activeDevOverrides.kd * deaths),
+        deaths,
+        assists: s?.assists || 40,
+        acs: activeDevOverrides.acs,
+        headshotPct: activeDevOverrides.hs,
+        winRate: activeDevOverrides.winRate,
+        kast: activeDevOverrides.kast,
+        adr: activeDevOverrides.adr,
+        ddDelta: activeDevOverrides.dd,
+        matchesPlayed: activeDevOverrides.matchesCount,
+      };
+    }
+    return s;
+  }, [filteredStats, rawStats, activeDevOverrides]);
+
+  const effectiveMatches = useMemo(() => {
+    if (activeDevOverrides && activeDevOverrides.enabled) {
+      return Array.from({ length: activeDevOverrides.matchesCount }).map((_, i) => ({
+        firstBloods: activeDevOverrides.firstBloods,
+        clutches: i < activeDevOverrides.clutches ? 1 : 0,
+        won: i < (activeDevOverrides.matchesCount * (activeDevOverrides.winRate / 100)),
+        kills: Math.round(activeDevOverrides.kd * 15),
+        deaths: 15,
+        acs: activeDevOverrides.acs,
+      }));
+    }
+    return filteredMatches;
+  }, [filteredMatches, activeDevOverrides]);
 
   const performanceScoreResult = useMemo(() => {
-    const s = filteredStats || rawStats;
+    const s = effectiveStats;
     if (!s) return null;
-    return calculatePerformanceScore(s, filteredMatches, dominantRole);
-  }, [filteredStats, rawStats, filteredMatches, dominantRole]);
+    const playerTier = playerData?.rankTier ?? playerData?.player?.rankTier ?? (activeDevOverrides?.enabled ? 21 : 0);
+    const rankName = playerData?.rank || playerData?.player?.rank || "Non classé";
+    const accountLevel = playerData?.level ?? playerData?.player?.level ?? playerData?.player?.accountLevel ?? 1;
+    return calculatePerformanceScore(s, effectiveMatches, dominantRole, playerTier, { rankName, accountLevel });
+  }, [effectiveStats, effectiveMatches, dominantRole, playerData, activeDevOverrides]);
 
   // Apply logged-in user's theme to body
   useEffect(() => {
@@ -1059,7 +1136,7 @@ export function HomeContent({
     try {
       const r = await fetch("/api/valorant/player", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getDevKeyHeader() },
         body: JSON.stringify({ riotId }),
       });
       const d = await r.json();
@@ -1365,9 +1442,9 @@ export function HomeContent({
                   ...playerData,
                   gameName: playerData.player?.gameName || playerData.gameName || "Joueur",
                   tagLine: playerData.player?.tagLine || playerData.tagLine || "EU1",
-                  stats: filteredStats || rawStats,
+                  stats: effectiveStats,
                   agentStats: filteredAgents,
-                  matchHistory: filteredMatches,
+                  matchHistory: effectiveMatches,
                   weapons: playerData.weapons || playerData.player?.weapons || [],
                   rank: playerData.rank || playerData.player?.rank || "Ascendant 3",
                   rankUrl: playerData.rankUrl || playerData.player?.rankUrl || "https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/24/largeicon.png",
@@ -1409,9 +1486,78 @@ export function HomeContent({
                       />
                       <div className="absolute inset-0 bg-black/40"></div>
 
-                      <div className="relative z-10 px-3 sm:px-6 md:px-8 py-3 sm:py-5 flex items-center justify-between h-full w-full gap-2">
+                      {/* Éléments du haut de la bannière : SPI en haut à gauche & Export Carte / Favori en haut à droite */}
+                      <div className="absolute top-2.5 sm:top-3.5 left-3 sm:left-6 right-3 sm:right-6 flex items-center justify-between pointer-events-none z-20">
+                        {/* SPI en haut à gauche */}
+                        <div className="pointer-events-auto">
+                          {performanceScoreResult && (
+                            <PerformanceScoreCard
+                              result={performanceScoreResult}
+                              onClickDetail={() => setShowPerformanceModal(true)}
+                              compact={true}
+                              isOwner={canEditProfile}
+                              isPublic={!hiddenStats.includes("performanceScore")}
+                            />
+                          )}
+                        </div>
+
+                        {/* Bouton Coach Tactique (Privé par défaut / Propriétaire uniquement) & Export Carte ou Favori */}
+                        <div className="pointer-events-auto flex items-center gap-2">
+                          {canEditProfile && (
+                            <button
+                              type="button"
+                              onMouseEnter={() => sounds.playHover()}
+                              onClick={() => {
+                                sounds.playClick();
+                                setShowCoachModal(true);
+                              }}
+                              title="Ouvrir le Coach Tactique Spycam"
+                              className="px-2.5 sm:px-3 py-1.5 rounded-xl glass-pill hover:bg-emerald-600/30 border-white/20 hover:border-emerald-400 text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg cursor-pointer group"
+                            >
+                              <IconBrain size={14} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                              <span className="hidden sm:inline">Coach Tactique</span>
+                            </button>
+                          )}
+                          {canEditProfile ? (
+                            <button
+                              type="button"
+                              onMouseEnter={() => sounds.playHover()}
+                              onClick={() => {
+                                sounds.playClick();
+                                setShowCardModal(true);
+                              }}
+                              title="Exporter ma Carte Joueur (PNG)"
+                              className="px-2.5 sm:px-3 py-1.5 rounded-xl glass-pill hover:bg-[var(--color-val-red)]/30 border-white/20 hover:border-[var(--color-val-red)] text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg cursor-pointer group"
+                            >
+                              <IconShare size={14} className="group-hover:scale-110 transition-transform" />
+                              <span className="hidden sm:inline">Exporter Carte</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onMouseEnter={() => sounds.playHover()}
+                              onClick={() => {
+                                sounds.playClick();
+                                toggleFavorite(p);
+                              }}
+                              title={isFavorited(p.gameName, p.tagLine) ? "Retirer des favoris" : "Ajouter aux favoris"}
+                              className={`w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-300 glass-pill cursor-pointer ${
+                                isFavorited(p.gameName, p.tagLine)
+                                  ? "bg-yellow-500/20 border-yellow-500/40 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.3)]"
+                                  : "text-white/60 hover:text-yellow-400 hover:border-yellow-500/40"
+                              }`}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill={isFavorited(p.gameName, p.tagLine) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="relative z-10 px-3 sm:px-6 md:px-8 pt-7 sm:pt-6 pb-3 sm:pb-4 flex items-center justify-between h-full w-full gap-2">
                         {/* Gauche : Avatar + Pseudo + Tag + Badge */}
-                        <div className="flex items-center gap-2.5 sm:gap-4 md:gap-5 min-w-0 flex-1">
+                        <div className="flex items-center gap-2.5 sm:gap-4 md:gap-5 min-w-0 max-w-[42%] sm:max-w-[45%] z-10">
                           <div className="flex flex-col items-center gap-1 flex-shrink-0">
                             <div className="w-13 h-13 xs:w-15 xs:h-15 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-xl overflow-hidden border-2 border-[rgba(255,255,255,0.15)] shadow-[0_4px_15px_rgba(0,0,0,0.6)] bg-black/60">
                               <img referrerPolicy="no-referrer" src={p.cardUrl} alt="Avatar" className="w-full h-full object-cover" />
@@ -1440,6 +1586,22 @@ export function HomeContent({
                                   hiddenBadges={canEditProfile ? hiddenBadges : []}
                                 />
                               )}
+                              {playerData?.isMock === false ? (
+                                <span
+                                  title="Données synchronisées en direct avec Riot Games API"
+                                  className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                                  LIVE RIOT
+                                </span>
+                              ) : (
+                                <span
+                                  title="Mode simulation (Mock)"
+                                  className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-white/10 text-neutral-400 border border-white/10"
+                                >
+                                  MOCK
+                                </span>
+                              )}
                             </div>
                             {p.mainAgent && (
                               <span className="text-[8px] sm:text-[9px] md:text-[10px] text-[var(--color-text-secondary)] uppercase tracking-[0.1em] sm:tracking-[0.2em] mt-0.5 font-bold truncate">
@@ -1449,8 +1611,8 @@ export function HomeContent({
                           </div>
                         </div>
 
-                        {/* Centre : Niveau */}
-                        <div className="flex flex-col items-center flex-shrink-0 px-1 sm:px-3">
+                        {/* Centre Absolu : Niveau au milieu parfait de la bannière */}
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-10">
                           <span className="text-[8px] sm:text-[9px] md:text-[10px] text-[var(--color-text-secondary)] uppercase tracking-[0.15em] mb-0.5 sm:mb-1 font-bold" style={{ textShadow: "0px 2px 8px rgba(0,0,0,0.8)" }}>
                             Niveau
                           </span>
@@ -1462,58 +1624,13 @@ export function HomeContent({
                           </div>
                         </div>
 
-                        {/* Droite : Score SPI + Rang + Bouton Export Carte (si proprio) ou Favori */}
-                        <div className="flex items-center gap-1.5 sm:gap-3 md:gap-4 flex-shrink-0">
-                          {/* Score de Performance Spycam (SPI) */}
-                          {performanceScoreResult && (
-                            <PerformanceScoreCard
-                              result={performanceScoreResult}
-                              onClickDetail={() => setShowPerformanceModal(true)}
-                              compact={true}
-                              isOwner={canEditProfile}
-                              isPublic={!hiddenStats.includes("performanceScore")}
-                            />
-                          )}
-
-                          <div className="flex flex-col items-end hidden md:flex" style={{ textShadow: "0px 2px 10px rgba(0,0,0,0.8)" }}>
+                        {/* Droite : Rang tout à droite */}
+                        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-auto z-10">
+                          <div className="flex flex-col items-end hidden sm:flex" style={{ textShadow: "0px 2px 10px rgba(0,0,0,0.8)" }}>
                             <span className="text-[9px] sm:text-[10px] text-[var(--color-text-secondary)] uppercase tracking-[0.2em] font-bold">Rang</span>
                             <span className="text-xs sm:text-lg font-black text-white uppercase tracking-wider">{p.rank}</span>
                           </div>
                           <img referrerPolicy="no-referrer" src={p.rankUrl} alt={p.rank} className="w-13 h-13 xs:w-15 xs:h-15 sm:w-16 sm:h-16 md:w-20 md:h-20 object-contain drop-shadow-[0_0_20px_rgba(0,0,0,0.8)]" />
-
-                          {canEditProfile ? (
-                            <button
-                              type="button"
-                              onMouseEnter={() => sounds.playHover()}
-                              onClick={() => {
-                                sounds.playClick();
-                                setShowCardModal(true);
-                              }}
-                              title="Exporter ma Carte Joueur (PNG)"
-                              className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-black/50 hover:bg-[var(--color-val-red)] border border-white/20 hover:border-[var(--color-val-red)] text-white transition-all flex items-center gap-1.5 text-xs font-bold backdrop-blur-md shadow-lg cursor-pointer group"
-                            >
-                              <IconShare size={14} className="group-hover:scale-110 transition-transform" />
-                              <span className="hidden sm:inline">Exporter Carte</span>
-                            </button>
-                          ) : (
-                            <button
-                              onMouseEnter={() => sounds.playHover()}
-                              onClick={() => {
-                                sounds.playClick();
-                                toggleFavorite(p);
-                              }}
-                              title={isFavorited(p.gameName, p.tagLine) ? "Retirer des favoris" : "Ajouter aux favoris"}
-                              className={`w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-sm border cursor-pointer ${
-                                isFavorited(p.gameName, p.tagLine)
-                                  ? "bg-yellow-500/20 border-yellow-500/40 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.3)]"
-                                  : "bg-black/30 border-white/10 text-white/50 hover:text-yellow-400 hover:border-yellow-500/30"
-                              }`}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill={isFavorited(p.gameName, p.tagLine) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                              </svg>
-                            </button>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -1585,7 +1702,7 @@ export function HomeContent({
                           {/* Mode Filter Capsule with Sliding Pill (All, Competitive, Unrated, Others) */}
                           <div
                             ref={gameModeContainerRef}
-                            className="relative flex items-center gap-0.5 p-1 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-md"
+                            className="relative flex items-center gap-0.5 p-1 rounded-2xl glass-pill"
                           >
                             {/* Animated Sliding Red Pill */}
                             <div
@@ -1630,7 +1747,7 @@ export function HomeContent({
                       </div>
 
                       {/* Performance Tab */}
-                      {activeTab === "performance" && s && (
+                      {s && (
                         (() => {
                           let appliedHiddenStats: string[] = [];
                           if (!canEditProfile && playerData?.player?.hiddenStats) {
@@ -1647,7 +1764,7 @@ export function HomeContent({
                           const userKey = session?.user?.email || (isGuestMode ? "guest" : p.puuid || "default");
 
                           return (
-                            <div className="w-full animate-in fade-in duration-500">
+                            <div className={activeTab === "performance" ? "w-full animate-in fade-in duration-500" : "hidden"}>
                               <DashboardGrid
                                 stats={s}
                                 warnings={w}
@@ -1659,6 +1776,19 @@ export function HomeContent({
                                 initialGridData={playerData?.player?.dashboardGrid}
                                 performanceScoreResult={performanceScoreResult}
                                 onOpenPerformanceModal={() => setShowPerformanceModal(true)}
+                                onOpenCoachModal={() => setShowCoachModal(true)}
+                                agentStats={playerData?.player?.agentStats}
+                                playerName={playerData?.player?.name}
+                                onSaveGridData={(gridJson) => {
+                                  setPlayerData((prev: any) => {
+                                    if (!prev) return prev;
+                                    return {
+                                      ...prev,
+                                      player: { ...(prev.player || {}), dashboardGrid: gridJson },
+                                      dashboardGrid: gridJson,
+                                    };
+                                  });
+                                }}
                               />
                             </div>
                           );
@@ -1735,6 +1865,9 @@ export function HomeContent({
                           searchPlayer={searchPlayer}
                           visibleCount={visibleMatchesCount}
                           onLoadMore={() => setVisibleMatchesCount((prev) => prev + 10)}
+                          currentPlayerRank={p?.rank}
+                          currentPlayerRankUrl={p?.rankUrl}
+                          currentPlayerRankTier={p?.rankTier}
                         />
                       )}
                     </div>
@@ -1814,7 +1947,12 @@ export function HomeContent({
 
         {/* Exportable Player Card Modal */}
         {showCardModal && (
-          <PlayerCardModal playerData={playerData} onClose={() => setShowCardModal(false)} />
+          <PlayerCardModal
+            playerData={playerData}
+            onClose={() => setShowCardModal(false)}
+            performanceScoreResult={performanceScoreResult}
+            isPublicSPI={!hiddenStats.includes("performanceScore")}
+          />
         )}
 
         {/* Mobile 4-Squares App Drawer */}
@@ -1876,40 +2014,43 @@ export function HomeContent({
       </main>
 
       {/* SGS & Riot Games Legal Footer */}
-      <footer className="w-full border-t border-white/5 bg-black/40 px-4 py-8 max-w-5xl mx-auto text-[11px] text-[var(--color-text-secondary)] leading-relaxed mb-12 md:mb-0 space-y-4">
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-semibold">
-          <button
-            onClick={() => { sounds.playClick(); setLegalModalTab("cgu"); setShowLegalModal(true); }}
-            className="hover:text-white transition-colors cursor-pointer"
-          >
-            Conditions d&apos;Utilisation (CGU)
-          </button>
-          <span className="text-white/20">•</span>
-          <button
-            onClick={() => { sounds.playClick(); setLegalModalTab("mentions"); setShowLegalModal(true); }}
-            className="hover:text-white transition-colors cursor-pointer"
-          >
-            Mentions Légales & Hébergeur
-          </button>
-          <span className="text-white/20">•</span>
-          <button
-            onClick={() => { sounds.playClick(); setLegalModalTab("privacy"); setShowLegalModal(true); }}
-            className="hover:text-white transition-colors cursor-pointer"
-          >
-            Confidentialité & RGPD
-          </button>
-          <span className="text-white/20">•</span>
-          <button
-            onClick={() => { sounds.playClick(); setLegalModalTab("riot"); setShowLegalModal(true); }}
-            className="text-red-400 hover:text-red-300 transition-colors cursor-pointer"
-          >
-            ⚔️ Règles Riot Games
-          </button>
-        </div>
+      <footer className="w-full border-t border-white/10 bg-[#070a0e]/95 backdrop-blur-md px-4 py-8 text-[11px] text-[var(--color-text-secondary)] leading-relaxed mb-12 md:mb-0">
+        <div className="max-w-5xl mx-auto space-y-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-semibold">
+            <button
+              onClick={() => { sounds.playClick(); setLegalModalTab("cgu"); setShowLegalModal(true); }}
+              className="hover:text-white transition-colors cursor-pointer"
+            >
+              Conditions d&apos;Utilisation (CGU)
+            </button>
+            <span className="text-white/20">•</span>
+            <button
+              onClick={() => { sounds.playClick(); setLegalModalTab("mentions"); setShowLegalModal(true); }}
+              className="hover:text-white transition-colors cursor-pointer"
+            >
+              Mentions Légales & Hébergeur
+            </button>
+            <span className="text-white/20">•</span>
+            <button
+              onClick={() => { sounds.playClick(); setLegalModalTab("privacy"); setShowLegalModal(true); }}
+              className="hover:text-white transition-colors cursor-pointer"
+            >
+              Confidentialité & RGPD
+            </button>
+            <span className="text-white/20">•</span>
+            <button
+              onClick={() => { sounds.playClick(); setLegalModalTab("riot"); setShowLegalModal(true); }}
+              className="text-red-400 hover:text-red-300 transition-colors cursor-pointer inline-flex items-center gap-1"
+            >
+              <IconSword size={12} className="text-red-400" />
+              <span>Règles Riot Games</span>
+            </button>
+          </div>
 
-        <p className="text-[10px] text-center max-w-3xl mx-auto text-gray-500 leading-relaxed">
-          Spycam est une application éditée sous l&apos;écosystème <strong className="text-gray-400 font-semibold">SGS (Smart Gaming Suite)</strong>. Créé selon la politique &ldquo;Legal Jibber Jabber&rdquo; de Riot Games avec des ressources appartenant à Riot Games. Riot Games ne cautionne ni ne sponsorise ce projet. VALORANT et Riot Games sont des marques commerciales ou des marques déposées de Riot Games, Inc.
-        </p>
+          <p className="text-[10px] text-center max-w-3xl mx-auto text-gray-500 leading-relaxed">
+            « Spycam et tout l’écosystème SGS » est un projet indépendant qui n’est pas approuvé par Riot Games et ne reflète pas les opinions ou les avis de Riot Games ou de toute personne officiellement impliquée dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques ou des marques déposées de Riot Games, Inc.
+          </p>
+        </div>
       </footer>
 
       {/* SGS Centralized Legal Modal */}
@@ -1947,6 +2088,32 @@ export function HomeContent({
           }}
         />
       )}
+
+      {/* Spycam Tactical Coach Modal */}
+      {showCoachModal && (
+        <AiCoachModal
+          isOpen={showCoachModal}
+          onClose={() => setShowCoachModal(false)}
+          matches={filteredMatches}
+          agentStats={playerData?.player?.agentStats}
+          stats={playerData?.player?.stats}
+          playerName={playerData?.player?.name}
+        />
+      )}
+
+      {/* Panneau Admin Développeur Local (Strictement localhost, jamais poussé sur Vercel) */}
+      <LocalDevStatsPanel
+        currentRole={dominantRole}
+        onOverridesChange={setDevOverrides}
+        currentRiotId={
+          playerData?.player
+            ? `${playerData.player.gameName}#${playerData.player.tagLine}`
+            : riotId || myRiotId || "Gr4phØ#0001"
+        }
+        onRiotKeyChange={handleRiotKeyChange}
+        isLiveRiotData={playerData?.isMock === false}
+        playerStats={playerData?.player?.stats || playerData?.stats}
+      />
     </>
   );
 }

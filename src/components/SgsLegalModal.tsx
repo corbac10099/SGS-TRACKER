@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from "react";
 import { IconShield, IconFileText, IconInfo, IconLock, IconX } from "@/components/icons/SpyIcons";
@@ -8,6 +8,89 @@ interface SgsLegalModalProps {
   isOpen: boolean;
   onClose: () => void;
   defaultTab?: "cgu" | "mentions" | "privacy" | "riot";
+}
+
+function parseInlineMarkdown(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={i} className="font-black text-white">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (part.startsWith("*") && part.endsWith("*")) {
+      return (
+        <em key={i} className="italic text-gray-200">
+          {part.slice(1, -1)}
+        </em>
+      );
+    }
+    return part;
+  });
+}
+
+function renderLegalContent(content?: string) {
+  if (!content) return null;
+  const lines = content.split("\n");
+  const elements: React.ReactNode[] = [];
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      elements.push(<div key={`sp-${idx}`} className="h-2" />);
+      return;
+    }
+
+    if (trimmed.startsWith("## ")) {
+      const title = trimmed.replace(/^##\s+/, "");
+      elements.push(
+        <h3
+          key={`h2-${idx}`}
+          className="text-xs sm:text-sm font-black text-white uppercase tracking-wider mt-4 mb-2 flex items-center gap-2 border-b border-white/10 pb-1.5 text-[var(--color-val-red)]"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-val-red)] flex-shrink-0"></span>
+          <span>{title}</span>
+        </h3>
+      );
+      return;
+    }
+
+    if (trimmed.startsWith("### ")) {
+      const title = trimmed.replace(/^###\s+/, "");
+      elements.push(
+        <h4
+          key={`h3-${idx}`}
+          className="text-xs sm:text-sm font-bold text-white uppercase tracking-wide mt-3 mb-1"
+        >
+          {title}
+        </h4>
+      );
+      return;
+    }
+
+    if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+      const bullet = trimmed.replace(/^[-•]\s+/, "");
+      elements.push(
+        <div key={`li-${idx}`} className="flex items-start gap-2 my-1 pl-1 text-xs sm:text-sm text-gray-300">
+          <span className="text-[var(--color-val-red)] font-black text-xs leading-5 select-none">•</span>
+          <div className="flex-1 leading-relaxed">
+            {parseInlineMarkdown(bullet)}
+          </div>
+        </div>
+      );
+      return;
+    }
+
+    elements.push(
+      <p key={`p-${idx}`} className="text-xs sm:text-sm text-gray-300 leading-relaxed my-1">
+        {parseInlineMarkdown(trimmed)}
+      </p>
+    );
+  });
+
+  return elements;
 }
 
 export default function SgsLegalModal({ isOpen, onClose, defaultTab = "cgu" }: SgsLegalModalProps) {
@@ -128,13 +211,12 @@ export default function SgsLegalModal({ isOpen, onClose, defaultTab = "cgu" }: S
           ) : (
             <div className="space-y-4">
               {activeTab === "cgu" && (
-                <div className="prose prose-invert max-w-none space-y-4">
-                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10">
-                    <h3 className="text-sm font-black text-white uppercase mb-2">Conditions Générales d&apos;Utilisation</h3>
-                    <div className="whitespace-pre-line text-xs sm:text-sm text-gray-300 leading-relaxed">
-                      {legalData?.cguText || "Chargement..."}
-                    </div>
-                  </div>
+                <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-1">
+                  <h3 className="text-sm font-black text-white uppercase mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[var(--color-val-red)]"></span>
+                    <span>Conditions Générales d&apos;Utilisation</span>
+                  </h3>
+                  <div>{renderLegalContent(legalData?.cguText)}</div>
                 </div>
               )}
 
@@ -161,27 +243,28 @@ export default function SgsLegalModal({ isOpen, onClose, defaultTab = "cgu" }: S
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 whitespace-pre-line text-xs sm:text-sm text-gray-300 leading-relaxed">
-                    {legalData?.mentionsLegales}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/10">
+                    {renderLegalContent(legalData?.mentionsLegales)}
                   </div>
                 </div>
               )}
 
               {activeTab === "privacy" && (
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 whitespace-pre-line text-xs sm:text-sm text-gray-300 leading-relaxed">
-                  {legalData?.privacyPolicy}
+                <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/10">
+                  {renderLegalContent(legalData?.privacyPolicy)}
                 </div>
               )}
 
               {activeTab === "riot" && (
                 <div className="space-y-4">
-                  <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/30 text-red-200">
-                    <h3 className="text-sm font-black text-white uppercase mb-2 flex items-center gap-2">
-                      <span>Clause Officielle Riot Games (Legal Jibber-Jabber)</span>
+                  <div className="p-4 sm:p-5 rounded-2xl bg-red-950/30 border border-red-500/30 text-red-200">
+                    <h3 className="text-sm font-black text-white uppercase mb-3 flex items-center gap-2">
+                      <span className="text-red-400">⚔️</span>
+                      <span>Clause Officielle Riot Games</span>
                     </h3>
-                    <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-line">
-                      {legalData?.riotDisclaimer}
-                    </p>
+                    <div className="leading-relaxed">
+                      {renderLegalContent(legalData?.riotDisclaimer)}
+                    </div>
                   </div>
                 </div>
               )}

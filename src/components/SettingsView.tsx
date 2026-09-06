@@ -23,6 +23,7 @@ import {
   IconCheck,
   IconFileText,
   IconInfo,
+  IconBrain,
 } from "./icons/SpyIcons";
 import { BADGES_REGISTRY, parseBadges } from "./UserBadges";
 import { sounds } from "@/lib/soundEffects";
@@ -121,6 +122,7 @@ export default function SettingsView({
 }: SettingsViewProps) {
   const statOptions = [
     { id: "performanceScore", label: "Score de Performance (SPI)", icon: <IconTrophy size={16} />, desc: "Score intelligent sur 1000 points (Grades C à SSS)" },
+    { id: "coach", label: "Coach Tactique Spycam", icon: <IconBrain size={16} />, desc: "Débriefing et diagnostic télémétrique (Privé par défaut)" },
     { id: "chart", label: "Graphique de Progression", icon: <IconChart size={16} />, desc: "Courbe d'évolution" },
     { id: "weapons", label: "Top Armes & Précision", icon: <IconCrosshair size={16} />, desc: "Top 3 armes et zones de tir" },
     { id: "kills", label: "Éliminations", icon: <IconCrosshair size={16} />, desc: "Total des kills" },
@@ -230,6 +232,18 @@ export default function SettingsView({
     }
     return "#ff4655";
   });
+  const [draftSpiDynamicColors, setDraftSpiDynamicColors] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("spycam_spi_dynamic_chart_color") !== "false";
+    }
+    return true;
+  });
+  const [draftSpiThemeAdapt, setDraftSpiThemeAdapt] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("spycam_spi_theme_adapt") === "true";
+    }
+    return false;
+  });
   const [draftBannerUrl, setDraftBannerUrl] = useState(bannerUrl);
   const [draftBannerOffsetY, setDraftBannerOffsetY] = useState(bannerOffsetY);
   const [draftIsPublic, setDraftIsPublic] = useState(isPublic ?? true);
@@ -300,9 +314,14 @@ export default function SettingsView({
         localStorage.setItem("spycam_sound_volume", String(draftSoundVolume));
         localStorage.setItem("spycam_shortcuts_enabled", String(draftShortcutsEnabled));
         localStorage.setItem("spycam_shortcuts_config", JSON.stringify(draftShortcuts));
+        localStorage.setItem("spycam_spi_dynamic_chart_color", String(draftSpiDynamicColors));
+        localStorage.setItem("spycam_spi_theme_adapt", String(draftSpiThemeAdapt));
         sounds.setEnabled(draftSoundEnabled);
         sounds.setVolume(draftSoundVolume);
         if (setStreamerMode) setStreamerMode(draftStreamerMode);
+        window.dispatchEvent(new CustomEvent("spycam_settings_updated", {
+          detail: { spiDynamicColors: draftSpiDynamicColors, spiThemeAdapt: draftSpiThemeAdapt }
+        }));
       }
 
       const guestId = typeof window !== "undefined" ? sessionStorage.getItem("spycam_guest_id") : null;
@@ -466,6 +485,31 @@ export default function SettingsView({
                     <span
                       className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
                         draftStreamerMode ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                      }`}
+                    ></span>
+                  </button>
+                </div>
+
+                {/* SPI Dynamic Chart Color Toggle */}
+                <div className="flex items-center justify-between pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                  <div>
+                    <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Courbe dynamique SPI (Couleurs par match)</h3>
+                    <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                      Adapte la couleur de la courbe selon le score SPI de chaque match (Or/Ambre pour SSS/SS/S, Émeraude pour A, Ciel pour B). Si désactivé, la courbe devient rouge Valorant unie.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      setDraftSpiDynamicColors(!draftSpiDynamicColors);
+                    }}
+                    className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
+                      draftSpiDynamicColors ? "bg-[var(--color-val-red)]" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                        draftSpiDynamicColors ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
                       }`}
                     ></span>
                   </button>
@@ -843,8 +887,9 @@ export default function SettingsView({
                   </div>
 
                   {recordingShortcutId && (
-                    <p className="text-center text-xs text-amber-400 animate-bounce pt-2">
-                      ⚡ Appuyez sur la touche désirée sur votre clavier (ou <strong>Échap</strong> pour annuler).
+                    <p className="text-center text-xs text-amber-400 animate-bounce pt-2 flex items-center justify-center gap-1.5">
+                      <IconKeyboard size={13} />
+                      <span>Appuyez sur la touche désirée sur votre clavier (ou <strong>Échap</strong> pour annuler).</span>
                     </p>
                   )}
                 </div>
@@ -1121,6 +1166,38 @@ export default function SettingsView({
                   </div>
                 </div>
               )}
+
+              {/* Option Case SPI selon le Thème */}
+              <div className="bg-[var(--color-background)] p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-[var(--color-border)] flex items-center justify-between gap-3 sm:gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-xs sm:text-sm text-[var(--color-text-primary)]">
+                      Adapter la case SPI au thème d&apos;apparence
+                    </h4>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Optionnel
+                    </span>
+                  </div>
+                  <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] max-w-xl">
+                    Applique la couleur d&apos;accentuation de votre thème actif à votre carte et badge SPI de profil. <strong className="text-amber-400">Garantie d&apos;authenticité :</strong> Les visiteurs extérieurs verront toujours les couleurs officielles de votre score SPI.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    sounds.playClick();
+                    setDraftSpiThemeAdapt(!draftSpiThemeAdapt);
+                  }}
+                  className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
+                    draftSpiThemeAdapt ? "bg-[var(--color-val-red)]" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                      draftSpiThemeAdapt ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                    }`}
+                  ></span>
+                </button>
+              </div>
 
               {/* Gestion de la Bannière */}
               <div className="space-y-4 sm:space-y-6">
@@ -1417,7 +1494,8 @@ export default function SettingsView({
                   className="p-4 rounded-xl bg-red-950/20 hover:bg-red-950/40 border border-red-500/30 text-left transition-all cursor-pointer group"
                 >
                   <div className="flex items-center gap-2 text-red-300 font-bold text-xs uppercase mb-1">
-                    <span>⚔️ Règles Riot Games</span>
+                    <IconSword size={14} className="text-red-400" />
+                    <span>Règles Riot Games</span>
                   </div>
                   <p className="text-[11px] text-gray-400">Politique officielle &ldquo;Legal Jibber-Jabber&rdquo;.</p>
                 </button>
