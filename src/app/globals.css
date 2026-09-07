@@ -169,6 +169,43 @@
   animation: dissolveIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* ── Page view transition ── */
+@keyframes pageViewIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-in {
+  animation: pageViewIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Skeleton shimmer ── */
+@keyframes skeletonShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface, #141a22) 25%,
+    rgba(255, 255, 255, 0.06) 50%,
+    var(--color-surface, #141a22) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+}
+
 .glass-card {
   background: var(--color-surface);
   backdrop-filter: blur(12px);
@@ -404,4 +441,78 @@
 
 .animate-card-glow {
   animation: cardGlowPulse 4s ease-in-out infinite;
+}
+
+/* ==================== MOBILE MENU DRAWER ANIMATION ==================== */
+@keyframes mobileDrawerFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mobileDrawerSlideUp {
+  0% {
+    transform: translateY(100%);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-drawer-backdrop {
+  animation: mobileDrawerFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-drawer-content {
+  animation: mobileDrawerSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Exit animations ── */
+@keyframes mobileDrawerFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes mobileDrawerSlideDown {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0.5;
+  }
+}
+
+.animate-drawer-backdrop-out {
+  animation: mobileDrawerFadeOut 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.animate-drawer-content-out {
+  animation: mobileDrawerSlideDown 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* ── Dropdown fade-out for favorites "voir plus" ── */
+@keyframes dropdownFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+}
+
+.animate-dropdown-out {
+  animation: dropdownFadeOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
 }

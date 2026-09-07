@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useLanguage, tr, trFormat } from "@/lib/i18n";
 import StatCard from "@/components/StatCard";
 import SettingsView from "@/components/SettingsView";
@@ -35,6 +35,7 @@ import AiCoachModal from "@/components/AiCoachModal";
 import { calculatePerformanceScore, detectDominantRole } from "@/lib/valorant/performanceScore";
 import type { LobbyItem } from "@/app/api/lobbies/route";
 import LocalDevStatsPanel, { type DevStatOverrides } from "@/components/LocalDevStatsPanel";
+import ProfileSkeleton from "@/components/ProfileSkeleton";
 
 function DebugPanel({ isOpen, onClose, onGenerate }: any) {
   return null;
@@ -1344,6 +1345,7 @@ export function HomeContent({
 
         {/* Dynamic Views */}
         {settingsOpen ? (
+          <div key="settings" className="animate-page-in w-full">
           <SettingsView
             onClose={() => setSettingsOpen(false)}
             smartRating={smartRating}
@@ -1377,15 +1379,18 @@ export function HomeContent({
             streamerMode={streamerMode}
             setStreamerMode={setStreamerMode}
           />
+          </div>
         ) : leaderboardView ? (
+          <div key="leaderboard" className="animate-page-in w-full">
           <LeaderboardViewComponent
             onSelectPlayer={(id) => {
               setLeaderboardView(false);
               searchPlayer(id);
             }}
           />
+          </div>
         ) : lobbiesView ? (
-          <div className="flex-1 flex flex-col items-center px-1 sm:px-3 md:px-6 z-10 w-full max-w-[1750px] mx-auto min-h-[calc(100vh-90px)]">
+          <div key="lobbies" className="animate-page-in flex-1 flex flex-col items-center px-1 sm:px-3 md:px-6 z-10 w-full max-w-[1750px] mx-auto min-h-[calc(100vh-90px)]">
             <LobbiesView
               playerData={playerData?.player || playerData}
               isPublic={isPublic}
@@ -1408,11 +1413,15 @@ export function HomeContent({
             />
           </div>
         ) : newsView && !agentsView ? (
-          <NewsViewComponent newsItems={newsItems} setNewsItems={setNewsItems} targetNewsId={targetNewsId} />
+          <div key="news" className="animate-page-in w-full">
+            <NewsViewComponent newsItems={newsItems} setNewsItems={setNewsItems} targetNewsId={targetNewsId} />
+          </div>
         ) : agentsView && !newsView ? (
-          <AgentsWikiComponent videoLoop={videoLoop} videoLoopDelay={videoLoopDelay} locale={locale} pushUrl={pushUrl} />
+          <div key="agents" className="animate-page-in w-full">
+            <AgentsWikiComponent videoLoop={videoLoop} videoLoopDelay={videoLoopDelay} locale={locale} pushUrl={pushUrl} />
+          </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center px-4 sm:px-8 z-10 w-full max-w-6xl mx-auto">
+          <div className="animate-page-in flex-1 flex flex-col items-center px-4 sm:px-8 z-10 w-full max-w-6xl mx-auto">
             {error &&
               (error.includes("privé") ? (
                 <div className="glass-panel rounded-2xl p-10 flex flex-col items-center text-center max-w-lg mb-6 animate-in fade-in duration-500">
@@ -1430,9 +1439,7 @@ export function HomeContent({
               ))}
 
             {loading && (
-              <div className="text-[var(--color-text-secondary)] animate-pulse mt-10 text-xl font-bold tracking-widest uppercase">
-                Chargement...
-              </div>
+              <ProfileSkeleton />
             )}
 
             {!playerData && !loading && (
@@ -1487,7 +1494,7 @@ export function HomeContent({
                 return (
                   <div className={`w-full flex flex-col animate-in fade-in slide-in-from-bottom-8 duration-700 ${profileThemeClass}`}>
                     {/* Bannière Profil Responsive */}
-                    <div className="w-full relative rounded-2xl overflow-hidden border border-[var(--color-border)] shadow-[0_8px_30px_var(--color-glass-shadow)] bg-[#0a0e13] min-h-[125px] sm:min-h-[140px] aspect-[2.4/1] sm:aspect-[3.6/1] md:aspect-[3.8/1]">
+                    <div className="w-full relative rounded-2xl overflow-hidden border border-[var(--color-border)] shadow-[0_8px_30px_var(--color-glass-shadow)] bg-[#0a0e13] min-h-[135px] sm:min-h-[140px] aspect-[2.3/1] sm:aspect-[3.6/1] md:aspect-[3.8/1]">
                       <img
                         referrerPolicy="no-referrer"
                         src={profileBannerUrl}
@@ -1566,10 +1573,10 @@ export function HomeContent({
                         </div>
                       </div>
 
-                      <div className="relative z-10 px-3 sm:px-6 md:px-8 pt-7 sm:pt-6 pb-3 sm:pb-4 flex items-center justify-between h-full w-full gap-2">
+                      <div className="relative z-10 px-3 sm:px-6 md:px-8 pt-9 sm:pt-6 pb-2.5 sm:pb-4 flex items-center justify-between h-full w-full gap-2">
                         {/* Gauche : Avatar + Pseudo + Tag + Badge */}
-                        <div className="flex items-center gap-2.5 sm:gap-4 md:gap-5 min-w-0 max-w-[42%] sm:max-w-[45%] z-10">
-                          <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-2.5 sm:gap-4 md:gap-5 flex-1 min-w-0 md:max-w-[45%] z-10">
+                          <div className="relative flex flex-col items-center gap-1 flex-shrink-0">
                             <div className="w-13 h-13 xs:w-15 xs:h-15 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-xl overflow-hidden border-2 border-[rgba(255,255,255,0.15)] shadow-[0_4px_15px_rgba(0,0,0,0.6)] bg-black/60">
                               <img referrerPolicy="no-referrer" src={p.cardUrl} alt="Avatar" className="w-full h-full object-cover" />
                             </div>
@@ -1583,12 +1590,15 @@ export function HomeContent({
 
                           <div className="flex flex-col min-w-0" style={{ textShadow: "0px 2px 10px rgba(0,0,0,0.8)" }}>
                             <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                              <span className="text-sm xs:text-base sm:text-xl md:text-2xl font-black tracking-tight text-white truncate max-w-[120px] xs:max-w-[160px] sm:max-w-none">
+                              <span className="text-sm xs:text-base sm:text-xl md:text-2xl font-black tracking-tight text-white truncate max-w-[140px] xs:max-w-[180px] sm:max-w-none">
                                 {displayName}
                               </span>
                               {displayTag && (
                                 <span className="text-[10px] sm:text-xs md:text-sm text-[var(--color-text-secondary)] font-medium">{displayTag}</span>
                               )}
+                              <span className="md:hidden text-[9px] font-black text-[var(--color-val-light)] bg-white/10 border border-white/15 px-1.5 py-0.5 rounded-md">
+                                Nv. {p.level}
+                              </span>
                               {!streamerMode && (
                                 <UserBadges
                                   badges={p.badge}
@@ -1597,39 +1607,23 @@ export function HomeContent({
                                   hiddenBadges={canEditProfile ? hiddenBadges : []}
                                 />
                               )}
-                              {playerData?.isMock === false ? (
-                                <span
-                                  title="Données synchronisées en direct avec Riot Games API"
-                                  className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
-                                >
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                                  LIVE RIOT
-                                </span>
-                              ) : (
-                                <span
-                                  title="Mode simulation (Mock)"
-                                  className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-white/10 text-neutral-400 border border-white/10"
-                                >
-                                  MOCK
-                                </span>
-                              )}
                             </div>
                             {p.mainAgent && (
-                              <span className="text-[8px] sm:text-[9px] md:text-[10px] text-[var(--color-text-secondary)] uppercase tracking-[0.1em] sm:tracking-[0.2em] mt-0.5 font-bold truncate">
+                              <span className="text-[9px] sm:text-[9px] md:text-[10px] text-[var(--color-text-secondary)] uppercase tracking-[0.1em] sm:tracking-[0.2em] mt-0.5 font-bold truncate">
                                 Main • {p.mainAgent.role}
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Centre Absolu : Niveau au milieu parfait de la bannière */}
-                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-10">
-                          <span className="text-[8px] sm:text-[9px] md:text-[10px] text-[var(--color-text-secondary)] uppercase tracking-[0.15em] mb-0.5 sm:mb-1 font-bold" style={{ textShadow: "0px 2px 8px rgba(0,0,0,0.8)" }}>
+                        {/* Centre Absolu : Niveau en losange au milieu UNIQUEMENT sur Desktop (md+) */}
+                        <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex-col items-center pointer-events-none z-10">
+                          <span className="text-[9px] md:text-[10px] text-[var(--color-text-secondary)] uppercase tracking-[0.15em] mb-1 font-bold" style={{ textShadow: "0px 2px 8px rgba(0,0,0,0.8)" }}>
                             Niveau
                           </span>
-                          <div className="relative flex items-center justify-center w-9 h-9 xs:w-10 xs:h-10 sm:w-12 sm:h-12 md:w-16 md:h-16">
-                            <div className="absolute inset-0 border-2 border-[var(--color-val-light)] opacity-50 transform rotate-45 rounded-md sm:rounded-lg shadow-[0_0_15px_rgba(0,0,0,0.5)]"></div>
-                            <span className="text-xs xs:text-sm sm:text-xl md:text-3xl font-black text-[var(--color-val-light)] drop-shadow-[0_0_10px_rgba(0,0,0,0.8)] z-10">
+                          <div className="relative flex items-center justify-center sm:w-12 sm:h-12 md:w-16 md:h-16">
+                            <div className="absolute inset-0 border-2 border-[var(--color-val-light)] opacity-50 transform rotate-45 rounded-lg shadow-[0_0_15px_rgba(0,0,0,0.5)]"></div>
+                            <span className="sm:text-xl md:text-3xl font-black text-[var(--color-val-light)] drop-shadow-[0_0_10px_rgba(0,0,0,0.8)] z-10">
                               {p.level}
                             </span>
                           </div>
@@ -1641,7 +1635,7 @@ export function HomeContent({
                             <span className="text-[9px] sm:text-[10px] text-[var(--color-text-secondary)] uppercase tracking-[0.2em] font-bold">Rang</span>
                             <span className="text-xs sm:text-lg font-black text-white uppercase tracking-wider">{p.rank}</span>
                           </div>
-                          <img referrerPolicy="no-referrer" src={p.rankUrl} alt={p.rank} className="w-13 h-13 xs:w-15 xs:h-15 sm:w-16 sm:h-16 md:w-20 md:h-20 object-contain drop-shadow-[0_0_20px_rgba(0,0,0,0.8)]" />
+                          <img referrerPolicy="no-referrer" src={p.rankUrl} alt={p.rank} className="w-11 h-11 xs:w-13 xs:h-13 sm:w-16 sm:h-16 md:w-20 md:h-20 object-contain drop-shadow-[0_0_20px_rgba(0,0,0,0.8)]" />
                         </div>
                       </div>
                     </div>
@@ -1976,6 +1970,7 @@ export function HomeContent({
           }}
           onOpenLeaderboard={() => setShowLeaderboardModal(true)}
           onToggleFullscreen={toggleFullscreen}
+          onSignOut={() => signOut({ callbackUrl: "/" })}
         />
 
         {/* Persistent Floating Voice Bar when navigating across Spycam */}

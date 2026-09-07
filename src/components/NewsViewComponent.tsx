@@ -88,8 +88,24 @@ export default function NewsViewComponent({ newsItems, setNewsItems, targetNewsI
       </div>
 
       {newsLoading && (
-        <div className="text-center text-[var(--color-text-secondary)] animate-pulse py-20 uppercase tracking-widest font-bold">
-          Chargement des actualités...
+        <div className="flex flex-col gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="glass-panel rounded-2xl p-6 animate-page-in"
+              style={{ animationDelay: `${i * 100}ms` }}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-5 w-48 skeleton-shimmer rounded-lg" />
+                <div className="h-3 w-24 skeleton-shimmer rounded-md ml-auto" />
+              </div>
+              <div className="space-y-2.5">
+                <div className="h-3 w-full skeleton-shimmer rounded-md" />
+                <div className="h-3 w-5/6 skeleton-shimmer rounded-md" />
+                <div className="h-3 w-3/4 skeleton-shimmer rounded-md" />
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -100,13 +116,13 @@ export default function NewsViewComponent({ newsItems, setNewsItems, targetNewsI
       )}
 
       {!newsLoading && !newsError && sortedNews.length === 0 && (
-        <div className="glass-panel rounded-2xl p-10 text-center">
+        <div className="glass-panel rounded-2xl p-10 text-center animate-page-in">
           <p className="text-lg text-[var(--color-text-secondary)] font-bold">Aucune actualité pour le moment</p>
         </div>
       )}
 
       <div className="flex flex-col gap-6">
-        {sortedNews.map((item) => {
+        {sortedNews.map((item, index) => {
           const activeNode = getActiveNode(item);
           const isTargeted = highlightedId === item.id || targetNewsId === item.id;
 
@@ -114,11 +130,12 @@ export default function NewsViewComponent({ newsItems, setNewsItems, targetNewsI
             <div
               key={item.id}
               id={`news-card-${item.id}`}
-              className={`glass-panel rounded-2xl p-6 transition-all duration-500 ${
+              className={`glass-panel rounded-2xl p-6 transition-all duration-500 animate-page-in ${
                 isTargeted
                   ? "ring-2 ring-[var(--color-val-red)] shadow-[0_0_35px_rgba(255,70,85,0.4)] bg-[var(--color-surface-hover)] scale-[1.01]"
                   : "hover:bg-[var(--color-surface-hover)]"
               }`}
+              style={{ animationDelay: `${index * 80}ms` }}
             >
               <div className="flex items-center gap-3 mb-4">
                 <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{item.title}</h3>

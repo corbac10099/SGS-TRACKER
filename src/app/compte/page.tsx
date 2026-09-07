@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useSession, signIn } from "next-auth/react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 export default function SpycamAccountPage() {
@@ -272,13 +272,27 @@ export default function SpycamAccountPage() {
             Gestion du Compte
           </h1>
         </div>
-        <a
-          href={sgsUrl}
-          className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs uppercase transition-all flex items-center gap-2"
-        >
-          <span>🏠 Hub SGS</span>
-          <span>➔</span>
-        </a>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/"
+            className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs uppercase transition-all flex items-center gap-1.5"
+          >
+            <span>← Spycam</span>
+          </Link>
+          <a
+            href={sgsUrl}
+            className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs uppercase transition-all flex items-center gap-1.5"
+          >
+            <span>🏠 Hub SGS</span>
+          </a>
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/" })}
+            className="px-3.5 py-2 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 hover:text-white font-bold text-xs uppercase transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>Déconnexion</span>
+          </button>
+        </div>
       </div>
 
       {msg && (

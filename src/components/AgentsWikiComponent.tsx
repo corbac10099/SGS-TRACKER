@@ -167,15 +167,23 @@ export default function AgentsWikiComponent({
 
   if (loading) {
     return (
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 py-24 flex flex-col items-center justify-center">
-        <div className="relative w-16 h-16 mb-6">
-          <div className="absolute inset-0 rounded-2xl border-2 border-[var(--color-val-red)]/20 animate-ping" />
-          <div className="w-16 h-16 rounded-2xl border-2 border-[var(--color-val-red)] flex items-center justify-center bg-black/40">
-            <span className="text-xl font-black text-[var(--color-val-red)] animate-pulse">V</span>
-          </div>
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 py-8 animate-page-in">
+        <div className="h-8 w-48 skeleton-shimmer rounded-xl mb-6" />
+        <div className="flex gap-3 mb-8">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-9 w-24 skeleton-shimmer rounded-xl" />
+          ))}
         </div>
-        <div className="text-sm font-bold uppercase tracking-[0.25em] text-[var(--color-text-secondary)]">
-          {t("loading_agents", locale)}...
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-5">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-2xl border border-white/10 overflow-hidden"
+              style={{ aspectRatio: "3 / 4.4", animationDelay: `${i * 60}ms` }}
+            >
+              <div className="w-full h-full skeleton-shimmer" />
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -507,9 +515,10 @@ export default function AgentsWikiComponent({
                   setSelectedAgent(agent);
                   pushUrl({ view: "agents", agentSlug: agent.name.toLowerCase() });
                 }}
-                className="group relative rounded-2xl overflow-hidden border border-white/10 hover:border-[var(--color-val-red)] bg-gradient-to-b from-[#141822] via-[#0f121a] to-[#090b10] flex flex-col text-left transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.8),0_0_25px_rgba(255,70,85,0.25)] cursor-pointer"
+                className="group relative rounded-2xl overflow-hidden border border-white/10 hover:border-[var(--color-val-red)] bg-gradient-to-b from-[#141822] via-[#0f121a] to-[#090b10] flex flex-col text-left transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.8),0_0_25px_rgba(255,70,85,0.25)] cursor-pointer animate-page-in"
                 style={{
                   aspectRatio: "3 / 4.4",
+                  animationDelay: `${index * 50}ms`,
                 }}
               >
                 {/* Filigrane discret du nom de l'agent en arrière-plan */}
@@ -526,6 +535,8 @@ export default function AgentsWikiComponent({
                       referrerPolicy="no-referrer"
                       src={fullPortrait}
                       alt={agent.name}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover object-top filter contrast-[1.05] brightness-95 group-hover:scale-110 group-hover:brightness-105 transition-all duration-500 ease-out"
                     />
                   ) : (
@@ -588,6 +599,8 @@ export default function AgentsWikiComponent({
                           referrerPolicy="no-referrer"
                           src={icon}
                           alt="compétence"
+                          loading="lazy"
+                          decoding="async"
                           className="w-5 h-5 rounded-md bg-black/50 border border-white/10 p-0.5 object-contain group-hover:border-[var(--color-val-red)]/40 transition-colors"
                         />
                       ))}

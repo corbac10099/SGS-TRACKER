@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
 import { signOut } from "next-auth/react";
 import NotificationsDropdown from "./NotificationsDropdown";
 import LiveClock from "./LiveClock";
@@ -237,7 +237,7 @@ export default function Header({
       <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 sm:py-3.5 w-full gap-2 lg:gap-4">
 
         {/* ═══ LEFT GROUP: Logo on far left + Nav Pill centered between Logo & Search ═══ */}
-        <div className="flex items-center flex-1 min-w-0">
+        <div className="flex items-center flex-none md:flex-1 min-w-0">
           {/* Logo */}
           <div
             onClick={onGoHome}
@@ -302,8 +302,8 @@ export default function Header({
           </div>
         </div>
 
-        {/* ═══ CENTER: Search Bar ═══ */}
-        <div className="w-full max-w-xs sm:max-w-sm flex-shrink-0 mx-1 lg:mx-2">
+        {/* ═══ CENTER: Search Bar (proportional — shrinks to fit between logo & bell) ═══ */}
+        <div className="flex-1 min-w-0 max-w-xs sm:max-w-sm mx-1 lg:mx-2">
           <div ref={searchContainerRef} className="relative w-full">
             <form onSubmit={handleSubmit} className="relative w-full">
               <input
@@ -313,7 +313,7 @@ export default function Header({
                 value={riotId}
                 onChange={(e) => setRiotId(e.target.value)}
                 onFocus={() => setIsFocused(true)}
-                className={`w-full bg-[var(--color-text-primary)] text-[var(--color-background)] font-medium px-4 sm:px-6 py-2 rounded-full text-xs sm:text-sm outline-none transition-all duration-300 pr-16 ${
+                className={`w-full bg-[var(--color-text-primary)] text-[var(--color-background)] font-medium px-3.5 sm:px-6 py-2 rounded-full text-xs sm:text-sm outline-none transition-all duration-300 pr-3 sm:pr-16 ${
                   isFocused ? "shadow-[0_0_25px_rgba(255,255,255,0.3)] ring-2 ring-[var(--color-val-red)]" : ""
                 }`}
                 required
@@ -422,8 +422,8 @@ export default function Header({
           </div>
         </div>
 
-        {/* ═══ RIGHT: Clean Glass Capsules (identical size & shape as left) ═══ */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-1 justify-end min-w-0">
+        {/* ═══ RIGHT: Clean Glass Capsules ═══ */}
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-none md:flex-1 justify-end">
 
           {/* ── Capsule 1: LiveClock + Notifications ── */}
           <div className="hidden md:flex items-center gap-0.5 p-1 rounded-2xl bg-black/30 border border-white/10 backdrop-blur-md">
@@ -473,57 +473,197 @@ export default function Header({
             </button>
           </div>
 
-          {/* ── Mobile fallback buttons ── */}
-          <div className="flex md:hidden items-center gap-1.5">
+          {/* ── Mobile fallback: notification bell only (settings via Menu drawer) ── */}
+          <div className="flex md:hidden items-center flex-shrink-0">
             <NotificationsDropdown
               onNavigateToNews={onOpenNews}
               onNavigateToAgents={onOpenAgents}
               playerStats={playerStats}
             />
-            <button
-              onClick={() => {
-                sounds.playTabSwitch();
-                onToggleSettings();
-              }}
-              className={`w-9 h-9 rounded-full transition-all flex items-center justify-center border cursor-pointer active:scale-95 ${
-                settingsOpen
-                  ? "bg-[var(--color-val-red)] border-[var(--color-val-red)] text-white"
-                  : "bg-[var(--color-surface)] border-[var(--color-border)] text-white"
-              }`}
-            >
-              <IconSettings size={16} />
-            </button>
           </div>
         </div>
       </div>
 
       {/* Enhanced Favorites Bar */}
       {favorites.length > 0 && !settingsOpen && (
-        <div className="w-full px-4 sm:px-6 py-2 flex items-center gap-2 border-t border-[var(--color-border)]/50 bg-[var(--color-background)]/50 overflow-x-auto custom-scrollbar">
+        <div className="w-full px-4 sm:px-6 py-2 flex items-center gap-2 border-t border-[var(--color-border)]/50 bg-[var(--color-background)]/50 overflow-visible relative">
           <span className="text-[10px] text-[var(--color-text-secondary)] uppercase tracking-widest font-bold mr-1 flex-shrink-0 flex items-center gap-1.5">
             <IconStar size={11} className="text-yellow-400" />
             <span>Favoris</span>
           </span>
-          <div className="flex items-center gap-1.5 overflow-x-auto">
+
+          {/* Desktop: horizontal scroll as before */}
+          <div className="hidden md:flex items-center gap-1.5 overflow-x-auto custom-scrollbar">
+            {favorites.map((fav) => (
+              <FavChip key={fav.riotId} fav={fav} isActive={activeGameName === fav.gameName} onSelect={onSelectFavorite} onRemove={onRemoveFavorite} />
+            ))}
+          </div>
+
+          {/* Mobile: first fav + "Voir plus" dropdown */}
+          <div className="flex md:hidden items-center gap-1.5 flex-1 min-w-0 relative">
+            <FavChip fav={favorites[0]} isActive={activeGameName === favorites[0].gameName} onSelect={onSelectFavorite} onRemove={onRemoveFavorite} />
+            {favorites.length > 1 && (
+              <MobileFavsMore
+                favorites={favorites.slice(1)}
+                activeGameName={activeGameName}
+                onSelectFavorite={onSelectFavorite}
+                onRemoveFavorite={onRemoveFavorite}
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </header>
+  );
+}
+
+function FavChip({
+  fav,
+  isActive,
+  onSelect,
+  onRemove,
+}: {
+  fav: { riotId: string; gameName: string; tagLine: string; cardUrl?: string };
+  isActive: boolean;
+  onSelect: (riotId: string) => void;
+  onRemove?: (player: any) => void;
+}) {
+  return (
+    <div
+      onMouseEnter={() => sounds.playHover()}
+      onClick={() => {
+        sounds.playClick();
+        onSelect(fav.riotId);
+      }}
+      className={`group flex items-center gap-1.5 px-3 py-1 rounded-full transition-all duration-200 text-xs font-bold border flex-shrink-0 cursor-pointer ${
+        isActive
+          ? "bg-[var(--color-val-red)]/15 border-[var(--color-val-red)]/50 text-[var(--color-val-red)] shadow-[0_0_12px_rgba(255,70,85,0.25)]"
+          : "bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+      }`}
+    >
+      {fav.cardUrl && (
+        <img referrerPolicy="no-referrer" src={fav.cardUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
+      )}
+      <span className="truncate max-w-[100px] sm:max-w-none">{fav.gameName}</span>
+      <span className="text-[var(--color-text-secondary)] opacity-50 text-[10px]">#{fav.tagLine}</span>
+
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove({ gameName: fav.gameName, tagLine: fav.tagLine });
+          }}
+          className="w-3.5 h-3.5 rounded-full hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity ml-1 text-[9px] cursor-pointer"
+          title="Retirer des favoris"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
+function MobileFavsMore({
+  favorites,
+  activeGameName,
+  onSelectFavorite,
+  onRemoveFavorite,
+}: {
+  favorites: Array<{ riotId: string; gameName: string; tagLine: string; cardUrl: string; rank?: string }>;
+  activeGameName?: string;
+  onSelectFavorite: (riotId: string) => void;
+  onRemoveFavorite?: (player: any) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const animateClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      setOpen(false);
+    }, 200);
+  }, []);
+
+  useEffect(() => {
+    if (!open || isClosing) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        animateClose();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open, isClosing, animateClose]);
+
+  return (
+    <div ref={containerRef} className="relative flex-shrink-0">
+      <button
+        type="button"
+        onClick={() => {
+          sounds.playClick();
+          if (open && !isClosing) {
+            animateClose();
+          } else if (!open) {
+            setOpen(true);
+          }
+        }}
+        className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-val-red)]/50 text-[var(--color-text-secondary)] hover:text-white transition-all cursor-pointer whitespace-nowrap"
+      >
+        <span>+{favorites.length}</span>
+        <span className="text-[10px] opacity-75">voir plus</span>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className={`absolute right-0 top-full mt-2 w-56 max-w-[calc(100vw-32px)] p-2 rounded-2xl glass-modal shadow-[0_15px_35px_rgba(0,0,0,0.7)] z-50 flex flex-col gap-1 border border-white/10 ${isClosing ? "animate-dropdown-out" : "animate-search-dropdown"}`}>
+          <div className="text-[9px] uppercase tracking-wider font-bold text-[var(--color-text-secondary)] px-2 py-1">
+            Autres favoris ({favorites.length})
+          </div>
+          <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
             {favorites.map((fav) => (
               <div
                 key={fav.riotId}
-                onMouseEnter={() => sounds.playHover()}
                 onClick={() => {
+                  animateClose();
                   sounds.playClick();
                   onSelectFavorite(fav.riotId);
                 }}
-                className={`group flex items-center gap-1.5 px-3 py-1 rounded-full transition-all duration-200 text-xs font-bold border flex-shrink-0 cursor-pointer ${
+                className={`flex items-center justify-between p-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${
                   activeGameName === fav.gameName
-                    ? "bg-[var(--color-val-red)]/15 border-[var(--color-val-red)]/50 text-[var(--color-val-red)] shadow-[0_0_12px_rgba(255,70,85,0.25)]"
-                    : "bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                    ? "bg-[var(--color-val-red)]/20 text-[var(--color-val-red)]"
+                    : "hover:bg-white/5 text-[var(--color-text-primary)]"
                 }`}
               >
-                {fav.cardUrl && <img referrerPolicy="no-referrer" src={fav.cardUrl} alt="" className="w-4 h-4 rounded-full object-cover" />}
-                <span>{fav.gameName}</span>
-                <span className="text-[var(--color-text-secondary)] opacity-50 text-[10px]">#{fav.tagLine}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  {fav.cardUrl ? (
+                    <img referrerPolicy="no-referrer" src={fav.cardUrl} alt="" className="w-5 h-5 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[10px]">
+                      {fav.gameName[0]}
+                    </div>
+                  )}
+                  <div className="truncate">
+                    <span>{fav.gameName}</span>
+                    <span className="text-[10px] text-[var(--color-text-secondary)] ml-1">#{fav.tagLine}</span>
+                  </div>
+                </div>
 
-                {/* Quick Remove Button on Hover */}
                 {onRemoveFavorite && (
                   <button
                     type="button"
@@ -531,8 +671,8 @@ export default function Header({
                       e.stopPropagation();
                       onRemoveFavorite({ gameName: fav.gameName, tagLine: fav.tagLine });
                     }}
-                    className="w-3.5 h-3.5 rounded-full hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity ml-1 text-[9px] cursor-pointer"
-                    title="Retirer des favoris"
+                    className="p-1 text-[10px] text-neutral-400 hover:text-red-400 cursor-pointer"
+                    title="Retirer"
                   >
                     ✕
                   </button>
@@ -542,6 +682,6 @@ export default function Header({
           </div>
         </div>
       )}
-    </header>
+    </div>
   );
 }
