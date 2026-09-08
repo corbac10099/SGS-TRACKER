@@ -19,8 +19,8 @@ export interface MobileAppDrawerProps {
   onSignOut?: () => void;
 }
 
-const CLOSE_THRESHOLD = 120;
-const RESISTANCE_FACTOR = 0.35;
+const CLOSE_THRESHOLD = 100;
+const RESISTANCE = 0.3;
 
 export default function MobileAppDrawer({
   isOpen,
@@ -31,79 +31,152 @@ export default function MobileAppDrawer({
   onSignOut,
 }: MobileAppDrawerProps) {
   const [isClosing, setIsClosing] = useState(false);
-  const [dragY, setDragY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const touchStartY = useRef(0);
+  const [, forceRender] = useState(0);
 
+  // Tout en refs pour éviter les closures périmées
+  const dragging = useRef(false);
+  const startY = useRef(0);
+  const currentY = useRef(0);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const rafId = useRef(0);
+  const entryDone = useRef(false);
+
+  // Reset quand le drawer s'ouvre
   useEffect(() => {
     if (isOpen) {
       setIsClosing(false);
-      setDragY(0);
-      setIsDragging(false);
+      currentY.current = 0;
+      dragging.current = false;
+      entryDone.current = false;
+      // Marquer l'animation d'entrée comme finie après sa durée
+      const t = setTimeout(() => { entryDone.current = true; }, 350);
+      return () => clearTimeout(t);
     }
   }, [isOpen]);
 
+  // ─── Appliquer le transform directement sur le DOM (pas de re-render) ───
+  const applyTransform = useCallback(() => {
+    const y = currentY.current;
+    if (drawerRef.current) {
+      drawerRef.current.style.transform = `translateY(${y}px)`;
+      drawerRef.current.style.transition = "none";
+      // Supprimer l'animation CSS si elle tourne encore
+      if (entryDone.current || y !== 0) {
+        drawerRef.current.style.animation = "none";
+        drawerRef.current.classList.remove("animate-drawer-content");
+      }
+    }
+    if (backdropRef.current) {
+      const progress = Math.max(0, Math.min(y / 300, 1));
+      const opacity = 1 - progress * 0.85;
+      const blur = Math.max(0, 12 - progress * 12);
+      backdropRef.current.style.backgroundColor = `rgba(0, 0, 0, ${opacity * 0.75})`;
+      backdropRef.current.style.backdropFilter = `blur(${blur}px)`;
+      (backdropRef.current.style as any).WebkitBackdropFilter = `blur(${blur}px)`;
+    }
+  }, []);
+
+  // ─── Fermeture animée depuis la position actuelle ───
   const animateClose = useCallback(() => {
+    if (drawerRef.current) {
+      drawerRef.current.style.transition = "transform 0.28s cubic-bezier(0.4, 0, 1, 1)";
+      drawerRef.current.style.transform = "translateY(100%)";
+    }
     setIsClosing(true);
     setTimeout(() => {
       setIsClosing(false);
-      setDragY(0);
+      currentY.current = 0;
       onClose();
     }, 280);
   }, [onClose]);
 
-  // ─── Unified pointer helpers ───
-  const startDrag = useCallback((clientY: number) => {
-    touchStartY.current = clientY;
-    setIsDragging(true);
+  // ─── Snap back à la position 0 depuis la position actuelle ───
+  const snapBack = useCallback(() => {
+    if (drawerRef.current) {
+      drawerRef.current.style.transition = "transform 0.32s cubic-bezier(0.16, 1, 0.3, 1)";
+      drawerRef.current.style.transform = "translateY(0px)";
+    }
+    if (backdropRef.current) {
+      backdropRef.current.style.transition = "background-color 0.3s, backdrop-filter 0.3s";
+      backdropRef.current.style.backgroundColor = "rgba(0, 0, 0, 0.75)";
+      backdropRef.current.style.backdropFilter = "blur(12px)";
+      (backdropRef.current.style as any).WebkitBackdropFilter = "blur(12px)";
+    }
+    currentY.current = 0;
   }, []);
 
-  const moveDrag = useCallback((clientY: number) => {
-    if (!isDragging) return;
-    const delta = clientY - touchStartY.current;
-    setDragY(delta > 0 ? delta : delta * RESISTANCE_FACTOR);
-  }, [isDragging]);
+  // ─── Drag start ───
+  const onDragStart = useCallback((clientY: number) => {
+    startY.current = clientY;
+    dragging.current = true;
+    cancelAnimationFrame(rafId.current);
+  }, []);
 
-  const endDrag = useCallback(() => {
-    setIsDragging(false);
-    if (dragY > CLOSE_THRESHOLD) {
+  // ─── Drag move ───
+  const onDragMove = useCallback((clientY: number) => {
+    if (!dragging.current) return;
+    const delta = clientY - startY.current;
+    // Vers le bas : libre — vers le haut : résistance
+    currentY.current = delta > 0 ? delta : delta * RESISTANCE;
+    cancelAnimationFrame(rafId.current);
+    rafId.current = requestAnimationFrame(applyTransform);
+  }, [applyTransform]);
+
+  // ─── Drag end ───
+  const onDragEnd = useCallback(() => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    cancelAnimationFrame(rafId.current);
+    if (currentY.current > CLOSE_THRESHOLD) {
       animateClose();
     } else {
-      setDragY(0);
+      snapBack();
     }
-  }, [dragY, animateClose]);
+  }, [animateClose, snapBack]);
 
-  // Touch events
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    startDrag(e.touches[0].clientY);
-  }, [startDrag]);
+  // ─── Touch handlers (avec preventDefault pour bloquer pull-to-refresh) ───
+  const handleRef = useRef<HTMLDivElement>(null);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    moveDrag(e.touches[0].clientY);
-  }, [moveDrag]);
+  useEffect(() => {
+    const el = handleRef.current;
+    if (!el) return;
 
-  const handleTouchEnd = useCallback(() => {
-    endDrag();
-  }, [endDrag]);
+    const onTouchStart = (e: TouchEvent) => {
+      onDragStart(e.touches[0].clientY);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault(); // ← empêche le pull-to-refresh
+      onDragMove(e.touches[0].clientY);
+    };
+    const onTouchEnd = () => {
+      onDragEnd();
+    };
 
-  // Mouse events (for PC / DevTools mobile emulation)
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [onDragStart, onDragMove, onDragEnd]);
+
+  // ─── Mouse handlers (PC / DevTools) ───
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    startDrag(e.clientY);
-  }, [startDrag]);
+    onDragStart(e.clientY);
 
-  // Global mouse listeners so drag continues outside the handle
-  useEffect(() => {
-    if (!isDragging) return;
-    const onMouseMove = (e: MouseEvent) => moveDrag(e.clientY);
-    const onMouseUp = () => endDrag();
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    return () => {
+    const onMouseMove = (ev: MouseEvent) => onDragMove(ev.clientY);
+    const onMouseUp = () => {
+      onDragEnd();
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [isDragging, moveDrag, endDrag]);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }, [onDragStart, onDragMove, onDragEnd]);
 
   const handleBackdropClick = useCallback(() => {
     sounds.playClick();
@@ -112,41 +185,33 @@ export default function MobileAppDrawer({
 
   if (!isOpen && !isClosing) return null;
 
-  const dragProgress = Math.max(0, Math.min(dragY / 300, 1));
-  const backdropOpacity = isClosing ? 0 : 1 - dragProgress * 0.85;
-  const backdropBlur = isClosing ? 0 : Math.max(0, 12 - dragProgress * 12);
-
   return (
     <div
+      ref={backdropRef}
       className={`fixed inset-0 z-50 flex flex-col justify-end ${
         isClosing ? "animate-drawer-backdrop-out" : "animate-drawer-backdrop"
       }`}
       style={{
-        backgroundColor: `rgba(0, 0, 0, ${backdropOpacity * 0.75})`,
-        backdropFilter: `blur(${backdropBlur}px)`,
-        WebkitBackdropFilter: `blur(${backdropBlur}px)`,
+        backgroundColor: "rgba(0, 0, 0, 0.75)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
       }}
       onClick={handleBackdropClick}
     >
       <div
+        ref={drawerRef}
         className={`relative w-full bg-[var(--color-surface)]/95 backdrop-blur-2xl border-t border-[var(--color-border)] rounded-t-3xl p-5 shadow-[0_-15px_50px_rgba(0,0,0,0.8)] flex flex-col gap-4 max-h-[85vh] overflow-visible ${
-          isClosing ? "animate-drawer-content-out" : (isDragging || dragY !== 0) ? "" : "animate-drawer-content"
+          isClosing ? "animate-drawer-content-out" : "animate-drawer-content"
         }`}
-        style={{
-          transform: `translateY(${dragY}px)`,
-          transition: isDragging ? "none" : "transform 0.32s cubic-bezier(0.16, 1, 0.3, 1)",
-          animation: (isDragging || dragY !== 0) ? "none" : undefined,
-        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Extension de fond pour éviter le vide lors du drag vers le haut */}
         <div className="absolute left-0 right-0 top-full h-[200px] bg-[var(--color-surface)] pointer-events-none" />
+
         {/* Grab Handle — zone tactile/souris élargie */}
         <div
+          ref={handleRef}
           className="flex items-center justify-center py-3 -mt-2 mb-1 cursor-grab active:cursor-grabbing select-none"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
           onMouseDown={handleMouseDown}
         >
           <div className="w-10 h-1 rounded-full bg-[var(--color-border)]" />

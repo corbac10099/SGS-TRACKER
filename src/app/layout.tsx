@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "SPYCAM - Valorant Performance Tracker",
-  description: "Suivez vos performances et statistiques sur Valorant avec SPYCAM.",
+  title: "SGS-Tracker - Valorant Performance Tracker",
+  description: "Suivez vos performances et statistiques sur Valorant avec SGS-Tracker.",
 };
 
 export default function RootLayout({

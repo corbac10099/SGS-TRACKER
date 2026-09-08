@@ -81,7 +81,7 @@ const DEFAULT_FR_TRANSLATIONS: Record<string, string> = {
   live_preview: "Aperçu en direct",
   live_preview_desc: "Glissez le curseur pour voir l'image s'ajuster en temps réel dans le cadre ci-dessus.",
   footer_desc: "Application de suivi de performances pour Valorant. Utilise l'API officielle de Riot Games.",
-  footer_legal: "Spycam n'est pas affilié à Riot Games et ne reflète pas les opinions de Riot Games ni de toute personne impliquée dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques commerciales ou des marques déposées de Riot Games, Inc.",
+  footer_legal: "SGS-Tracker n'est pas affilié à Riot Games et ne reflète pas les opinions de Riot Games ni de toute personne impliquée dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques commerciales ou des marques déposées de Riot Games, Inc.",
   role_duelist: "Duelliste",
   role_initiator: "Initiateur",
   role_controller: "Contrôleur",

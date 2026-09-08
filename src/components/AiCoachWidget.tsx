@@ -36,7 +36,7 @@ export default function AiCoachWidget({
           </div>
           <div className="flex flex-col">
             <span className="text-xs font-black text-white uppercase tracking-wider">
-              Coach Tactique Spycam
+              Coach Tactique SGS
             </span>
             <span className="text-[10px] text-[var(--color-text-secondary)] font-medium">
               Diagnostic Télémétrique en Direct

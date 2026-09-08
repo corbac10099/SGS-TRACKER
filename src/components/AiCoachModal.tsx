@@ -88,7 +88,7 @@ export default function AiCoachModal({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider">
-                  Coach Tactique Spycam
+                  Coach Tactique SGS
                 </h3>
                 <span className="flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>

@@ -242,17 +242,17 @@ export default function Header({
           <div
             onClick={onGoHome}
             className="flex items-center gap-2.5 cursor-pointer select-none transition-all hover:scale-105 active:scale-95 group flex-shrink-0 mr-2 lg:mr-4"
-            title="Spycam Accueil"
+            title="SGS-Tracker Accueil"
           >
-            <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden ring-1 ring-[var(--color-val-red)]/30 group-hover:ring-[var(--color-val-red)]/60 shadow-[0_0_12px_rgba(255,70,85,0.3)] group-hover:shadow-[0_0_20px_rgba(255,70,85,0.6)] transition-all bg-black">
               <img
-                src="/spycam-icon.png"
-                alt="Spycam Logo"
-                className="w-full h-full object-contain drop-shadow-[0_0_12px_rgba(255,70,85,0.6)] group-hover:drop-shadow-[0_0_20px_rgba(255,70,85,0.9)] transition-all"
+                src="/sgs-icon.jpg"
+                alt="SGS Logo"
+                className="w-full h-full object-contain"
               />
             </div>
             <span className="font-black text-base sm:text-lg text-[var(--color-text-primary)] tracking-widest hidden xl:inline-block">
-              SPYCAM
+              TRACKER
             </span>
           </div>
 

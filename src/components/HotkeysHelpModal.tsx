@@ -62,7 +62,7 @@ export default function HotkeysHelpModal({
               Raccourcis Clavier
             </h2>
             <p className="text-xs text-[var(--color-text-secondary)]">
-              Naviguez ultra rapidement dans SPYCAM
+              Naviguez ultra rapidement dans SGS-TRACKER
             </p>
           </div>
         </div>

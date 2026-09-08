@@ -1210,9 +1210,9 @@ export function HomeContent({
       <main className="flex-1 flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-5">
           <img
-            src="/spycam-icon.png"
-            alt="Spycam Logo"
-            className="w-16 h-16 object-contain animate-pulse drop-shadow-[0_0_30px_rgba(255,70,85,0.7)]"
+            src="/sgs-icon.jpg"
+            alt="SGS Logo"
+            className="w-16 h-16 object-cover rounded-2xl animate-pulse drop-shadow-[0_0_30px_rgba(255,70,85,0.7)]"
           />
           <p className="text-[var(--color-text-secondary)] uppercase tracking-widest text-xs font-black">
             Chargement...
@@ -1444,12 +1444,12 @@ export function HomeContent({
 
             {!playerData && !loading && (
               <div className="flex flex-col items-center justify-center mt-20 text-center animate-in fade-in duration-700">
-                <div className="w-24 h-24 bg-[var(--color-val-red)] rounded-3xl mb-8 flex items-center justify-center shadow-[0_0_40px_rgba(255,70,85,0.3)]">
-                  <span className="text-white text-5xl font-black">V</span>
+                <div className="w-24 h-24 rounded-3xl mb-8 overflow-hidden shadow-[0_0_40px_rgba(255,70,85,0.3)] ring-2 ring-[var(--color-val-red)]/40">
+                  <img src="/sgs-icon.jpg" alt="SGS Logo" className="w-full h-full object-cover scale-[1.15]" />
                 </div>
-                <h2 className="text-3xl font-bold mb-4">Bienvenue sur SPYCAM</h2>
+                <h2 className="text-3xl font-bold mb-4">Bienvenue sur SGS-Tracker</h2>
                 <p className="text-[var(--color-text-secondary)] mb-8 max-w-md">Recherchez un joueur ou connectez-vous via RSO.</p>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-6 opacity-50">Debug : Double-cliquez sur le logo V ou Ctrl+Shift+D</p>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-6 opacity-50">Debug : Double-cliquez sur le logo ou Ctrl+Shift+D</p>
               </div>
             )}
 

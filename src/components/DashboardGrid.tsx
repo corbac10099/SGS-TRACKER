@@ -104,7 +104,7 @@ export const ITEM_ICONS: Record<string, React.ReactNode> = {
 
 const ITEM_LABELS: Record<string, { label: string; desc: string }> = {
   performanceScore: { label: "Score de Performance (SPI)", desc: "Score intelligent sur 1 000 points" },
-  coach: { label: "Coach Tactique Spycam", desc: "Diagnostic télémétrique et débriefing en direct" },
+  coach: { label: "Coach Tactique SGS", desc: "Diagnostic télémétrique et débriefing en direct" },
   chart: { label: "Graphique de Progression", desc: "Courbe d'évolution K/D, ACS et Headshot" },
   weapons: { label: "Top Armes & Précision", desc: "Top 3 armes et zones de tir" },
   kills: { label: "Éliminations", desc: "Total des éliminations" },

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import "./landing.css";
@@ -19,9 +19,9 @@ export default function LandingPage({ onEnterBeta, onOpenLogin }: LandingPagePro
         {/* Left: Logo */}
         <div className="flex items-center gap-3 select-none">
           <img
-            src="/spycam-logo.png"
-            alt="SPYCAM"
-            className="h-10 sm:h-12 w-auto object-contain"
+            src="/sgs-icon.jpg"
+            alt="SGS-Tracker"
+            className="h-10 sm:h-12 w-auto object-contain rounded-xl"
           />
         </div>
 
@@ -152,10 +152,10 @@ export default function LandingPage({ onEnterBeta, onOpenLogin }: LandingPagePro
               </div>
             </div>
             <p className="text-xs text-white/60 leading-relaxed mb-4">
-              Partagez votre profil avec une URL personnalisée en 1 clic (spycam.gg/pseudo/home) ou basculez en mode 100% privé pour protéger votre historique.
+              Partagez votre profil avec une URL personnalisée en 1 clic (sgs-tracker.gg/pseudo/home) ou basculez en mode 100% privé pour protéger votre historique.
             </p>
             <div className="bg-white/5 rounded-lg p-2.5 border border-white/5 flex items-center justify-between text-xs font-mono">
-              <span className="text-white/80 truncate">spycam.gg/Gr4phØ/home</span>
+              <span className="text-white/80 truncate">sgs-tracker.gg/Gr4phØ/home</span>
               <span className="text-[9px] font-bold uppercase bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">
                 Partage 1-Clic
               </span>
@@ -190,7 +190,7 @@ export default function LandingPage({ onEnterBeta, onOpenLogin }: LandingPagePro
       <section className="relative z-10 py-12 px-4 sm:px-6 max-w-3xl mx-auto text-center">
         <div className="sp-card-static p-8 border border-white/10 text-center">
           <h2 className="text-xl sm:text-2xl font-black uppercase text-white mb-2">
-            Prêt à tester Spycam ?
+            Prêt à tester SGS-Tracker ?
           </h2>
           <p className="text-xs sm:text-sm text-white/60 max-w-md mx-auto mb-6">
             Accédez à toutes les fonctionnalités immédiatement avec un profil démo sans inscription requise.
@@ -216,7 +216,7 @@ export default function LandingPage({ onEnterBeta, onOpenLogin }: LandingPagePro
       <footer className="relative z-10 border-t border-white/5 py-6 px-4 text-center text-xs text-white/40">
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="font-bold text-white/60">
-            SPYCAM — Tracker & Hub Stratégique VALORANT
+            SGS-TRACKER — Tracker & Hub Stratégique VALORANT
           </div>
           <div>
             Non affilié à Riot Games. VALORANT est une marque de Riot Games, Inc.

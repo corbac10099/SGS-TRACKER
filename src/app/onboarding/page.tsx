@@ -215,9 +215,9 @@ function OnboardingContent() {
     return (
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[var(--color-background)]">
         <img
-          src="/spycam-icon.png"
-          alt="Spycam Logo"
-          className="w-16 h-16 object-contain animate-pulse drop-shadow-[0_0_30px_rgba(255,70,85,0.7)] mb-4"
+          src="/sgs-icon.jpg"
+          alt="SGS Logo"
+          className="w-16 h-16 object-contain rounded-2xl animate-pulse drop-shadow-[0_0_30px_rgba(255,70,85,0.7)] mb-4"
         />
         <div className="text-[var(--color-text-secondary)] text-sm font-bold uppercase tracking-widest animate-pulse">
           Chargement...
@@ -267,11 +267,11 @@ function OnboardingContent() {
       <div className="w-full max-w-xl mb-8 flex flex-col items-center z-10">
         {/* Logo and Protocol subtitle */}
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-[var(--color-val-red)] rounded-xl flex items-center justify-center text-white font-black text-2xl shadow-[0_0_20px_rgba(255,70,85,0.4)]">
-            V
+          <div className="w-10 h-10 rounded-xl overflow-hidden shadow-[0_0_20px_rgba(255,70,85,0.4)] bg-black">
+            <img src="/sgs-icon.jpg" alt="SGS Logo" className="w-full h-full object-contain" />
           </div>
           <span className="text-xs font-black uppercase tracking-[0.25em] text-[var(--color-text-secondary)]">
-            SPYCAM // ONBOARDING
+            SGS-TRACKER // ONBOARDING
           </span>
         </div>
 
