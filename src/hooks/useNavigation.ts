@@ -110,6 +110,7 @@ export function useNavigation(
     () => ({
       performance: "home",
       agents: "agents-stats",
+      maps: "cartes",
       matches: "historique",
     }),
     []
@@ -118,6 +119,7 @@ export function useNavigation(
     () => ({
       home: "performance",
       "agents-stats": "agents",
+      cartes: "maps",
       historique: "matches",
     }),
     []
@@ -129,6 +131,7 @@ export function useNavigation(
       "historique",
       "agents",
       "agents-stats",
+      "cartes",
       "actualites",
       "parametres",
     ],

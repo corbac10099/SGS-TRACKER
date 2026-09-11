@@ -45,9 +45,8 @@ import ProfileBanner from "@/components/ProfileBanner";
 import ProfileTabs from "@/components/ProfileTabs";
 import AgentsStatsTab from "@/components/AgentsStatsTab";
 import ActivityCalendar from "@/components/ActivityCalendar";
-import MapPerformanceHeatmap from "@/components/MapPerformanceHeatmap";
+import MapsStatsTab from "@/components/MapsStatsTab";
 import TiltAlertBanner from "@/components/TiltAlertBanner";
-import SessionTrackerWidget from "@/components/SessionTrackerWidget";
 import PersonalGoalsWidget from "@/components/PersonalGoalsWidget";
 import PlayerCompareModal from "@/components/PlayerCompareModal";
 import AchievementsModal from "@/components/AchievementsModal";
@@ -324,22 +323,12 @@ export function HomeContent({
               }}
             />
 
-            {/* Session Tracker en direct & Objectifs Personnels */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-              <SessionTrackerWidget
-                currentMatches={filters.filteredMatches}
-                currentStats={s}
-              />
+            {/* Objectifs Personnels */}
+            <div className="mt-8">
               <PersonalGoalsWidget
                 currentStats={s}
                 matchesCount={filters.filteredMatches?.length}
               />
-            </div>
-
-            {/* Heatmap des Cartes & Calendrier d'activité */}
-            <div className="mt-8 space-y-6">
-              <MapPerformanceHeatmap matches={filters.filteredMatches} />
-              <ActivityCalendar matches={filters.filteredMatches} />
             </div>
           </div>
         )}
@@ -351,6 +340,13 @@ export function HomeContent({
               agentStats={p.agentStats}
               matches={filters.filteredMatches}
             />
+          </div>
+        )}
+
+        {/* Maps / Cartes Tab */}
+        {nav.activeTab === "maps" && (
+          <div className="w-full">
+            <MapsStatsTab matches={filters.filteredMatches} />
           </div>
         )}
 

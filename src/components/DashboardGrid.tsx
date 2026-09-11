@@ -993,6 +993,202 @@ export default function DashboardGrid({
   // Exact pixel height of the grid content
   const gridPixelHeight = totalRows * cellSize + Math.max(0, totalRows - 1) * GRID_GAP;
 
+  // État du mode Session en direct
+  const [liveSessionActive, setLiveSessionActive] = useState<boolean>(false);
+  const [liveSessionStart, setLiveSessionStart] = useState<number | null>(null);
+  const [liveSessionInitialMatchIds, setLiveSessionInitialMatchIds] = useState<string[]>([]);
+  const [liveSessionElapsed, setLiveSessionElapsed] = useState<number>(0);
+
+  // Synchronisation depuis localStorage
+  useEffect(() => {
+    try {
+      const storedActive = localStorage.getItem("sgs_live_session_active");
+      const storedStart = localStorage.getItem("sgs_live_session_start");
+      const storedIds = localStorage.getItem("sgs_live_session_match_ids");
+      if (storedActive === "true" && storedStart) {
+        setLiveSessionActive(true);
+        setLiveSessionStart(parseInt(storedStart, 10));
+        setLiveSessionInitialMatchIds(storedIds ? JSON.parse(storedIds) : []);
+      }
+    } catch {}
+  }, []);
+
+  // Timer de session en direct
+  useEffect(() => {
+    let interval: any = null;
+    if (liveSessionActive && liveSessionStart) {
+      setLiveSessionElapsed(Math.floor((Date.now() - liveSessionStart) / 1000));
+      interval = setInterval(() => {
+        setLiveSessionElapsed(Math.floor((Date.now() - liveSessionStart) / 1000));
+      }, 1000);
+    } else {
+      setLiveSessionElapsed(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [liveSessionActive, liveSessionStart]);
+
+  const formatElapsed = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}m ${s < 10 ? "0" : ""}${s}s`;
+  };
+
+  // Basculement du mode session en direct
+  const handleToggleLiveSession = () => {
+    sounds.playClick();
+    if (!liveSessionActive) {
+      const now = Date.now();
+      const currentIds = (matchHistory || []).map(
+        (m) => m.id || m.matchId || `${m.date}_${m.map}`
+      );
+      setLiveSessionActive(true);
+      setLiveSessionStart(now);
+      setLiveSessionInitialMatchIds(currentIds);
+      try {
+        localStorage.setItem("sgs_live_session_active", "true");
+        localStorage.setItem("sgs_live_session_start", now.toString());
+        localStorage.setItem(
+          "sgs_live_session_match_ids",
+          JSON.stringify(currentIds)
+        );
+      } catch {}
+    } else {
+      setLiveSessionActive(false);
+      setLiveSessionStart(null);
+      setLiveSessionInitialMatchIds([]);
+      try {
+        localStorage.removeItem("sgs_live_session_active");
+        localStorage.removeItem("sgs_live_session_start");
+        localStorage.removeItem("sgs_live_session_match_ids");
+      } catch {}
+    }
+  };
+
+  // Calcul des deltas de la session en direct
+  const sessionDeltas = useMemo(() => {
+    if (!liveSessionActive || !liveSessionStart) return null;
+
+    const initialSet = new Set(liveSessionInitialMatchIds);
+    const sessionMatches = (matchHistory || []).filter((m) => {
+      const id = m.id || m.matchId || `${m.date}_${m.map}`;
+      if (initialSet.has(id)) return false;
+      const matchTime = m.date ? new Date(m.date).getTime() : 0;
+      return matchTime >= liveSessionStart - 60000;
+    });
+
+    const matchesCount = sessionMatches.length;
+    let kills = 0;
+    let deaths = 0;
+    let assists = 0;
+    let wins = 0;
+    let totalAcs = 0;
+    let totalHs = 0;
+    let totalShots = 0;
+    let totalAdr = 0;
+    let firstBloods = 0;
+    let aces = 0;
+
+    sessionMatches.forEach((m) => {
+      if (m.won) wins++;
+      kills += m.kills || 0;
+      deaths += m.deaths || 0;
+      assists += m.assists || 0;
+      totalAcs += m.acs || 0;
+      totalAdr += m.adr || 0;
+      firstBloods += m.firstBloods || 0;
+      aces += m.aceCount || m.aces || 0;
+      const hs = m.headshots || 0;
+      const bs = m.bodyshots || 0;
+      const ls = m.legshots || 0;
+      totalHs += hs;
+      totalShots += hs + bs + ls;
+    });
+
+    const losses = matchesCount - wins;
+    const kd = deaths > 0 ? kills / deaths : kills;
+    const avgAcs = matchesCount > 0 ? Math.round(totalAcs / matchesCount) : 0;
+    const avgAdr = matchesCount > 0 ? Math.round(totalAdr / matchesCount) : 0;
+    const hsPct = totalShots > 0 ? Math.round((totalHs / totalShots) * 100) : 0;
+
+    const overallKd = stats?.kdRatio ?? 1.0;
+    const overallAcs = stats?.acs ?? 200;
+    const kdDelta = matchesCount > 0 ? kd - overallKd : 0;
+    const acsDelta = matchesCount > 0 ? avgAcs - overallAcs : 0;
+
+    return {
+      matchesCount,
+      wins,
+      losses,
+      kills,
+      deaths,
+      assists,
+      kd,
+      kdDelta,
+      avgAcs,
+      acsDelta,
+      avgAdr,
+      hsPct,
+      firstBloods,
+      aces,
+    };
+  }, [liveSessionActive, liveSessionStart, liveSessionInitialMatchIds, matchHistory, stats]);
+
+  const getStatDelta = (key: string) => {
+    if (!liveSessionActive) return undefined;
+    if (!sessionDeltas || sessionDeltas.matchesCount === 0) {
+      return { text: "0", neutral: true };
+    }
+    switch (key) {
+      case "kills":
+        return { text: `+${sessionDeltas.kills}`, positive: true };
+      case "deaths":
+        return { text: `+${sessionDeltas.deaths}`, neutral: true };
+      case "assists":
+        return { text: `+${sessionDeltas.assists}`, positive: true };
+      case "kd": {
+        const diff = sessionDeltas.kdDelta;
+        return {
+          text: `${diff >= 0 ? "+" : ""}${diff.toFixed(2)}`,
+          positive: diff >= 0,
+        };
+      }
+      case "adr":
+        return {
+          text: `+${sessionDeltas.avgAdr}`,
+          positive: sessionDeltas.avgAdr >= 130,
+        };
+      case "hs":
+        return {
+          text: `${sessionDeltas.hsPct}%`,
+          positive: sessionDeltas.hsPct >= 20,
+        };
+      case "wr":
+        return {
+          text: `${sessionDeltas.wins}V-${sessionDeltas.losses}D`,
+          positive: sessionDeltas.wins >= sessionDeltas.losses,
+        };
+      case "acs": {
+        const diff = sessionDeltas.acsDelta;
+        return {
+          text: `${diff >= 0 ? "+" : ""}${diff}`,
+          positive: diff >= 0,
+        };
+      }
+      case "fb":
+        return { text: `+${sessionDeltas.firstBloods}`, positive: true };
+      case "ace":
+        return { text: `+${sessionDeltas.aces}`, positive: true };
+      case "wins":
+        return { text: `+${sessionDeltas.wins}`, positive: true };
+      case "matches":
+        return { text: `+${sessionDeltas.matchesCount}`, neutral: true };
+      default:
+        return undefined;
+    }
+  };
+
   // Render individual widget content
   const renderItemContent = (id: string) => {
     if (id === "chart" || id.startsWith("chart_")) {
@@ -1061,11 +1257,11 @@ export default function DashboardGrid({
       case "weapons":
         return <WeaponHitmap matchHistory={matchHistory} stats={stats} />;
       case "kills":
-        return <StatCard label="Éliminations" value={stats?.kills ?? 0} smartRating={smartRating} />;
+        return <StatCard label="Éliminations" value={stats?.kills ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("kills")} />;
       case "deaths":
-        return <StatCard label="Morts" value={stats?.deaths ?? 0} smartRating={smartRating} />;
+        return <StatCard label="Morts" value={stats?.deaths ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("deaths")} />;
       case "assists":
-        return <StatCard label="Passes décisives" value={stats?.assists ?? 0} smartRating={smartRating} />;
+        return <StatCard label="Passes décisives" value={stats?.assists ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("assists")} />;
       case "kd":
         return (
           <StatCard
@@ -1074,10 +1270,11 @@ export default function DashboardGrid({
             highlight
             warning={warnings?.kd}
             smartRating={smartRating}
+            sessionDelta={getStatDelta("kd")}
           />
         );
       case "adr":
-        return <StatCard label="Dégâts/Tour (ADR)" value={stats?.adr ?? 0} highlight smartRating={smartRating} />;
+        return <StatCard label="Dégâts/Tour (ADR)" value={stats?.adr ?? 0} highlight smartRating={smartRating} sessionDelta={getStatDelta("adr")} />;
       case "hs":
         return (
           <StatCard
@@ -1086,6 +1283,7 @@ export default function DashboardGrid({
             suffix="%"
             warning={warnings?.hs}
             smartRating={smartRating}
+            sessionDelta={getStatDelta("hs")}
           />
         );
       case "wr":
@@ -1096,6 +1294,7 @@ export default function DashboardGrid({
             suffix="%"
             warning={warnings?.wr}
             smartRating={smartRating}
+            sessionDelta={getStatDelta("wr")}
           />
         );
       case "acs":
@@ -1106,12 +1305,13 @@ export default function DashboardGrid({
             highlight
             warning={warnings?.acs}
             smartRating={smartRating}
+            sessionDelta={getStatDelta("acs")}
           />
         );
       case "fb":
-        return <StatCard label="Premiers sangs" value={stats?.firstBloods ?? 0} smartRating={smartRating} />;
+        return <StatCard label="Premiers sangs" value={stats?.firstBloods ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("fb")} />;
       case "ace":
-        return <StatCard label="ACE" value={stats?.aceCount ?? 0} smartRating={smartRating} />;
+        return <StatCard label="ACE" value={stats?.aceCount ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("ace")} />;
       case "kast":
         return (
           <StatCard
@@ -1138,10 +1338,11 @@ export default function DashboardGrid({
             label="Victoires"
             value={Math.round(((stats?.winRate ?? 0) / 100) * (stats?.matchesPlayed ?? 0))}
             smartRating={smartRating}
+            sessionDelta={getStatDelta("wins")}
           />
         );
       case "matches":
-        return <StatCard label="Parties" value={stats?.matchesPlayed ?? 0} smartRating={smartRating} />;
+        return <StatCard label="Parties" value={stats?.matchesPlayed ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("matches")} />;
       default:
         return null;
     }
@@ -1169,9 +1370,39 @@ export default function DashboardGrid({
                 </div>
               </div>
             ) : (
-              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                Tableau de Bord
-              </span>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                  Tableau de Bord
+                </span>
+                {/* Bouton Mode Session Direct */}
+                <button
+                  type="button"
+                  onMouseEnter={() => sounds.playHover()}
+                  onClick={handleToggleLiveSession}
+                  title={
+                    liveSessionActive
+                      ? "Arrêter la session en direct"
+                      : "Activer le mode session en direct pour voir vos gains (+kills, etc.) en direct"
+                  }
+                  className={`px-2.5 sm:px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md select-none ${
+                    liveSessionActive
+                      ? "bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+                      : "glass-pill hover:bg-amber-500/20 border-white/20 hover:border-amber-400/60 text-white/80 hover:text-white"
+                  }`}
+                >
+                  {liveSessionActive ? (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                      <span>Session Direct ({formatElapsed(liveSessionElapsed)}) • Arrêter</span>
+                    </>
+                  ) : (
+                    <>
+                      <IconFlame size={13} className="text-amber-400" />
+                      <span>Mode Session Direct</span>
+                    </>
+                  )}
+                </button>
+              </div>
             )}
           </div>
 

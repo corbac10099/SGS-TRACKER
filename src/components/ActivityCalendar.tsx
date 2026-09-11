@@ -48,10 +48,10 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
   const [hoveredDay, setHoveredDay] = useState<DayData | null>(null);
   const [selectedDay, setSelectedDay] = useState<DayData | null>(null);
 
-  // Construction des 52 semaines (365 jours) jusqu'à la fin de la semaine actuelle
+  // Construction des 53 semaines (exactement 365 ou 366 jours selon l'année) jusqu'à aujourd'hui
   const { weeks, statsSummary } = useMemo(() => {
     const today = new Date();
-    today.setHours(23, 59, 59, 999);
+    today.setHours(12, 0, 0, 0); // Midi pour éviter tout saut DST
     const todayKey = getLocalDateKey(today);
 
     // Dictionnaire des matchs par jour "YYYY-MM-DD" en heure locale
@@ -65,44 +65,63 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
       matchMap[key].push(m);
     });
 
+    // Détection si l'année glissante contient un 29 février (année bissextile = 366 jours, sinon 365)
+    let daysInYear = 365;
+    for (let i = 0; i < 366; i++) {
+      const checkDate = new Date(today);
+      checkDate.setDate(today.getDate() - i);
+      if (checkDate.getMonth() === 1 && checkDate.getDate() === 29) {
+        daysInYear = 366;
+        break;
+      }
+    }
+
+    // La période couvre exactement daysInYear jours (365 ou 366) se terminant aujourd'hui
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - (daysInYear - 1));
+    startDate.setHours(12, 0, 0, 0);
+
     // Lundi = 0, Dimanche = 6
+    const startDayOfWeek = (startDate.getDay() + 6) % 7;
+    const gridStartMonday = new Date(startDate);
+    gridStartMonday.setDate(startDate.getDate() - startDayOfWeek);
+    gridStartMonday.setHours(12, 0, 0, 0);
+
     const todayDayOfWeek = (today.getDay() + 6) % 7;
+    const gridEndSunday = new Date(today);
+    gridEndSunday.setDate(today.getDate() + (6 - todayDayOfWeek));
+    gridEndSunday.setHours(12, 0, 0, 0);
 
-    // Fin : dimanche de la semaine en cours (fixé à midi pour immunité contre le changement d'heure DST)
-    const endSunday = new Date(today);
-    endSunday.setDate(today.getDate() + (6 - todayDayOfWeek));
-    endSunday.setHours(12, 0, 0, 0);
+    const totalDays = Math.round((gridEndSunday.getTime() - gridStartMonday.getTime()) / (24 * 3600 * 1000)) + 1;
+    const totalWeeks = Math.ceil(totalDays / 7);
 
-    // Début : lundi d'il y a 52 semaines (à midi)
-    const startMonday = new Date(endSunday);
-    startMonday.setDate(endSunday.getDate() - (52 * 7 - 1));
-    startMonday.setHours(12, 0, 0, 0);
-
-    const totalWeeks = 52;
     const computedWeeks: {
       weekIndex: number;
       monthLabel?: string;
-      days: (DayData & { isFuture: boolean })[];
+      days: (DayData & { isFuture: boolean; isOut: boolean })[];
     }[] = [];
 
     let totalMatchesInPeriod = 0;
     let totalWinsInPeriod = 0;
     let maxMatchesInDay = 0;
     let activeDaysCount = 0;
-    const allDaysList: (DayData & { isFuture: boolean })[] = [];
+    const allDaysList: (DayData & { isFuture: boolean; isOut: boolean })[] = [];
 
     let currentMonth = -1;
 
     for (let w = 0; w < totalWeeks; w++) {
-      const weekDays: (DayData & { isFuture: boolean })[] = [];
+      const weekDays: (DayData & { isFuture: boolean; isOut: boolean })[] = [];
       let weekMonthLabel: string | undefined = undefined;
 
       for (let d = 0; d < 7; d++) {
-        const curDate = new Date(startMonday);
-        curDate.setDate(startMonday.getDate() + (w * 7 + d));
+        const curDate = new Date(gridStartMonday);
+        curDate.setDate(gridStartMonday.getDate() + (w * 7 + d));
         const key = getLocalDateKey(curDate);
-        const isFuture = key > todayKey;
-        const dayMatches = (!isFuture && matchMap[key]) || [];
+        
+        // Est hors période si strictement antérieur à startDate ou postérieur à today
+        const isOut = curDate.getTime() < startDate.getTime() || curDate.getTime() > today.getTime();
+        const isFuture = curDate.getTime() > today.getTime();
+        const dayMatches = (!isOut && matchMap[key]) || [];
 
         const matchesCount = dayMatches.length;
         let wins = 0;
@@ -119,7 +138,7 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
         const kd = deaths > 0 ? parseFloat((kills / deaths).toFixed(2)) : kills;
         const winRate = matchesCount > 0 ? Math.round((wins / matchesCount) * 100) : 0;
 
-        if (matchesCount > 0) {
+        if (!isOut && matchesCount > 0) {
           totalMatchesInPeriod += matchesCount;
           totalWinsInPeriod += wins;
           activeDaysCount++;
@@ -128,7 +147,7 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
 
         // Détection de changement de mois dans cette semaine
         const mIdx = curDate.getMonth();
-        if (mIdx !== currentMonth && curDate.getDate() <= 7 && !weekMonthLabel) {
+        if (mIdx !== currentMonth && curDate.getDate() <= 7 && !weekMonthLabel && !isOut) {
           weekMonthLabel = MONTH_NAMES_FR[mIdx];
           currentMonth = mIdx;
         }
@@ -146,10 +165,13 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
           winRate,
           matches: dayMatches,
           isFuture,
+          isOut,
         };
 
         weekDays.push(dayItem);
-        allDaysList.push(dayItem);
+        if (!isOut) {
+          allDaysList.push(dayItem);
+        }
       }
 
       computedWeeks.push({
@@ -159,14 +181,13 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
       });
     }
 
-    // Calcul du streak consécutif
+    // Calcul du streak consécutif (sur les jours réels analysés)
     let currentStreak = 0;
-    const pastDays = allDaysList.filter((d) => !d.isFuture);
-    for (let i = pastDays.length - 1; i >= 0; i--) {
-      if (pastDays[i].matchesCount > 0) {
+    for (let i = allDaysList.length - 1; i >= 0; i--) {
+      if (allDaysList[i].matchesCount > 0) {
         currentStreak++;
       } else {
-        if (i === pastDays.length - 1) continue;
+        if (i === allDaysList.length - 1) continue;
         break;
       }
     }
@@ -184,6 +205,8 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
         currentStreak,
         maxMatchesInDay,
         activeDaysCount,
+        totalDaysInYear: daysInYear,
+        totalWeeks,
       },
     };
   }, [matches]);
@@ -224,7 +247,7 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
             </h3>
           </div>
           <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 font-medium">
-            Historique d&apos;engagement annuel (52 semaines — 365 jours)
+            Historique d&apos;engagement annuel ({statsSummary.totalWeeks} semaines — {statsSummary.totalDaysInYear} jours)
           </p>
         </div>
 
@@ -312,10 +335,10 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
                   {/* 7 Day squares for this week */}
                   <div className="flex flex-col gap-1 sm:gap-1.5 w-full">
                     {week.days.map((day) => {
-                      if (day.isFuture) {
+                      if (day.isOut) {
                         return (
                           <div
-                            key={day.dateStr}
+                            key={`${day.dateStr}-${day.dayOfWeek}`}
                             className="w-full aspect-square rounded-[2.5px] sm:rounded-[3px] opacity-0 pointer-events-none"
                           />
                         );

@@ -31,6 +31,7 @@ export interface ProfileTabsProps {
 const TABS = [
   { id: "performance", label: "Performances" },
   { id: "agents", label: "Agents" },
+  { id: "maps", label: "Cartes" },
   { id: "matches", label: "Historique" },
 ];
 
