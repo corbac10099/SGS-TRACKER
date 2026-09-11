@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import { tr } from "@/lib/i18n";
 import { sounds } from "@/lib/soundEffects";
 import { calculateSingleMatchSPI } from "@/lib/valorant/performanceScore";
@@ -16,6 +16,7 @@ export interface MatchHistoryProps {
   currentPlayerRank?: string;
   currentPlayerRankUrl?: string;
   currentPlayerRankTier?: number;
+  highlightedMatchId?: string | null;
 }
 
 export const SkullIcon = React.memo(({ className }: { className?: string }) => (
@@ -696,8 +697,16 @@ function MatchHistoryComponent({
   currentPlayerRank,
   currentPlayerRankUrl,
   currentPlayerRankTier,
+  highlightedMatchId,
 }: MatchHistoryProps) {
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+
+  // Auto-expansion et ouverture animée lorsqu'un match spécifique est ciblé
+  useEffect(() => {
+    if (highlightedMatchId) {
+      setExpandedMatchId(highlightedMatchId);
+    }
+  }, [highlightedMatchId]);
 
   if (!matches || matches.length === 0) {
     return (
@@ -712,7 +721,13 @@ function MatchHistoryComponent({
   return (
     <div className="w-full space-y-3 animate-in fade-in duration-500">
       {matches.slice(0, visibleCount).map((match: any) => {
-        const isExpanded = expandedMatchId === match.matchId;
+        const mId = match.matchId || match.id;
+        const isTargeted =
+          highlightedMatchId === match.matchId ||
+          (match.id && highlightedMatchId === match.id);
+        const isExpanded =
+          expandedMatchId === match.matchId ||
+          (match.id && expandedMatchId === match.id);
         const spi = calculateSingleMatchSPI(match, match.role);
         const matchRank = getPlayerRank(match, {
           name: currentPlayerRank,
@@ -720,12 +735,20 @@ function MatchHistoryComponent({
           tier: currentPlayerRankTier,
         });
         return (
-          <div key={match.matchId} className="w-full flex flex-col gap-2">
+          <div
+            key={mId}
+            id={`match-${mId}`}
+            className={`w-full flex flex-col gap-2 rounded-2xl transition-all duration-500 ${
+              isTargeted
+                ? "ring-2 ring-[var(--color-val-red)] shadow-[0_0_25px_rgba(255,70,85,0.7)] p-1 bg-[var(--color-val-red)]/10 animate-pulse"
+                : ""
+            }`}
+          >
             <div
               onMouseEnter={() => sounds.playHover()}
               onClick={() => {
                 sounds.playClick();
-                setExpandedMatchId(isExpanded ? null : match.matchId);
+                setExpandedMatchId(isExpanded ? null : mId);
               }}
               className={`w-full glass-panel-interactive rounded-2xl p-4 flex items-center gap-3 sm:gap-4 border-l-4 cursor-pointer select-none ${
                 match.won

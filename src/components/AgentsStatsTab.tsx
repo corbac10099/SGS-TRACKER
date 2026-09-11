@@ -2,17 +2,24 @@
 
 import React, { useState, useMemo } from "react";
 import { sounds } from "@/lib/soundEffects";
+import { MAP_INFO } from "./MapsStatsTab";
 
 export interface AgentsStatsTabProps {
   agentStats: any[];
   matches?: any[];
+  onSelectMatch?: (matchId: string) => void;
 }
 
 /**
- * Onglet "Agents" du profil — liste des agents joués avec stats,
- * et déploiement interactif au clic avec télémétrie par carte et derniers matchs.
+ * Onglet "Agents" du profil — cartes d'agents au style sobre/noir original,
+ * avec déploiement des cartes jouées sous forme de petites cartes stylisées
+ * et historique récent au format MatchHistory interactif.
  */
-export default function AgentsStatsTab({ agentStats, matches = [] }: AgentsStatsTabProps) {
+export default function AgentsStatsTab({
+  agentStats,
+  matches = [],
+  onSelectMatch,
+}: AgentsStatsTabProps) {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
 
   // Regroupement des données de matchs par agent
@@ -92,7 +99,7 @@ export default function AgentsStatsTab({ agentStats, matches = [] }: AgentsStats
 
         return (
           <div key={agent.name} className="w-full flex flex-col gap-2">
-            {/* Main Agent Card */}
+            {/* Main Agent Card (Style noir / sombre épuré) */}
             <div
               onMouseEnter={() => sounds.playHover()}
               onClick={() => {
@@ -116,14 +123,13 @@ export default function AgentsStatsTab({ agentStats, matches = [] }: AgentsStats
                   <span className="font-black text-[var(--color-text-on-surface)] text-base sm:text-lg">
                     {agent.name}
                   </span>
-                  <span className="text-[10px] text-[var(--color-text-secondary)] uppercase tracking-widest bg-[rgba(255,255,255,0.05)] px-2 py-0.5 rounded-full">
-                    {agent.role}
-                  </span>
-                  <span className="text-[10px] text-[var(--color-val-red)] font-bold ml-auto sm:ml-0 px-2 py-0.5 rounded bg-[var(--color-val-red)]/10 sm:hidden">
-                    {isExpanded ? "Fermer ▲" : "Détails ▼"}
-                  </span>
+                  {agent.role && (
+                    <span className="text-[10px] text-[var(--color-text-secondary)] uppercase tracking-widest bg-[rgba(255,255,255,0.05)] px-2 py-0.5 rounded-full">
+                      {agent.role}
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center gap-3 sm:gap-5 mt-2 flex-wrap">
+                <div className="flex items-center gap-4 sm:gap-6 mt-1 text-xs">
                   <div className="flex flex-col">
                     <span className="text-[9px] text-[var(--color-text-secondary)] uppercase tracking-widest font-bold">
                       Parties
@@ -134,25 +140,17 @@ export default function AgentsStatsTab({ agentStats, matches = [] }: AgentsStats
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[9px] text-[var(--color-text-secondary)] uppercase tracking-widest font-bold">
-                      Win Rate
+                      Victoires
                     </span>
-                    <span
-                      className={`text-xs sm:text-sm font-bold ${
-                        agent.winRate >= 50 ? "text-emerald-400" : "text-red-400"
-                      }`}
-                    >
+                    <span className="text-xs sm:text-sm font-bold text-emerald-400">
                       {agent.winRate}%
                     </span>
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[9px] text-[var(--color-text-secondary)] uppercase tracking-widest font-bold">
-                      K/D
+                      Ratio K/D
                     </span>
-                    <span
-                      className={`text-xs sm:text-sm font-bold ${
-                        agent.kd >= 1 ? "text-emerald-400" : "text-red-400"
-                      }`}
-                    >
+                    <span className="text-xs sm:text-sm font-bold text-[var(--color-text-on-surface)]">
                       {agent.kd}
                     </span>
                   </div>
@@ -179,7 +177,9 @@ export default function AgentsStatsTab({ agentStats, matches = [] }: AgentsStats
                 </div>
                 <div
                   className={`w-7 h-7 rounded-full bg-[rgba(255,255,255,0.05)] flex items-center justify-center text-xs font-bold text-[var(--color-text-secondary)] transition-transform duration-300 ${
-                    isExpanded ? "rotate-180 text-[var(--color-val-red)] bg-[var(--color-val-red)]/10" : ""
+                    isExpanded
+                      ? "rotate-180 text-[var(--color-val-red)] bg-[var(--color-val-red)]/10"
+                      : ""
                   }`}
                 >
                   ▼
@@ -189,7 +189,7 @@ export default function AgentsStatsTab({ agentStats, matches = [] }: AgentsStats
 
             {/* Expanded Details Drawer */}
             {isExpanded && (
-              <div className="glass-card rounded-2xl p-5 border border-[var(--color-val-red)]/20 animate-in fade-in slide-in-from-top-3 duration-300 space-y-4">
+              <div className="glass-card rounded-2xl p-5 border border-[var(--color-val-red)]/20 animate-in fade-in slide-in-from-top-3 duration-300 space-y-5">
                 {/* Metrics Summary Row */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="p-3 rounded-xl bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]">
@@ -216,7 +216,9 @@ export default function AgentsStatsTab({ agentStats, matches = [] }: AgentsStats
                     </span>
                     <div className="text-base font-black text-emerald-400 mt-0.5">
                       {Math.round((agent.games * agent.winRate) / 100)}V -{" "}
-                      {agent.games - Math.round((agent.games * agent.winRate) / 100)}D
+                      {agent.games -
+                        Math.round((agent.games * agent.winRate) / 100)}
+                      D
                     </div>
                   </div>
 
@@ -230,79 +232,197 @@ export default function AgentsStatsTab({ agentStats, matches = [] }: AgentsStats
                   </div>
                 </div>
 
-                {/* Performance by Map with this Agent */}
+                {/* Performance by Map with this Agent — Petites cartes stylisées identiques aux stats des cartes */}
                 {details && Object.keys(details.mapBreakdown).length > 0 && (
-                  <div>
-                    <h5 className="text-[10px] font-black uppercase tracking-widest text-[var(--color-text-secondary)] mb-2">
+                  <div className="space-y-2.5">
+                    <h5 className="text-xs font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
                       Performances par Carte avec {agent.name}
                     </h5>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                      {Object.entries(details.mapBreakdown).map(([mapName, mStat]) => {
-                        const mWr =
-                          mStat.games > 0 ? Math.round((mStat.wins / mStat.games) * 100) : 0;
-                        return (
-                          <div
-                            key={mapName}
-                            className="p-2.5 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] flex items-center justify-between"
-                          >
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-white uppercase tracking-wider">
-                                {mapName}
-                              </span>
-                              <span className="text-[10px] text-[var(--color-text-secondary)]">
-                                {mStat.wins}V - {mStat.games - mStat.wins}D
-                              </span>
-                            </div>
-                            <span
-                              className={`text-xs font-black px-1.5 py-0.5 rounded ${
-                                mWr >= 50
-                                  ? "text-emerald-400 bg-emerald-500/10"
-                                  : "text-red-400 bg-red-500/10"
-                              }`}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                      {Object.entries(details.mapBreakdown).map(
+                        ([mapName, mStat]) => {
+                          const mWr =
+                            mStat.games > 0
+                              ? Math.round((mStat.wins / mStat.games) * 100)
+                              : 0;
+                          const mapSplash = MAP_INFO[mapName]?.splash;
+                          return (
+                            <div
+                              key={mapName}
+                              className="glass-card p-2.5 rounded-xl border border-white/10 flex items-center gap-2.5 hover:border-white/20 transition-all group/map"
                             >
-                              {mWr}%
-                            </span>
-                          </div>
-                        );
-                      })}
+                              <div className="w-10 h-8 rounded-lg overflow-hidden relative shrink-0 border border-white/15 bg-black/50">
+                                {mapSplash ? (
+                                  <img
+                                    src={mapSplash}
+                                    alt={mapName}
+                                    className="w-full h-full object-cover group-hover/map:scale-110 transition-transform duration-300"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center font-black text-[10px] text-white/70 uppercase">
+                                    {mapName.slice(0, 3)}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex flex-col min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-xs font-black text-white truncate">
+                                    {mapName}
+                                  </span>
+                                  <span
+                                    className={`text-[10px] font-black px-1.5 py-0.2 rounded shrink-0 ${
+                                      mWr >= 50
+                                        ? "text-emerald-400 bg-emerald-500/10"
+                                        : "text-rose-400 bg-rose-500/10"
+                                    }`}
+                                  >
+                                    {mWr}%
+                                  </span>
+                                </div>
+                                <span className="text-[10px] font-bold text-white/60 truncate">
+                                  {mStat.games}{" "}
+                                  {mStat.games > 1 ? "parties" : "partie"} •{" "}
+                                  <span className="text-white/40 font-medium">
+                                    {mStat.wins}V - {mStat.games - mStat.wins}D
+                                  </span>
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }
+                      )}
                     </div>
                   </div>
                 )}
 
-                {/* Recent Matches with this Agent */}
+                {/* Recent Matches with this Agent — Style MatchHistory interactif */}
                 {details && details.matches.length > 0 && (
-                  <div>
-                    <h5 className="text-[10px] font-black uppercase tracking-widest text-[var(--color-text-secondary)] mb-2">
-                      Dernières parties avec {agent.name}
-                    </h5>
-                    <div className="space-y-1.5">
-                      {details.matches.slice(0, 4).map((m: any, idx: number) => (
-                        <div
-                          key={m.matchId || idx}
-                          className={`p-2.5 rounded-lg flex items-center justify-between border ${
-                            m.won
-                              ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-400"
-                              : "bg-[var(--color-val-red)]/5 border-[var(--color-val-red)]/20 text-[var(--color-val-red)]"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs font-black text-white uppercase tracking-wider">
-                              {m.map || "Carte"}
-                            </span>
-                            <span className="text-[10px] text-[var(--color-text-secondary)] font-bold">
-                              {m.mode || "Compétitif"} • {m.score || (m.won ? "Victoire" : "Défaite")}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-4 text-xs font-black">
-                            <span className="text-neutral-300">
-                              {m.kills}/{m.deaths}/{m.assists}
-                            </span>
-                            <span className="text-[10px] text-[var(--color-text-secondary)]">
-                              ACS {m.acs || 0}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
+                        Dernières parties avec {agent.name} (
+                        {details.matches.length})
+                      </h5>
+                      <span className="text-[10px] text-[var(--color-text-secondary)] hidden sm:inline">
+                        Cliquez sur une partie pour l&apos;ouvrir dans l&apos;historique
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {details.matches
+                        .slice(0, 5)
+                        .map((m: any, idx: number) => {
+                          const d = m.date ? new Date(m.date) : new Date();
+                          const dateStr = !isNaN(d.getTime())
+                            ? d.toLocaleDateString("fr-FR", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "N/A";
+                          const mId =
+                            m.matchId || m.id || `${m.date}_${m.map}`;
+
+                          return (
+                            <div
+                              key={mId || idx}
+                              onMouseEnter={() => sounds.playHover()}
+                              onClick={() => {
+                                sounds.playClick();
+                                if (onSelectMatch && mId) {
+                                  onSelectMatch(mId);
+                                }
+                              }}
+                              className={`w-full glass-panel-interactive rounded-xl p-3 sm:p-3.5 flex items-center justify-between gap-3 sm:gap-4 border-l-4 cursor-pointer select-none transition-all group/item shadow-sm ${
+                                m.won
+                                  ? "border-l-emerald-500 hover:border-l-emerald-400 bg-emerald-500/[0.04] hover:bg-emerald-500/[0.08]"
+                                  : "border-l-[var(--color-val-red)] hover:border-l-[var(--color-val-red)] bg-[var(--color-val-red)]/[0.04] hover:bg-[var(--color-val-red)]/[0.08]"
+                              }`}
+                              title="Ouvrir cette partie dans l'Historique"
+                            >
+                              {/* Gauche : Icone Mode / Carte + Détails Carte */}
+                              <div className="flex items-center gap-3 min-w-0">
+                                {m.modeIcon ? (
+                                  <img
+                                    referrerPolicy="no-referrer"
+                                    src={m.modeIcon}
+                                    alt={m.mode}
+                                    className="w-7 h-7 sm:w-8 sm:h-8 opacity-80 flex-shrink-0 hidden xs:block"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-lg bg-black/60 border border-white/10 flex items-center justify-center text-xs font-black text-white/70 uppercase">
+                                    {(m.map || "VAL").slice(0, 3)}
+                                  </div>
+                                )}
+
+                                <div className="flex flex-col min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-black text-sm sm:text-base text-white uppercase tracking-wider group-hover/item:text-[var(--color-val-red)] transition-colors truncate">
+                                      {m.map || "Carte Inconnue"}
+                                    </span>
+                                    {m.season && (
+                                      <span className="text-[9px] text-[var(--color-val-red)] font-bold bg-[rgba(255,70,85,0.1)] px-1.5 py-0.2 rounded hidden sm:inline">
+                                        {m.season}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-white/50 font-bold">
+                                    {m.mode || "Compétitif"} • {dateStr}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Centre : K/D/A + ACS */}
+                              <div className="flex items-center gap-3 sm:gap-6">
+                                <div className="flex flex-col items-center sm:items-end">
+                                  <span className="text-xs sm:text-sm font-black text-[var(--color-text-secondary)]">
+                                    <span className="text-emerald-400">
+                                      {m.kills ?? 0}
+                                    </span>{" "}
+                                    /{" "}
+                                    <span className="text-[var(--color-val-red)]">
+                                      {m.deaths ?? 0}
+                                    </span>{" "}
+                                    /{" "}
+                                    <span className="text-gray-300">
+                                      {m.assists ?? 0}
+                                    </span>
+                                  </span>
+                                  <span className="text-[10px] text-amber-400 font-mono font-bold">
+                                    ACS {m.acs ?? 0}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Droite : Score + Résultat + Action Hint */}
+                              <div className="flex items-center gap-3">
+                                <div className="flex flex-col items-end">
+                                  <div className="flex items-baseline gap-1.5 sm:gap-2">
+                                    {m.score && (
+                                      <span className="text-sm sm:text-base font-black text-white">
+                                        {m.score}
+                                      </span>
+                                    )}
+                                    <span
+                                      className={`text-xs font-black uppercase tracking-wider ${
+                                        m.won
+                                          ? "text-emerald-400"
+                                          : "text-[var(--color-val-red)]"
+                                      }`}
+                                    >
+                                      {m.won ? "Victoire" : "Défaite"}
+                                    </span>
+                                  </div>
+                                  <span className="text-[9px] font-bold text-[var(--color-val-red)] opacity-0 group-hover/item:opacity-100 transition-opacity flex items-center gap-0.5">
+                                    Ouvrir dans l&apos;historique →
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                     </div>
                   </div>
                 )}

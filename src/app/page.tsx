@@ -100,6 +100,7 @@ export function HomeContent({
 
   const [showCompareModal, setShowCompareModal] = useState<boolean>(false);
   const [showAchievementsModal, setShowAchievementsModal] = useState<boolean>(false);
+  const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(null);
 
   // ─── Derived values ──────────────────────────────────────
   const canEdit = auth.canEditProfile(player.playerData);
@@ -196,6 +197,33 @@ export function HomeContent({
       playerId: player.riotId || player.myRiotId,
       isOwnProfile: !!isOwn,
     });
+  };
+
+  const handleSelectMatch = (matchId: string) => {
+    sounds.playClick();
+    nav.setActiveTab("matches");
+    nav.pushUrl({
+      tab: "matches",
+      playerId: player.riotId || player.myRiotId,
+      isOwnProfile: !!isOwn,
+    });
+    setHighlightedMatchId(matchId);
+
+    // Si le match se trouve au-delà du nombre actuellement affiché, on augmente le seuil
+    const matchIdx = (filters.filteredMatches || []).findIndex(
+      (m: any) => (m.matchId || m.id) === matchId
+    );
+    if (matchIdx >= 0 && matchIdx >= filters.visibleMatchesCount) {
+      filters.setVisibleMatchesCount(matchIdx + 10);
+    }
+
+    // Défilement fluide vers l'élément dans le DOM
+    setTimeout(() => {
+      const el = document.getElementById(`match-${matchId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 200);
   };
 
   // ─── Player data rendering helpers ───────────────────────
@@ -339,6 +367,7 @@ export function HomeContent({
             <AgentsStatsTab
               agentStats={p.agentStats}
               matches={filters.filteredMatches}
+              onSelectMatch={handleSelectMatch}
             />
           </div>
         )}
@@ -346,7 +375,10 @@ export function HomeContent({
         {/* Maps / Cartes Tab */}
         {nav.activeTab === "maps" && (
           <div className="w-full">
-            <MapsStatsTab matches={filters.filteredMatches} />
+            <MapsStatsTab
+              matches={filters.filteredMatches}
+              onSelectMatch={handleSelectMatch}
+            />
           </div>
         )}
 
@@ -364,6 +396,7 @@ export function HomeContent({
               currentPlayerRank={p?.rank}
               currentPlayerRankUrl={p?.rankUrl}
               currentPlayerRankTier={p?.rankTier}
+              highlightedMatchId={highlightedMatchId}
             />
           </div>
         )}

@@ -14,6 +14,7 @@ import {
 
 export interface MapsStatsTabProps {
   matches: any[];
+  onSelectMatch?: (matchId: string) => void;
 }
 
 export interface MapData {
@@ -36,7 +37,7 @@ export interface MapData {
 type SortOption = "winRate" | "games" | "kd" | "acs";
 
 // Splash arts officiels Valorant-API ou thèmes pour chaque carte
-const MAP_INFO: Record<
+export const MAP_INFO: Record<
   string,
   { splash: string; accent: string; bgGradient: string }
 > = {
@@ -97,7 +98,10 @@ const MAP_INFO: Record<
   },
 };
 
-export default function MapsStatsTab({ matches = [] }: MapsStatsTabProps) {
+export default function MapsStatsTab({
+  matches = [],
+  onSelectMatch,
+}: MapsStatsTabProps) {
   const [sortBy, setSortBy] = useState<SortOption>("winRate");
   const [expandedMap, setExpandedMap] = useState<string | null>(null);
 
@@ -573,69 +577,113 @@ export default function MapsStatsTab({ matches = [] }: MapsStatsTabProps) {
                     </div>
                   )}
 
-                  {/* Derniers matchs sur cette carte */}
+                  {/* Derniers matchs sur cette carte (Style MatchHistory) */}
                   <div className="space-y-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
-                      Dernières Parties ({map.matches.length})
-                    </span>
-                    <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
+                        Dernières Parties sur {map.name} ({map.matches.length})
+                      </span>
+                      <span className="text-[10px] text-[var(--color-text-secondary)]">
+                        Cliquez sur une partie pour l&apos;ouvrir dans l&apos;historique
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
                       {map.matches.slice(0, 5).map((m: any, idx: number) => {
                         const d = m.date ? new Date(m.date) : new Date();
                         const dateStr = !isNaN(d.getTime())
                           ? d.toLocaleDateString("fr-FR", {
-                              day: "2-digit",
+                              day: "numeric",
                               month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
                             })
                           : "N/A";
-                        const mKd =
-                          m.deaths > 0
-                            ? (m.kills / m.deaths).toFixed(2)
-                            : (m.kills || 0).toString();
+                        const mId = m.matchId || m.id || `${m.date}_${m.map}`;
 
                         return (
                           <div
-                            key={m.id || m.matchId || idx}
-                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+                            key={mId || idx}
+                            onMouseEnter={() => sounds.playHover()}
+                            onClick={() => {
+                              sounds.playClick();
+                              if (onSelectMatch && mId) {
+                                onSelectMatch(mId);
+                              }
+                            }}
+                            className={`w-full glass-panel-interactive rounded-xl p-3 sm:p-3.5 flex items-center justify-between gap-3 sm:gap-4 border-l-4 cursor-pointer select-none transition-all group/item shadow-sm ${
                               m.won
-                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
-                                : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                                ? "border-l-emerald-500 hover:border-l-emerald-400 bg-emerald-500/[0.04] hover:bg-emerald-500/[0.08]"
+                                : "border-l-[var(--color-val-red)] hover:border-l-[var(--color-val-red)] bg-[var(--color-val-red)]/[0.04] hover:bg-[var(--color-val-red)]/[0.08]"
                             }`}
+                            title="Ouvrir cette partie dans l'Historique"
                           >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span
-                                className={`px-2 py-0.5 rounded-md font-black text-[10px] uppercase ${
-                                  m.won
-                                    ? "bg-emerald-500/30 text-emerald-300"
-                                    : "bg-rose-500/30 text-rose-300"
-                                }`}
-                              >
-                                {m.won ? "Victoire" : "Défaite"}
-                              </span>
-                              <span className="font-bold text-white">
-                                {m.score || "Score inconnu"}
-                              </span>
-                              <span className="text-[10px] text-white/50">
-                                {dateStr}
-                              </span>
+                            <div className="flex items-center gap-3 min-w-0">
+                              {m.agentIcon ? (
+                                <img
+                                  referrerPolicy="no-referrer"
+                                  src={m.agentIcon}
+                                  alt={m.agent || "Agent"}
+                                  className="w-8 h-8 rounded-lg object-cover bg-black/60 border border-white/10 shadow-sm flex-shrink-0"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-lg bg-black/60 border border-white/10 flex items-center justify-center text-xs font-black text-white/70 uppercase">
+                                  {(m.agent || "AGT").slice(0, 3)}
+                                </div>
+                              )}
+
+                              <div className="flex flex-col min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-black text-sm text-white group-hover/item:text-[var(--color-val-red)] transition-colors truncate">
+                                    {m.agent || "Agent inconnu"}
+                                  </span>
+                                  {m.season && (
+                                    <span className="text-[9px] text-[var(--color-val-red)] font-bold bg-[rgba(255,70,85,0.1)] px-1.5 py-0.2 rounded hidden sm:inline">
+                                      {m.season}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-white/50 font-bold">
+                                  {m.mode || "Compétitif"} • {dateStr}
+                                </span>
+                              </div>
                             </div>
 
-                            <div className="flex items-center gap-4 text-white font-bold">
-                              {m.agent && (
-                                <span className="text-white/80 hidden sm:inline">
-                                  {m.agent}
+                            <div className="flex items-center gap-3 sm:gap-6">
+                              <div className="flex flex-col items-center sm:items-end">
+                                <span className="text-xs sm:text-sm font-black text-[var(--color-text-secondary)]">
+                                  <span className="text-emerald-400">{m.kills ?? 0}</span> /{" "}
+                                  <span className="text-[var(--color-val-red)]">{m.deaths ?? 0}</span> /{" "}
+                                  <span className="text-gray-300">{m.assists ?? 0}</span>
                                 </span>
-                              )}
-                              <span>
-                                {m.kills || 0} / {m.deaths || 0} / {m.assists || 0}
-                              </span>
-                              <span className="text-white/60 font-mono text-[11px]">
-                                {mKd} K/D
-                              </span>
-                              {m.acs && (
-                                <span className="text-amber-400 font-mono text-[11px] hidden xs:inline">
-                                  {m.acs} ACS
+                                <span className="text-[10px] text-amber-400 font-mono font-bold">
+                                  ACS {m.acs ?? 0}
                                 </span>
-                              )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <div className="flex flex-col items-end">
+                                <div className="flex items-baseline gap-1.5 sm:gap-2">
+                                  {m.score && (
+                                    <span className="text-sm sm:text-base font-black text-white">
+                                      {m.score}
+                                    </span>
+                                  )}
+                                  <span
+                                    className={`text-xs font-black uppercase tracking-wider ${
+                                      m.won
+                                        ? "text-emerald-400"
+                                        : "text-[var(--color-val-red)]"
+                                    }`}
+                                  >
+                                    {m.won ? "Victoire" : "Défaite"}
+                                  </span>
+                                </div>
+                                <span className="text-[9px] font-bold text-[var(--color-val-red)] opacity-0 group-hover/item:opacity-100 transition-opacity flex items-center gap-0.5">
+                                  Ouvrir dans l&apos;historique →
+                                </span>
+                              </div>
                             </div>
                           </div>
                         );
