@@ -374,12 +374,12 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
         </div>
       </div>
 
-      {/* Dynamic details bar (Style Pilule Rouge & Animations) */}
+      {/* Dynamic details bar (Hauteur verrouillée à h-9 pour zéro décalage de page) */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 text-xs border-t border-[rgba(255,255,255,0.06)]">
         {/* Info on hovered or selected day */}
-        <div className="min-h-[28px] flex items-center gap-2">
+        <div className="h-9 flex items-center min-w-0 overflow-hidden">
           {(hoveredDay || selectedDay) ? (
-            <div className="flex items-center gap-2.5 animate-in fade-in-0 zoom-in-95 duration-200 flex-wrap bg-black/60 border border-[var(--color-val-red)]/40 shadow-[0_0_16px_rgba(255,70,85,0.25)] px-3 py-1 rounded-xl">
+            <div className="flex items-center gap-2.5 animate-in fade-in-0 zoom-in-95 duration-150 flex-nowrap whitespace-nowrap overflow-x-auto scrollbar-none bg-black/60 border border-[var(--color-val-red)]/40 shadow-[0_0_12px_rgba(255,70,85,0.2)] px-2.5 py-1 rounded-xl">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-val-red)] animate-ping shrink-0" />
               <span className="font-black text-white capitalize text-xs">
                 {formatFullDate((hoveredDay || selectedDay)!.date)} :
@@ -427,67 +427,81 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
         </div>
       </div>
 
-      {/* Selected Day Match Drawer (if selected) */}
-      {selectedDay && selectedDay.matchesCount > 0 && (
-        <div className="mt-3 p-4 rounded-xl glass-card border border-[var(--color-val-red)]/30 animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-white uppercase tracking-wider">
-                Détail des matchs — {formatFullDate(selectedDay.date)}
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-val-red)]/20 text-[var(--color-val-red)]">
-                {selectedDay.matchesCount} {selectedDay.matchesCount > 1 ? "matchs" : "match"}
-              </span>
-            </div>
-            <button
-              onClick={() => setSelectedDay(null)}
-              className="text-[10px] text-[var(--color-text-secondary)] hover:text-white font-bold cursor-pointer uppercase tracking-widest px-2 py-1"
-            >
-              Fermer ✕
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-            {selectedDay.matches.map((m: any, idx: number) => (
-              <div
-                key={m.matchId || idx}
-                className={`p-3 rounded-lg flex items-center justify-between border ${
-                  m.won
-                    ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-400"
-                    : "bg-[var(--color-val-red)]/5 border-[var(--color-val-red)]/20 text-[var(--color-val-red)]"
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {m.agentIcon && (
-                    <img
-                      referrerPolicy="no-referrer"
-                      src={m.agentIcon}
-                      alt={m.agent}
-                      className="w-8 h-8 rounded-lg flex-shrink-0"
-                    />
-                  )}
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-black text-white truncate">
-                      {m.agent || "Agent"} — {m.map || "Carte"}
-                    </span>
-                    <span className="text-[10px] text-[var(--color-text-secondary)]">
-                      {m.mode || "Compétitif"} • {m.score || (m.won ? "Victoire" : "Défaite")}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <span className="text-xs font-black">
-                    {m.kills}/{m.deaths}/{m.assists}
+      {/* Selected Day Match Drawer (Dépliement fluide animé en accordéon) */}
+      <div
+        className={`grid transition-all duration-350 ease-in-out ${
+          selectedDay && selectedDay.matchesCount > 0
+            ? "grid-rows-[1fr] opacity-100 mt-3"
+            : "grid-rows-[0fr] opacity-0 pointer-events-none"
+        }`}
+        style={{
+          transition:
+            "grid-template-rows 350ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease, margin 350ms ease",
+        }}
+      >
+        <div className="overflow-hidden">
+          {selectedDay && selectedDay.matchesCount > 0 && (
+            <div className="p-4 rounded-xl glass-card border border-[var(--color-val-red)]/30">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-white uppercase tracking-wider">
+                    Détail des matchs — {formatFullDate(selectedDay.date)}
                   </span>
-                  <div className="text-[9px] text-[var(--color-text-secondary)] font-bold">
-                    ACS {m.acs || 0}
-                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-val-red)]/20 text-[var(--color-val-red)]">
+                    {selectedDay.matchesCount} {selectedDay.matchesCount > 1 ? "matchs" : "match"}
+                  </span>
                 </div>
+                <button
+                  onClick={() => setSelectedDay(null)}
+                  className="text-[10px] text-[var(--color-text-secondary)] hover:text-white font-bold cursor-pointer uppercase tracking-widest px-2 py-1"
+                >
+                  Fermer ✕
+                </button>
               </div>
-            ))}
-          </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                {selectedDay.matches.map((m: any, idx: number) => (
+                  <div
+                    key={m.matchId || idx}
+                    className={`p-3 rounded-lg flex items-center justify-between border ${
+                      m.won
+                        ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-400"
+                        : "bg-[var(--color-val-red)]/5 border-[var(--color-val-red)]/20 text-[var(--color-val-red)]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {m.agentIcon && (
+                        <img
+                          referrerPolicy="no-referrer"
+                          src={m.agentIcon}
+                          alt={m.agent}
+                          className="w-8 h-8 rounded-lg flex-shrink-0"
+                        />
+                      )}
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-black text-white truncate">
+                          {m.agent || "Agent"} — {m.map || "Carte"}
+                        </span>
+                        <span className="text-[10px] text-[var(--color-text-secondary)]">
+                          {m.mode || "Compétitif"} • {m.score || (m.won ? "Victoire" : "Défaite")}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-xs font-black">
+                        {m.kills}/{m.deaths}/{m.assists}
+                      </span>
+                      <div className="text-[9px] text-[var(--color-text-secondary)] font-bold">
+                        ACS {m.acs || 0}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

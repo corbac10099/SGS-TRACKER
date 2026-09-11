@@ -17,60 +17,58 @@ export interface StatCardProps {
 }
 
 /**
- * Hook personnalisé d'animation de compteur numérique (Count-Up)
- * anime de 0 vers la valeur cible avec courbe ease-out en ~450ms.
+ * Hook d'incrémentation fluide numérique (Count-Up).
+ * Démarre à 0 au montage et s'incrémente de manière fluide jusqu'à la valeur finale.
  */
 function useAnimatedNumber(targetValue: string | number) {
   const strVal = String(targetValue ?? "");
-  const [displayVal, setDisplayVal] = useState<string>(strVal);
-  const prevNumRef = useRef<number | null>(null);
+  const match = strVal.match(/^([-+]?\d+(?:\.\d+)?)(.*)$/);
+  const num = match ? parseFloat(match[1]) : NaN;
+  const suf = match ? match[2] || "" : "";
+  const decimals = match && match[1].includes(".") ? match[1].split(".")[1].length : 0;
+
+  // Démarre à 0 pour déclencher l'animation visible
+  const [displayVal, setDisplayVal] = useState<string>(() => {
+    if (!isNaN(num)) {
+      return `${(0).toFixed(decimals)}${suf}`;
+    }
+    return strVal;
+  });
+
+  const currentNumRef = useRef<number>(0);
 
   useEffect(() => {
-    // Extrait les nombres et d'éventuels suffixes (ex: "1.42", "58%", "+15")
-    const match = strVal.match(/^([-+]?\d+(?:\.\d+)?)(.*)$/);
-    if (!match) {
-      setDisplayVal(strVal);
-      return;
-    }
-
-    const num = parseFloat(match[1]);
-    const suf = match[2] || "";
-    const decimals = match[1].includes(".") ? match[1].split(".")[1].length : 0;
-
     if (isNaN(num)) {
       setDisplayVal(strVal);
       return;
     }
 
-    const start = prevNumRef.current !== null ? prevNumRef.current : 0;
-    prevNumRef.current = num;
-
-    if (start === num) {
-      setDisplayVal(`${num.toFixed(decimals)}${suf}`);
-      return;
-    }
-
-    const duration = 450;
+    const start = currentNumRef.current;
+    const target = num;
+    const duration = 550;
     const startTime = performance.now();
     let animId: number;
 
     const tick = (now: number) => {
-      const progress = Math.min((now - startTime) / duration, 1);
-      // Easing out cubic
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Courbe d'amortissement cubique fluide (ease-out)
       const ease = 1 - Math.pow(1 - progress, 3);
-      const current = start + (num - start) * ease;
+      const current = start + (target - start) * ease;
+      currentNumRef.current = current;
       setDisplayVal(`${current.toFixed(decimals)}${suf}`);
 
       if (progress < 1) {
         animId = requestAnimationFrame(tick);
       } else {
-        setDisplayVal(`${num.toFixed(decimals)}${suf}`);
+        currentNumRef.current = target;
+        setDisplayVal(`${target.toFixed(decimals)}${suf}`);
       }
     };
 
     animId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animId);
-  }, [strVal]);
+  }, [num, suf, decimals, strVal]);
 
   return displayVal;
 }
@@ -91,11 +89,14 @@ function StatCardComponent({
   const ratingClass = hasWarning ? "border-[var(--color-val-red)]/40 bg-[var(--color-val-red)]/5" : "";
   const animatedValue = useAnimatedNumber(value);
 
+  // En mode live, animation d'apparition du contour en gris
+  const liveContourClass = sessionDelta ? "live-card-contour border-neutral-400/40" : "";
+
   return (
     <div
       className={`glass-panel-interactive p-2.5 xs:p-3 sm:p-4 rounded-xl sm:rounded-2xl flex flex-col justify-between h-full min-w-0 transition-all duration-300 ${
         colSpan ? `col-span-${colSpan}` : ""
-      } ${ratingClass} ${className}`}
+      } ${ratingClass} ${liveContourClass} ${className}`}
     >
       <div className="flex items-center justify-between text-[9px] xs:text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)] mb-1 sm:mb-1.5 min-w-0">
         <div className="flex items-center gap-1 min-w-0">
@@ -117,18 +118,15 @@ function StatCardComponent({
         {sessionDelta && (
           <span
             key={`${label}-${sessionDelta.text}`}
-            className={`text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-sm select-none animate-in fade-in-0 zoom-in-75 duration-300 ${
+            className={`text-[9px] sm:text-[10px] font-black font-mono px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-sm select-none animate-in fade-in-0 zoom-in-90 duration-300 ${
               sessionDelta.positive
                 ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                 : sessionDelta.neutral
-                ? "bg-emerald-500/15 text-emerald-300/90 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)] ring-1 ring-emerald-500/20 animate-pulse"
+                ? "bg-white/10 text-neutral-300 border border-white/20 shadow-sm"
                 : "bg-red-500/25 text-red-300 border border-red-500/40 shadow-[0_0_8px_rgba(239,68,68,0.3)]"
             }`}
             title="Variation enregistrée pendant la session en direct"
           >
-            {sessionDelta.neutral && (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-            )}
             {sessionDelta.text}
           </span>
         )}

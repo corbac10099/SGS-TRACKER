@@ -534,3 +534,40 @@
   animation: roundGrow 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* ── Transition douce d'entrée des onglets ── */
+@keyframes tabFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-tab-in {
+  animation: tabFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Animation d'apparition du contour gris des cartes en mode live ── */
+@keyframes liveBorderGrey {
+  0% {
+    border-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 0 0 rgba(160, 174, 192, 0);
+  }
+  50% {
+    border-color: rgba(200, 210, 225, 0.5);
+    box-shadow: 0 0 16px rgba(200, 210, 225, 0.2), inset 0 0 10px rgba(200, 210, 225, 0.08);
+  }
+  100% {
+    border-color: rgba(160, 175, 195, 0.35);
+    box-shadow: 0 0 10px rgba(160, 175, 195, 0.1);
+  }
+}
+
+.live-card-contour {
+  animation: liveBorderGrey 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+

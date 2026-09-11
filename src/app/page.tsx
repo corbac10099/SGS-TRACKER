@@ -307,14 +307,8 @@ export function HomeContent({
         />
 
         {/* Performance Tab */}
-        {s && (
-          <div
-            className={
-              nav.activeTab === "performance"
-                ? "w-full animate-in fade-in-50 slide-in-from-bottom-2 duration-300 ease-out"
-                : "hidden"
-            }
-          >
+        {nav.activeTab === "performance" && s && (
+          <div key="tab-performance" className="w-full animate-tab-in">
             {/* Détection de Tilt / Mauvaise série */}
             <TiltAlertBanner
               matches={filters.filteredMatches}
@@ -363,7 +357,7 @@ export function HomeContent({
 
         {/* Agents Tab */}
         {nav.activeTab === "agents" && (
-          <div key="tab-agents" className="w-full animate-in fade-in-50 slide-in-from-bottom-2 duration-300 ease-out">
+          <div key="tab-agents" className="w-full animate-tab-in">
             <AgentsStatsTab
               agentStats={p.agentStats}
               matches={filters.filteredMatches}
@@ -374,7 +368,7 @@ export function HomeContent({
 
         {/* Maps / Cartes Tab */}
         {nav.activeTab === "maps" && (
-          <div key="tab-maps" className="w-full animate-in fade-in-50 slide-in-from-bottom-2 duration-300 ease-out">
+          <div key="tab-maps" className="w-full animate-tab-in">
             <MapsStatsTab
               matches={filters.filteredMatches}
               onSelectMatch={handleSelectMatch}
@@ -384,7 +378,7 @@ export function HomeContent({
 
         {/* Matches Tab */}
         {nav.activeTab === "matches" && filters.filteredMatches && (
-          <div key="tab-matches" className="w-full space-y-6 animate-in fade-in-50 slide-in-from-bottom-2 duration-300 ease-out">
+          <div key="tab-matches" className="w-full space-y-6 animate-tab-in">
             <ActivityCalendar matches={filters.filteredMatches} />
             <MatchHistory
               matches={filters.filteredMatches}
