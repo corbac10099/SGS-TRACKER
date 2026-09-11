@@ -17,6 +17,7 @@ import {
   IconLogOut,
   IconClock,
   IconStar,
+  IconSword,
 } from "./icons/SpyIcons";
 
 export interface HeaderProps {
@@ -37,6 +38,8 @@ export interface HeaderProps {
   onToggleSettings: () => void;
   onOpenLeaderboard?: () => void;
   leaderboardOpen?: boolean;
+  onOpenCompare?: () => void;
+  onOpenAchievements?: () => void;
   favorites: Array<{ riotId: string; gameName: string; tagLine: string; cardUrl: string; rank?: string }>;
   onSelectFavorite: (riotId: string) => void;
   onRemoveFavorite?: (player: any) => void;
@@ -64,6 +67,8 @@ export default function Header({
   onToggleSettings,
   onOpenLeaderboard,
   leaderboardOpen = false,
+  onOpenCompare,
+  onOpenAchievements,
   favorites,
   onSelectFavorite,
   onRemoveFavorite,
@@ -424,6 +429,41 @@ export default function Header({
 
         {/* ═══ RIGHT: Clean Glass Capsules ═══ */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-none md:flex-1 justify-end">
+
+          {/* ── Capsule Outils : Comparateur & Succès ── */}
+          <div className="hidden md:flex items-center gap-1 p-1 rounded-2xl bg-black/30 border border-white/10 backdrop-blur-md">
+            {onOpenCompare && (
+              <button
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  onOpenCompare();
+                }}
+                onMouseEnter={() => sounds.playHover()}
+                title="Comparer avec un autre joueur"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-neutral-300 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer select-none"
+              >
+                <IconSword size={14} className="text-[var(--color-val-red)]" />
+                <span className="hidden xl:inline">Comparer</span>
+              </button>
+            )}
+
+            {onOpenAchievements && (
+              <button
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  onOpenAchievements();
+                }}
+                onMouseEnter={() => sounds.playHover()}
+                title="Succès & Hauts Faits Débloquables"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-neutral-300 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer select-none"
+              >
+                <IconTrophy size={14} className="text-amber-400" />
+                <span className="hidden xl:inline">Succès</span>
+              </button>
+            )}
+          </div>
 
           {/* ── Capsule 1: LiveClock + Notifications ── */}
           <div className="hidden md:flex items-center gap-0.5 p-1 rounded-2xl bg-black/30 border border-white/10 backdrop-blur-md">

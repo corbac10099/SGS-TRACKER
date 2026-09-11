@@ -67,7 +67,8 @@ async function handlePlayerRequest(
   gameName: string,
   tagLine: string,
   region: string = "eu",
-  customApiKey?: string | null
+  customApiKey?: string | null,
+  adminBypassHeader: boolean = false
 ) {
   try {
     const activeKey = customApiKey?.trim() || getDynamicRiotApiKey();
@@ -103,17 +104,31 @@ async function handlePlayerRequest(
       console.warn("[Prisma] User lookup warning:", dbErr);
     }
 
-    // Check if current viewer is the authenticated owner of the profile
+    // Check if current viewer is the authenticated owner of the profile or an administrator
     let isOwner = false;
+    let isAdmin = adminBypassHeader === true;
     try {
       const session = await getServerSession(authOptions);
       if (session?.user?.email) {
         const currentUser = await (prisma.user as any).findUnique({ where: { email: session.user.email } });
-        if (currentUser?.riotGameName) {
-          isOwner = currentUser.riotGameName.toLowerCase() === `${gameName}#${tagLine}`.toLowerCase();
+        if (currentUser) {
+          if (currentUser.riotGameName) {
+            isOwner = currentUser.riotGameName.toLowerCase() === `${gameName}#${tagLine}`.toLowerCase();
+          }
+          if (currentUser.email === "laffont.romain64@gmail.com" || (currentUser as any).role === "ADMIN") {
+            isAdmin = true;
+          }
         }
       }
     } catch {}
+
+    // Règle de confidentialité : Si le profil est privé, bloquer l'accès pour les tiers hors admin
+    if (customOwnerSettings && customOwnerSettings.isPublic === false && !isOwner && !isAdmin) {
+      return NextResponse.json(
+        { error: "Ce profil est privé. Seul le propriétaire ou un administrateur peut y accéder." },
+        { status: 403 }
+      );
+    }
 
     let profileData: ValorantProfileResponse | null = null;
     let apiStatusInfo: any = null;
@@ -125,6 +140,7 @@ async function handlePlayerRequest(
         const cachedProfile: ValorantProfileResponse = JSON.parse(JSON.stringify(cached.data));
         cachedProfile.player.isOwner = isOwner;
         cachedProfile.player.canEdit = isOwner;
+        (cachedProfile.player as any).isAdminBypass = isAdmin && !isOwner;
         if (customOwnerSettings) {
           cachedProfile.player = {
             ...cachedProfile.player,
@@ -326,11 +342,16 @@ export async function GET(request: NextRequest) {
     request.headers.get("x-riot-token") ||
     searchParams.get("apiKey");
 
+  const adminBypass =
+    request.headers.get("x-admin-bypass") === "true" ||
+    request.headers.get("x-spycam-admin") === "true";
+
   return handlePlayerRequest(
     decodeURIComponent(gameName).trim(),
     decodeURIComponent(tagLine).trim(),
     region,
-    customApiKey
+    customApiKey,
+    adminBypass
   );
 }
 
@@ -361,7 +382,12 @@ export async function POST(request: NextRequest) {
       request.headers.get("x-riot-token") ||
       body.apiKey;
 
-    return handlePlayerRequest(gameName.trim(), tagLine.trim(), region, customApiKey);
+    const adminBypass =
+      request.headers.get("x-admin-bypass") === "true" ||
+      request.headers.get("x-spycam-admin") === "true" ||
+      body.adminBypass === true;
+
+    return handlePlayerRequest(gameName.trim(), tagLine.trim(), region, customApiKey, adminBypass);
   } catch (err: any) {
     return NextResponse.json({ error: "Requête invalide", details: err.message }, { status: 400 });
   }

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { sounds } from "@/lib/soundEffects";
+import { sanitizeRedirectTarget } from "@/lib/redirectUtils";
 
 export interface LoginModalProps {
   isOpen: boolean;
@@ -128,13 +129,40 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
 
   if (!isOpen) return null;
 
+  // Calcul de l'URL cible de redirection sûre (évite formellement de boucler sur /login ou /register)
+  const getSafeRedirectUrl = () => {
+    if (typeof window === "undefined") return "/";
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const cb = params.get("callbackUrl");
+      if (cb) {
+        const sanitized = sanitizeRedirectTarget(cb);
+        if (sanitized && sanitized !== "/login" && sanitized !== "/register") {
+          return sanitized;
+        }
+      }
+    } catch {}
+    return sanitizeRedirectTarget(window.location.pathname + window.location.search);
+  };
+
+  const handlePostAuthSuccess = (msg: string) => {
+    setSuccess(msg);
+    const target = getSafeRedirectUrl();
+    setTimeout(() => {
+      if (typeof window !== "undefined") {
+        window.location.replace(target);
+      }
+    }, 250);
+  };
+
   // Handle Google Login
   const handleGoogleSignIn = async () => {
     sounds.playClick();
     setGoogleLoading(true);
     setError(null);
     try {
-      await signIn("google", { callbackUrl: window.location.href });
+      const target = getSafeRedirectUrl();
+      await signIn("google", { callbackUrl: target });
     } catch (err: any) {
       setError(err?.message || "Erreur de connexion Google.");
       setGoogleLoading(false);
@@ -202,10 +230,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
               JSON.stringify({ name: pseudo.trim(), email, provider: "credentials" })
             );
           } catch {}
-          setSuccess("Compte créé avec succès ! Connexion...");
-          setTimeout(() => {
-            window.location.reload();
-          }, 600);
+          handlePostAuthSuccess("Compte créé avec succès ! Connexion...");
         } else {
           setMode("login");
           setSuccess("Compte créé avec succès ! Veuillez vous connecter.");
@@ -243,10 +268,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
             })
           );
         } catch {}
-        setSuccess("Connexion réussie !");
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
+        handlePostAuthSuccess("Connexion réussie !");
       }
     } catch (err: any) {
       setError(err.message || "Erreur inattendue.");

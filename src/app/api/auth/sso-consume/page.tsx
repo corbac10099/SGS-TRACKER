@@ -27,7 +27,7 @@ function SsoConsumeHandler() {
         });
 
         if (res?.ok) {
-          router.replace("/");
+          window.location.replace("/");
         } else {
           setError("Échec de la validation SSO.");
           setTimeout(() => router.replace("/login"), 2000);

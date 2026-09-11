@@ -701,7 +701,7 @@ function MatchHistoryComponent({
 
   if (!matches || matches.length === 0) {
     return (
-      <div className="glass-panel rounded-2xl p-10 text-center animate-in fade-in duration-500">
+      <div className="w-full glass-panel rounded-2xl p-10 text-center animate-in fade-in duration-500">
         <p className="text-sm text-[var(--color-text-secondary)] font-bold uppercase tracking-wider">
           Aucun match trouvé pour cette sélection
         </p>
@@ -710,7 +710,7 @@ function MatchHistoryComponent({
   }
 
   return (
-    <div className="space-y-3 animate-in fade-in duration-500">
+    <div className="w-full space-y-3 animate-in fade-in duration-500">
       {matches.slice(0, visibleCount).map((match: any) => {
         const isExpanded = expandedMatchId === match.matchId;
         const spi = calculateSingleMatchSPI(match, match.role);
@@ -720,14 +720,14 @@ function MatchHistoryComponent({
           tier: currentPlayerRankTier,
         });
         return (
-          <div key={match.matchId} className="flex flex-col gap-2">
+          <div key={match.matchId} className="w-full flex flex-col gap-2">
             <div
               onMouseEnter={() => sounds.playHover()}
               onClick={() => {
                 sounds.playClick();
                 setExpandedMatchId(isExpanded ? null : match.matchId);
               }}
-              className={`glass-panel-interactive rounded-2xl p-4 flex items-center gap-3 sm:gap-4 border-l-4 cursor-pointer select-none ${
+              className={`w-full glass-panel-interactive rounded-2xl p-4 flex items-center gap-3 sm:gap-4 border-l-4 cursor-pointer select-none ${
                 match.won
                   ? "border-l-emerald-500 hover:border-l-emerald-400"
                   : "border-l-[var(--color-val-red)] hover:border-l-[var(--color-val-red)]"
