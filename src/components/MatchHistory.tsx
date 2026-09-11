@@ -700,11 +700,37 @@ function MatchHistoryComponent({
   highlightedMatchId,
 }: MatchHistoryProps) {
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(
+    highlightedMatchId || null
+  );
 
   // Auto-expansion et ouverture animée lorsqu'un match spécifique est ciblé
   useEffect(() => {
     if (highlightedMatchId) {
+      setActiveHighlightId(highlightedMatchId);
       setExpandedMatchId(highlightedMatchId);
+
+      // Arrêt de l'animation de surbrillance dès le premier clic de souris
+      const stopHighlight = () => {
+        setActiveHighlightId(null);
+      };
+
+      // Délai de 250ms pour ignorer le clic initial de la navigation
+      const timer = setTimeout(() => {
+        window.addEventListener("pointerdown", stopHighlight, { once: true });
+        window.addEventListener("click", stopHighlight, { once: true });
+      }, 250);
+
+      const autoTimer = setTimeout(() => {
+        setActiveHighlightId(null);
+      }, 8000);
+
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(autoTimer);
+        window.removeEventListener("pointerdown", stopHighlight);
+        window.removeEventListener("click", stopHighlight);
+      };
     }
   }, [highlightedMatchId]);
 
@@ -723,8 +749,8 @@ function MatchHistoryComponent({
       {matches.slice(0, visibleCount).map((match: any) => {
         const mId = match.matchId || match.id;
         const isTargeted =
-          highlightedMatchId === match.matchId ||
-          (match.id && highlightedMatchId === match.id);
+          activeHighlightId === match.matchId ||
+          (match.id && activeHighlightId === match.id);
         const isExpanded =
           expandedMatchId === match.matchId ||
           (match.id && expandedMatchId === match.id);
@@ -748,6 +774,7 @@ function MatchHistoryComponent({
               onMouseEnter={() => sounds.playHover()}
               onClick={() => {
                 sounds.playClick();
+                if (activeHighlightId) setActiveHighlightId(null);
                 setExpandedMatchId(isExpanded ? null : mId);
               }}
               className={`w-full glass-panel-interactive rounded-2xl p-4 flex items-center gap-3 sm:gap-4 border-l-4 cursor-pointer select-none ${
@@ -842,7 +869,22 @@ function MatchHistoryComponent({
               </div>
             </div>
 
-            {isExpanded && <ExpandedMatch match={match} searchPlayer={searchPlayer} />}
+            {/* Smooth Animated Accordion Drawer */}
+            <div
+              className={`grid transition-all duration-300 ease-in-out ${
+                isExpanded
+                  ? "grid-rows-[1fr] opacity-100 mt-2"
+                  : "grid-rows-[0fr] opacity-0 pointer-events-none"
+              }`}
+              style={{
+                transition:
+                  "grid-template-rows 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 280ms ease, margin 320ms ease",
+              }}
+            >
+              <div className="overflow-hidden">
+                <ExpandedMatch match={match} searchPlayer={searchPlayer} />
+              </div>
+            </div>
           </div>
         );
       })}

@@ -522,9 +522,20 @@ export default function MapsStatsTab({
                 </div>
               </div>
 
-              {/* Expanded Detailed View */}
-              {isExpanded && (
-                <div className="p-4 sm:p-6 bg-black/40 space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
+              {/* Expanded Detailed View (Animation fluide ouverture / fermeture) */}
+              <div
+                className={`grid transition-all duration-300 ease-in-out ${
+                  isExpanded
+                    ? "grid-rows-[1fr] opacity-100 border-t border-white/10"
+                    : "grid-rows-[0fr] opacity-0 pointer-events-none"
+                }`}
+                style={{
+                  transition:
+                    "grid-template-rows 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 280ms ease",
+                }}
+              >
+                <div className="overflow-hidden">
+                  <div className="p-4 sm:p-6 bg-black/40 space-y-5">
                   {/* Agents joués sur cette carte */}
                   {topAgents.length > 0 && (
                     <div className="space-y-2">
@@ -691,10 +702,11 @@ export default function MapsStatsTab({
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
-          );
-        })}
+          </div>
+        );
+      })}
       </div>
     </div>
   );

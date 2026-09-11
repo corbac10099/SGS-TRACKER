@@ -187,9 +187,20 @@ export default function AgentsStatsTab({
               </div>
             </div>
 
-            {/* Expanded Details Drawer */}
-            {isExpanded && (
-              <div className="glass-card rounded-2xl p-5 border border-[var(--color-val-red)]/20 animate-in fade-in slide-in-from-top-3 duration-300 space-y-5">
+            {/* Expanded Details Drawer (Animation fluide ouverture / fermeture) */}
+            <div
+              className={`grid transition-all duration-300 ease-in-out ${
+                isExpanded
+                  ? "grid-rows-[1fr] opacity-100 mt-2"
+                  : "grid-rows-[0fr] opacity-0 pointer-events-none"
+              }`}
+              style={{
+                transition:
+                  "grid-template-rows 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 280ms ease, margin 320ms ease",
+              }}
+            >
+              <div className="overflow-hidden">
+                <div className="glass-card rounded-2xl p-5 border border-[var(--color-val-red)]/20 space-y-5">
                 {/* Metrics Summary Row */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="p-3 rounded-xl bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]">
@@ -426,8 +437,9 @@ export default function AgentsStatsTab({
                     </div>
                   </div>
                 )}
+                </div>
               </div>
-            )}
+            </div>
           </div>
         );
       })}
