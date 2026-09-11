@@ -272,7 +272,7 @@ export default function KillmapView({ match }: KillmapViewProps) {
           onClick={() => setSelectedRound("all")}
           className={`px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${
             selectedRound === "all"
-              ? "bg-[var(--color-val-red)] text-white shadow-md shadow-[var(--color-val-red)]/30 font-black"
+              ? "bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] shadow-accent-sm font-black"
               : "bg-black/30 border border-white/5 text-gray-400 hover:text-white"
           }`}
         >
@@ -288,7 +288,7 @@ export default function KillmapView({ match }: KillmapViewProps) {
               onClick={() => setSelectedRound(r)}
               className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${
                 isSelected
-                  ? "bg-[var(--color-val-red)] text-white shadow-md shadow-[var(--color-val-red)]/30 font-black"
+                  ? "bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] shadow-accent-sm font-black"
                   : countInRound > 0
                   ? "bg-black/40 border border-white/10 text-gray-300 hover:border-white/30"
                   : "bg-black/20 border border-transparent text-gray-500 hover:text-gray-400"

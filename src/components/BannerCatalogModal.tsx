@@ -135,7 +135,7 @@ export default function BannerCatalogModal({ isOpen, onClose, onSelect }: Banner
                     <span className="text-white text-xs font-bold text-center leading-tight">{c.name}</span>
                   </div>
                   {c.isHD && (
-                    <div className="absolute top-2 right-2 bg-[var(--color-val-red)] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-lg">
+                    <div className="absolute top-2 right-2 bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-accent-sm">
                       HD
                     </div>
                   )}

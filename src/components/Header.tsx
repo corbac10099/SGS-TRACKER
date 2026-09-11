@@ -249,7 +249,7 @@ export default function Header({
             className="flex items-center gap-2.5 cursor-pointer select-none transition-all hover:scale-105 active:scale-95 group flex-shrink-0 mr-2 lg:mr-4"
             title="SGS-Tracker Accueil"
           >
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden ring-1 ring-[var(--color-val-red)]/30 group-hover:ring-[var(--color-val-red)]/60 shadow-[0_0_12px_rgba(255,70,85,0.3)] group-hover:shadow-[0_0_20px_rgba(255,70,85,0.6)] transition-all bg-black">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden ring-1 ring-[var(--color-val-red)]/30 group-hover:ring-[var(--color-val-red)]/60 shadow-accent-sm group-hover:shadow-accent-md transition-all bg-black">
               <img
                 src="/sgs-icon.jpg"
                 alt="SGS Logo"
@@ -267,9 +267,9 @@ export default function Header({
               ref={navContainerRef}
               className="relative flex items-center gap-0.5 p-1 rounded-2xl glass-pill"
             >
-              {/* Animated Sliding Red Pill Background */}
+              {/* Animated Sliding Dynamic Accent Pill Background */}
               <div
-                className="absolute top-1 bottom-1 rounded-xl bg-[var(--color-val-red)] shadow-[0_0_18px_rgba(255,70,85,0.6)] pointer-events-none z-0"
+                className="absolute top-1 bottom-1 rounded-xl bg-[var(--color-val-red)] shadow-accent-md pointer-events-none z-0"
                 style={{
                   transform: `translateX(${pillStyle.left}px)`,
                   width: `${pillStyle.width}px`,
@@ -294,8 +294,8 @@ export default function Header({
                       onMouseEnter={() => sounds.playHover()}
                       className={`relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer select-none transition-colors duration-200 active:scale-95 whitespace-nowrap ${
                         isActive
-                          ? "text-white"
-                          : "text-neutral-400 hover:text-white"
+                          ? "text-[var(--color-accent-contrast,#ffffff)] font-black"
+                          : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                       }`}
                     >
                       {item.icon}
@@ -318,15 +318,15 @@ export default function Header({
                 value={riotId}
                 onChange={(e) => setRiotId(e.target.value)}
                 onFocus={() => setIsFocused(true)}
-                className={`w-full bg-[var(--color-text-primary)] text-[var(--color-background)] font-medium px-3.5 sm:px-6 py-2 rounded-full text-xs sm:text-sm outline-none transition-all duration-300 pr-3 sm:pr-16 ${
-                  isFocused ? "shadow-[0_0_25px_rgba(255,255,255,0.3)] ring-2 ring-[var(--color-val-red)]" : ""
+                className={`w-full bg-[var(--color-surface)] text-[var(--color-text-primary)] border border-[var(--color-border)] placeholder:text-[var(--color-text-secondary)] font-medium px-3.5 sm:px-6 py-2 rounded-full text-xs sm:text-sm outline-none transition-all duration-300 pr-3 sm:pr-16 ${
+                  isFocused ? "shadow-accent-md ring-2 ring-[var(--color-val-red)] border-[var(--color-val-red)]" : ""
                 }`}
                 required
               />
 
               {/* Shortcut Badge */}
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none select-none">
-                <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white bg-[#0f1923] border border-white/20 rounded-md shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
+                <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)] bg-[var(--color-surface-hover)] border border-[var(--color-border)] rounded-md shadow-sm">
                   Ctrl K
                 </kbd>
               </div>
@@ -478,7 +478,7 @@ export default function Header({
           </div>
 
           {/* ── Capsule 2: Paramètres ── */}
-          <div className="hidden md:flex items-center p-1 rounded-2xl bg-black/30 border border-white/10 backdrop-blur-md">
+          <div className="hidden md:flex items-center p-1 rounded-2xl glass-pill">
             <button
               onClick={() => {
                 sounds.playTabSwitch();
@@ -488,8 +488,8 @@ export default function Header({
               title="Paramètres & Raccourcis"
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer select-none transition-all duration-200 active:scale-95 whitespace-nowrap ${
                 settingsOpen
-                  ? "bg-[var(--color-val-red)] text-white shadow-[0_0_15px_rgba(255,70,85,0.5)]"
-                  : "text-neutral-400 hover:text-white hover:bg-white/[0.07]"
+                  ? "bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] shadow-accent-md font-black"
+                  : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]"
               }`}
             >
               <IconSettings size={15} className={settingsOpen ? "animate-spin-slow" : ""} />
@@ -498,14 +498,14 @@ export default function Header({
           </div>
 
           {/* ── Capsule 3: Quitter / Déconnexion ── */}
-          <div className="hidden md:flex items-center p-1 rounded-2xl bg-black/30 border border-white/10 backdrop-blur-md">
+          <div className="hidden md:flex items-center p-1 rounded-2xl glass-pill">
             <button
               onClick={() => {
                 sounds.playClick();
                 signOut({ callbackUrl: "/" });
               }}
               onMouseEnter={() => sounds.playHover()}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-neutral-400 hover:text-red-400 hover:bg-red-500/10 cursor-pointer select-none transition-all duration-200 active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-[var(--color-text-secondary)] hover:text-red-400 hover:bg-red-500/10 cursor-pointer select-none transition-all duration-200 active:scale-95 whitespace-nowrap"
               title="Déconnexion"
             >
               <IconLogOut size={14} />
@@ -577,7 +577,7 @@ function FavChip({
       }}
       className={`group flex items-center gap-1.5 px-3 py-1 rounded-full transition-all duration-200 text-xs font-bold border flex-shrink-0 cursor-pointer ${
         isActive
-          ? "bg-[var(--color-val-red)]/15 border-[var(--color-val-red)]/50 text-[var(--color-val-red)] shadow-[0_0_12px_rgba(255,70,85,0.25)]"
+          ? "bg-[var(--color-val-red)]/15 border-[var(--color-val-red)]/50 text-[var(--color-val-red)] shadow-accent-sm"
           : "bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
       }`}
     >

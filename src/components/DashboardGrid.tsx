@@ -1430,7 +1430,7 @@ export default function DashboardGrid({
                     }}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all flex items-center gap-1.5 cursor-pointer ${
                       drawerOpen
-                        ? "bg-[var(--color-val-red)] border-[var(--color-val-red)] text-white shadow-md"
+                        ? "bg-[var(--color-val-red)] border-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] shadow-accent-md"
                         : "bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] border-[var(--color-border)] text-[var(--color-text-primary)]"
                     }`}
                   >
@@ -1472,7 +1472,7 @@ export default function DashboardGrid({
                   className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-lg ${
                     hasUnsavedChanges
                       ? "bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/30 font-black ring-2 ring-emerald-300/60 animate-pulse"
-                      : "bg-[var(--color-val-red)] hover:bg-[#ff5865] text-white shadow-[0_0_15px_rgba(255,70,85,0.4)]"
+                      : "bg-[var(--color-val-red)] hover:brightness-110 text-[var(--color-accent-contrast,#ffffff)] shadow-accent-md"
                   }`}
                   title="Confirmer et enregistrer définitivement la disposition"
                 >
@@ -1701,7 +1701,7 @@ export default function DashboardGrid({
                       isBeingDragged
                         ? "opacity-90 scale-105 shadow-[0_15px_35px_rgba(0,0,0,0.8)] ring-2 ring-[var(--color-val-red)] rounded-2xl cursor-grabbing"
                         : isResizing
-                        ? "ring-2 ring-[var(--color-val-red)] shadow-[0_0_20px_rgba(255,70,85,0.4)] rounded-2xl"
+                        ? "ring-2 ring-[var(--color-val-red)] shadow-accent-md rounded-2xl"
                         : "cursor-grab hover:shadow-xl"
                     }`}
                   >

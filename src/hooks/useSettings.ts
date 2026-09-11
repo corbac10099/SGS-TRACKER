@@ -38,6 +38,22 @@ export interface SettingsState {
   syncFromGuest: (user: any) => void;
 }
 
+/**
+ * Calcule la couleur de contraste optimale (#090d14 ou #ffffff) selon la luminance WCAG de la couleur passée.
+ */
+export function computeContrastColor(color: string): string {
+  if (!color) return "#ffffff";
+  let hex = color.trim().replace("#", "");
+  if (hex.length === 3) hex = hex.split("").map((c) => c + c).join("");
+  if (hex.length !== 6) return "#ffffff";
+  const r = parseInt(hex.substring(0, 2), 16) || 0;
+  const g = parseInt(hex.substring(2, 4), 16) || 0;
+  const b = parseInt(hex.substring(4, 6), 16) || 0;
+  // Luminance relative perçue (WCAG)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.55 ? "#090d14" : "#ffffff";
+}
+
 export function useSettings(): SettingsState {
   const [smartRating, setSmartRating] = useState(true);
   const [theme, setTheme] = useState("dark");
@@ -110,20 +126,33 @@ export function useSettings(): SettingsState {
     document.documentElement.style.removeProperty("--custom-bg");
     document.documentElement.style.removeProperty("--custom-accent");
 
+    let activeAccent = "#ff4655";
+
     if (theme !== "dark" && !theme?.startsWith("custom:")) {
       document.body.classList.add(`theme-${theme}`);
+      if (theme === "midnight") activeAccent = "#8c64ff";
+      else if (theme === "ocean") activeAccent = "#32c8b4";
+      else if (theme === "crimson" || theme === "light") activeAccent = "#ff4655";
     } else if (theme?.startsWith("custom:")) {
       document.body.classList.add("theme-custom");
       const matchBg = theme.match(/bg=([^,]+)/);
       const matchAccent = theme.match(/accent=([^,]+)/);
       if (matchBg)
         document.documentElement.style.setProperty("--custom-bg", matchBg[1]);
-      if (matchAccent)
+      if (matchAccent) {
+        activeAccent = matchAccent[1];
         document.documentElement.style.setProperty(
           "--custom-accent",
           matchAccent[1]
         );
+      }
     }
+
+    // Définit la couleur de contraste pour garantir la lisibilité (ex: noir sur fond blanc)
+    document.documentElement.style.setProperty(
+      "--color-accent-contrast",
+      computeContrastColor(activeAccent)
+    );
   }, [theme]);
 
   const toggleFullscreen = useCallback(() => {

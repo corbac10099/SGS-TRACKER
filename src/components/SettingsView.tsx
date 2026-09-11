@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import BannerCatalogModal from "./BannerCatalogModal";
 import { loadLanguagesList, setLanguage, LanguageInfo, Locale } from "@/lib/i18n";
+import { computeContrastColor } from "@/hooks/useSettings";
 import {
   IconCrosshair,
   IconSkull,
@@ -279,29 +280,52 @@ export default function SettingsView({
     return () => window.removeEventListener("keydown", handleKeyRecord, { capture: true });
   }, [recordingShortcutId]);
 
-  // Preview theme live
+  // Preview theme live avec calcul dynamique du contraste et de l'accent
   useEffect(() => {
     document.body.classList.remove("theme-light", "theme-midnight", "theme-crimson", "theme-ocean", "theme-custom");
     if (draftTheme !== "dark" && draftTheme !== "custom") document.body.classList.add(`theme-${draftTheme}`);
-    if (draftTheme === "custom") {
+    
+    let previewAccent = "#ff4655";
+    if (draftTheme === "midnight") previewAccent = "#8c64ff";
+    else if (draftTheme === "ocean") previewAccent = "#32c8b4";
+    else if (draftTheme === "custom") {
       document.body.classList.add("theme-custom");
       document.documentElement.style.setProperty("--custom-bg", draftCustomBg);
       document.documentElement.style.setProperty("--custom-accent", draftCustomAccent);
+      previewAccent = draftCustomAccent || "#ff4655";
     }
+
+    document.documentElement.style.setProperty(
+      "--color-accent-contrast",
+      computeContrastColor(previewAccent)
+    );
 
     // Cleanup on unmount (restore original theme if not saved)
     return () => {
       document.body.classList.remove("theme-light", "theme-midnight", "theme-crimson", "theme-ocean", "theme-custom");
       document.documentElement.style.removeProperty("--custom-bg");
       document.documentElement.style.removeProperty("--custom-accent");
-      if (theme !== "dark" && !theme?.startsWith("custom:")) document.body.classList.add(`theme-${theme}`);
+      
+      let origAccent = "#ff4655";
+      if (theme !== "dark" && !theme?.startsWith("custom:")) {
+        document.body.classList.add(`theme-${theme}`);
+        if (theme === "midnight") origAccent = "#8c64ff";
+        else if (theme === "ocean") origAccent = "#32c8b4";
+      }
       if (theme?.startsWith("custom:")) {
         document.body.classList.add("theme-custom");
         const matchBg = theme.match(/bg=([^,]+)/);
         const matchAccent = theme.match(/accent=([^,]+)/);
         if (matchBg) document.documentElement.style.setProperty("--custom-bg", matchBg[1]);
-        if (matchAccent) document.documentElement.style.setProperty("--custom-accent", matchAccent[1]);
+        if (matchAccent) {
+          document.documentElement.style.setProperty("--custom-accent", matchAccent[1]);
+          origAccent = matchAccent[1];
+        }
       }
+      document.documentElement.style.setProperty(
+        "--color-accent-contrast",
+        computeContrastColor(origAccent)
+      );
     };
   }, [draftTheme, draftCustomBg, draftCustomAccent, theme]);
 
@@ -1111,7 +1135,7 @@ export default function SettingsView({
                       }}
                       className={`relative rounded-xl p-2 sm:p-3 flex flex-col items-center gap-1.5 sm:gap-2 border-2 transition-all duration-300 cursor-pointer ${
                         draftTheme === t.id
-                          ? "border-[var(--color-val-red)] shadow-[0_0_20px_rgba(255,70,85,0.3)] scale-105"
+                          ? "border-[var(--color-val-red)] shadow-accent-md scale-105"
                           : "border-[var(--color-border)] hover:border-[var(--color-text-secondary)]"
                       }`}
                     >
@@ -1121,8 +1145,8 @@ export default function SettingsView({
                       </div>
                       <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-[var(--color-text-primary)] truncate">{t.name}</span>
                       {draftTheme === t.id && (
-                        <div className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-[var(--color-val-red)] rounded-full flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <div className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-[var(--color-val-red)] rounded-full flex items-center justify-center text-[var(--color-accent-contrast)] shadow-accent-sm">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
                         </div>

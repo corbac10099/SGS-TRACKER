@@ -108,7 +108,7 @@ function StatCardComponent({
         <span
           className={`text-base xs:text-lg sm:text-xl md:text-2xl font-black tracking-tight truncate transition-colors duration-200 ${
             highlight
-              ? "text-[var(--color-val-red)] drop-shadow-[0_0_12px_rgba(255,70,85,0.3)]"
+              ? "text-[var(--color-val-red)] drop-shadow-[0_0_10px_var(--accent-glow-md)]"
               : "text-[var(--color-text-primary)]"
           }`}
         >

@@ -108,8 +108,8 @@ export default function AgentsStatsTab({
               }}
               className={`w-full glass-panel rounded-2xl p-4 sm:p-5 flex items-center gap-4 sm:gap-5 transition-all duration-300 cursor-pointer select-none ${
                 isExpanded
-                  ? "bg-[var(--color-surface-hover)] border-[var(--color-val-red)]/50 shadow-[0_0_16px_rgba(255,70,85,0.15)] ring-1 ring-[var(--color-val-red)]/30"
-                  : "hover:bg-[var(--color-surface-hover)] hover:border-[rgba(255,255,255,0.2)]"
+                  ? "bg-[var(--color-surface-hover)] border-[var(--color-val-red)]/50 shadow-accent-sm ring-1 ring-[var(--color-val-red)]/30"
+                  : "hover:bg-[var(--color-surface-hover)] hover:border-[var(--color-border)]"
               }`}
             >
               <img
@@ -369,19 +369,19 @@ export default function AgentsStatsTab({
                                 )}
 
                                 <div className="flex flex-col min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-black text-sm sm:text-base text-white uppercase tracking-wider group-hover/item:text-[var(--color-val-red)] transition-colors truncate">
-                                      {m.map || "Carte Inconnue"}
-                                    </span>
-                                    {m.season && (
-                                      <span className="text-[9px] text-[var(--color-val-red)] font-bold bg-[rgba(255,70,85,0.1)] px-1.5 py-0.2 rounded hidden sm:inline">
-                                        {m.season}
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-black text-sm sm:text-base text-[var(--color-text-primary)] uppercase tracking-wider group-hover/item:text-[var(--color-val-red)] transition-colors truncate">
+                                        {m.map || "Carte Inconnue"}
                                       </span>
-                                    )}
-                                  </div>
-                                  <span className="text-[10px] text-white/50 font-bold">
-                                    {m.mode || "Compétitif"} • {dateStr}
-                                  </span>
+                                      {m.season && (
+                                        <span className="text-[9px] text-[var(--color-val-red)] font-bold bg-[var(--accent-bg-subtle)] border border-[var(--accent-border-subtle)] px-1.5 py-0.2 rounded hidden sm:inline">
+                                          {m.season}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-[var(--color-text-secondary)] font-bold">
+                                      {m.mode || "Compétitif"} • {dateStr}
+                                    </span>
                                 </div>
                               </div>
 

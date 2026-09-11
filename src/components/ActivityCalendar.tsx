@@ -251,16 +251,10 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
 
   // Couleur d'intensité de la cellule
   const getCellIntensityClass = (count: number) => {
-    if (count === 0) {
-      return "bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.2)]";
-    }
-    if (count <= 2) {
-      return "bg-[rgba(255,70,85,0.28)] border-[rgba(255,70,85,0.4)] hover:bg-[rgba(255,70,85,0.45)]";
-    }
-    if (count <= 4) {
-      return "bg-[rgba(255,70,85,0.6)] border-[rgba(255,70,85,0.75)] hover:bg-[rgba(255,70,85,0.8)] shadow-[0_0_8px_rgba(255,70,85,0.3)]";
-    }
-    return "bg-[var(--color-val-red)] border-[var(--color-val-red)] hover:brightness-125 shadow-[0_0_12px_rgba(255,70,85,0.7)]";
+    if (count === 0) return "activity-cell-empty";
+    if (count <= 2) return "activity-cell-low";
+    if (count <= 4) return "activity-cell-mid";
+    return "activity-cell-high";
   };
 
   // Formatage date lisible en français
@@ -279,7 +273,7 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--color-border)] pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-val-red)] animate-pulse shadow-[0_0_8px_rgba(255,70,85,0.8)]" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-val-red)] animate-pulse shadow-accent-sm" />
             <h3 className="font-black text-sm uppercase tracking-widest text-[var(--color-text-on-surface)]">
               Calendrier d&apos;Activité &amp; Sessions
             </h3>
@@ -297,7 +291,7 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
               <span className="text-[9px] uppercase tracking-wider text-[var(--color-text-secondary)] font-bold">
                 Parties
               </span>
-              <span className="text-xs font-black text-white">
+              <span className="text-xs font-black text-[var(--color-text-primary)]">
                 {statsSummary.totalMatches}
               </span>
             </div>
@@ -333,7 +327,7 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
               <span className="text-[9px] uppercase tracking-wider text-[var(--color-text-secondary)] font-bold">
                 Pic / Jour
               </span>
-              <span className="text-xs font-black text-white">
+              <span className="text-xs font-black text-[var(--color-text-primary)]">
                 {statsSummary.maxMatchesInDay} parties
               </span>
             </div>
@@ -398,8 +392,8 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
                             day.matchesCount
                           )} ${
                             isSelected
-                              ? "ring-2 ring-[var(--color-val-red)] scale-135 z-20 shadow-[0_0_14px_rgba(255,70,85,0.9)] animate-pulse"
-                              : "hover:scale-135 hover:z-20 hover:shadow-[0_0_10px_rgba(255,70,85,0.7)] hover:border-white/60"
+                              ? "ring-2 ring-[var(--color-val-red)] scale-135 z-20 shadow-accent-md animate-pulse"
+                              : "hover:scale-135 hover:z-20 shadow-accent-sm hover:border-white/60"
                           }`}
                         />
                       );
@@ -413,18 +407,18 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
       </div>
 
       {/* Dynamic details bar (Hauteur verrouillée à h-9 pour zéro décalage de page) */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 text-xs border-t border-[rgba(255,255,255,0.06)]">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 text-xs border-t border-[var(--color-border)]">
         {/* Info on hovered or selected day */}
         <div className="h-9 flex items-center min-w-0 overflow-hidden">
           {(hoveredDay || selectedDay) ? (
-            <div className="flex items-center gap-2.5 animate-in fade-in-0 zoom-in-95 duration-150 flex-nowrap whitespace-nowrap overflow-x-auto scrollbar-none bg-black/60 border border-[var(--color-val-red)]/40 shadow-[0_0_12px_rgba(255,70,85,0.2)] px-2.5 py-1 rounded-xl">
+            <div className="flex items-center gap-2.5 animate-in fade-in-0 zoom-in-95 duration-150 flex-nowrap whitespace-nowrap overflow-x-auto scrollbar-none bg-[var(--color-surface)] border border-[var(--color-border)] shadow-accent-sm px-2.5 py-1 rounded-xl">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-val-red)] animate-ping shrink-0" />
-              <span className="font-black text-white capitalize text-xs">
+              <span className="font-black text-[var(--color-text-primary)] capitalize text-xs">
                 {formatFullDate((hoveredDay || selectedDay)!.date)} :
               </span>
               {(hoveredDay || selectedDay)!.matchesCount > 0 ? (
                 <div className="flex items-center gap-2">
-                  <span className="font-black text-[var(--color-val-red)] bg-[rgba(255,70,85,0.15)] px-2 py-0.5 rounded-md border border-[rgba(255,70,85,0.3)]">
+                  <span className="font-black text-[var(--color-val-red)] bg-[var(--accent-bg-subtle)] px-2 py-0.5 rounded-md border border-[var(--accent-border-subtle)]">
                     {(hoveredDay || selectedDay)!.matchesCount}{" "}
                     {(hoveredDay || selectedDay)!.matchesCount > 1
                       ? "parties"
@@ -435,7 +429,7 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
                     {(hoveredDay || selectedDay)!.losses}D (
                     {(hoveredDay || selectedDay)!.winRate}%)
                   </span>
-                  <span className="text-neutral-200 font-mono font-bold bg-white/5 px-2 py-0.5 rounded-md border border-white/10">
+                  <span className="text-[var(--color-text-primary)] font-mono font-bold bg-[var(--color-surface-hover)] px-2 py-0.5 rounded-md border border-[var(--color-border)]">
                     K/D {(hoveredDay || selectedDay)!.kd}
                   </span>
                 </div>
@@ -456,10 +450,10 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
         <div className="flex items-center gap-2 text-[10px] text-[var(--color-text-secondary)] font-bold uppercase tracking-wider self-end sm:self-auto">
           <span>Moins</span>
           <div className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-[3px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]" />
-            <span className="w-3 h-3 rounded-[3px] bg-[rgba(255,70,85,0.28)] border border-[rgba(255,70,85,0.4)]" />
-            <span className="w-3 h-3 rounded-[3px] bg-[rgba(255,70,85,0.6)] border border-[rgba(255,70,85,0.75)]" />
-            <span className="w-3 h-3 rounded-[3px] bg-[var(--color-val-red)] border border-[var(--color-val-red)] shadow-[0_0_8px_rgba(255,70,85,0.6)]" />
+            <span className="w-3 h-3 rounded-[3px] activity-cell-empty" />
+            <span className="w-3 h-3 rounded-[3px] activity-cell-low" />
+            <span className="w-3 h-3 rounded-[3px] activity-cell-mid" />
+            <span className="w-3 h-3 rounded-[3px] activity-cell-high" />
           </div>
           <span>Plus</span>
         </div>

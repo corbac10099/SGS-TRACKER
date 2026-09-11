@@ -430,7 +430,7 @@ export default function AgentsWikiComponent({
           onClick={() => setSelectedRole("all")}
           className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer border flex items-center gap-2 ${
             selectedRole === "all"
-              ? "bg-[var(--color-val-red)] text-white border-[var(--color-val-red)] shadow-[0_0_20px_rgba(255,70,85,0.4)]"
+              ? "bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] border-[var(--color-val-red)] shadow-accent-md"
               : "bg-white/[0.03] text-[var(--color-text-secondary)] hover:text-white border-white/10 hover:border-white/20"
           }`}
         >

@@ -475,7 +475,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           <button
             type="submit"
             disabled={loading || googleLoading}
-            className="w-full py-3 rounded-2xl bg-[var(--color-val-red)] hover:bg-[#ff5865] text-white font-bold text-xs uppercase tracking-wider shadow-[0_0_20px_rgba(255,70,85,0.4)] hover:shadow-[0_0_30px_rgba(255,70,85,0.6)] transition-all duration-200 cursor-pointer active:scale-98 disabled:opacity-50 mt-2 flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-2xl bg-[var(--color-val-red)] hover:brightness-110 text-[var(--color-accent-contrast,#ffffff)] font-bold text-xs uppercase tracking-wider shadow-accent-md hover:shadow-accent-lg transition-all duration-200 cursor-pointer active:scale-98 disabled:opacity-50 mt-2 flex items-center justify-center gap-2"
           >
             {loading ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

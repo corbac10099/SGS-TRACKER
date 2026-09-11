@@ -117,8 +117,8 @@ export default function AiCoachModal({
             onClick={() => setActiveTab("live")}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === "live"
-                ? "bg-[var(--color-val-red)] text-white shadow-[0_0_15px_rgba(255,70,85,0.4)] font-black"
-                : "bg-white/5 hover:bg-white/10 text-gray-300"
+                ? "bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] shadow-accent-md font-black"
+                : "bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
@@ -130,8 +130,8 @@ export default function AiCoachModal({
             onClick={() => setActiveTab("global")}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === "global"
-                ? "bg-[var(--color-val-red)] text-white shadow-[0_0_15px_rgba(255,70,85,0.4)] font-black"
-                : "bg-white/5 hover:bg-white/10 text-gray-300"
+                ? "bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] shadow-accent-md font-black"
+                : "bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
             }`}
           >
             <IconTrophy size={13} />
