@@ -311,7 +311,7 @@ export function HomeContent({
           <div
             className={
               nav.activeTab === "performance"
-                ? "w-full animate-in fade-in duration-500"
+                ? "w-full animate-in fade-in-50 slide-in-from-bottom-2 duration-300 ease-out"
                 : "hidden"
             }
           >
@@ -363,7 +363,7 @@ export function HomeContent({
 
         {/* Agents Tab */}
         {nav.activeTab === "agents" && (
-          <div className="w-full">
+          <div key="tab-agents" className="w-full animate-in fade-in-50 slide-in-from-bottom-2 duration-300 ease-out">
             <AgentsStatsTab
               agentStats={p.agentStats}
               matches={filters.filteredMatches}
@@ -374,7 +374,7 @@ export function HomeContent({
 
         {/* Maps / Cartes Tab */}
         {nav.activeTab === "maps" && (
-          <div className="w-full">
+          <div key="tab-maps" className="w-full animate-in fade-in-50 slide-in-from-bottom-2 duration-300 ease-out">
             <MapsStatsTab
               matches={filters.filteredMatches}
               onSelectMatch={handleSelectMatch}
@@ -384,7 +384,7 @@ export function HomeContent({
 
         {/* Matches Tab */}
         {nav.activeTab === "matches" && filters.filteredMatches && (
-          <div className="w-full space-y-6">
+          <div key="tab-matches" className="w-full space-y-6 animate-in fade-in-50 slide-in-from-bottom-2 duration-300 ease-out">
             <ActivityCalendar matches={filters.filteredMatches} />
             <MatchHistory
               matches={filters.filteredMatches}

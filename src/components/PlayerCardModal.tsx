@@ -22,6 +22,44 @@ export default function PlayerCardModal({
 }: PlayerCardModalProps) {
   const [downloading, setDownloading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const [tiltStyle, setTiltStyle] = useState<React.CSSProperties>({});
+  const [sheenStyle, setSheenStyle] = useState<React.CSSProperties>({ opacity: 0 });
+
+  const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    const rotateX = ((y - centerY) / centerY) * -9;
+    const rotateY = ((x - centerX) / centerX) * 9;
+    const glareX = (x / rect.width) * 100;
+    const glareY = (y / rect.height) * 100;
+
+    setTiltStyle({
+      transform: `perspective(1000px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) scale3d(1.02, 1.02, 1.02)`,
+      transition: "transform 0.08s ease-out",
+    });
+
+    setSheenStyle({
+      opacity: 0.6,
+      background: `radial-gradient(circle at ${glareX}% ${glareY}%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 70, 85, 0.15) 40%, transparent 70%)`,
+      transition: "opacity 0.15s ease",
+    });
+  };
+
+  const handleCardMouseLeave = () => {
+    setTiltStyle({
+      transform: "perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)",
+      transition: "transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)",
+    });
+    setSheenStyle({
+      opacity: 0,
+      transition: "opacity 0.4s ease",
+    });
+  };
 
   const player = playerData?.player || {};
   const stats = playerData?.stats || player.stats || {};
@@ -361,11 +399,19 @@ export default function PlayerCardModal({
           </button>
         </div>
 
-        {/* Exact Landscape Player Card Live Preview with Animated Glow */}
+        {/* Exact Landscape Player Card Live Preview with 3D Holographic Tilt */}
         <div
           ref={cardRef}
-          className="relative w-full aspect-[16/9] rounded-2xl overflow-hidden border border-white/20 shadow-2xl p-5 sm:p-7 flex flex-col justify-between select-none bg-black animate-card-glow"
+          onMouseMove={handleCardMouseMove}
+          onMouseLeave={handleCardMouseLeave}
+          style={tiltStyle}
+          className="relative w-full aspect-[16/9] rounded-2xl overflow-hidden border border-white/20 shadow-2xl p-5 sm:p-7 flex flex-col justify-between select-none bg-black animate-card-glow cursor-crosshair transform-gpu"
         >
+          {/* Holographic Sheen Reflection Overlay */}
+          <div
+            className="absolute inset-0 z-30 pointer-events-none rounded-2xl mix-blend-color-dodge"
+            style={sheenStyle}
+          />
           {/* Background Image Banner */}
           <img
             src={bannerUrl}

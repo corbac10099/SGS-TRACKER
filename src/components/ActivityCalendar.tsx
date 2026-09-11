@@ -360,8 +360,8 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
                             day.matchesCount
                           )} ${
                             isSelected
-                              ? "ring-2 ring-white scale-125 z-10"
-                              : "hover:scale-120"
+                              ? "ring-2 ring-[var(--color-val-red)] scale-135 z-20 shadow-[0_0_14px_rgba(255,70,85,0.9)] animate-pulse"
+                              : "hover:scale-135 hover:z-20 hover:shadow-[0_0_10px_rgba(255,70,85,0.7)] hover:border-white/60"
                           }`}
                         />
                       );
@@ -374,29 +374,35 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
         </div>
       </div>
 
-      {/* Dynamic details bar */}
+      {/* Dynamic details bar (Style Pilule Rouge & Animations) */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 text-xs border-t border-[rgba(255,255,255,0.06)]">
         {/* Info on hovered or selected day */}
-        <div className="min-h-[22px] flex items-center gap-2">
+        <div className="min-h-[28px] flex items-center gap-2">
           {(hoveredDay || selectedDay) ? (
-            <div className="flex items-center gap-3 animate-in fade-in duration-200 flex-wrap">
-              <span className="font-black text-white capitalize">
+            <div className="flex items-center gap-2.5 animate-in fade-in-0 zoom-in-95 duration-200 flex-wrap bg-black/60 border border-[var(--color-val-red)]/40 shadow-[0_0_16px_rgba(255,70,85,0.25)] px-3 py-1 rounded-xl">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-val-red)] animate-ping shrink-0" />
+              <span className="font-black text-white capitalize text-xs">
                 {formatFullDate((hoveredDay || selectedDay)!.date)} :
               </span>
               {(hoveredDay || selectedDay)!.matchesCount > 0 ? (
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-[var(--color-val-red)]">
-                    {(hoveredDay || selectedDay)!.matchesCount} {(hoveredDay || selectedDay)!.matchesCount > 1 ? "parties" : "partie"}
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-[var(--color-val-red)] bg-[rgba(255,70,85,0.15)] px-2 py-0.5 rounded-md border border-[rgba(255,70,85,0.3)]">
+                    {(hoveredDay || selectedDay)!.matchesCount}{" "}
+                    {(hoveredDay || selectedDay)!.matchesCount > 1
+                      ? "parties"
+                      : "partie"}
                   </span>
-                  <span className="text-emerald-400 font-bold">
-                    {(hoveredDay || selectedDay)!.wins}V - {(hoveredDay || selectedDay)!.losses}D ({(hoveredDay || selectedDay)!.winRate}%)
+                  <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                    {(hoveredDay || selectedDay)!.wins}V -{" "}
+                    {(hoveredDay || selectedDay)!.losses}D (
+                    {(hoveredDay || selectedDay)!.winRate}%)
                   </span>
-                  <span className="text-neutral-300 font-bold">
+                  <span className="text-neutral-200 font-mono font-bold bg-white/5 px-2 py-0.5 rounded-md border border-white/10">
                     K/D {(hoveredDay || selectedDay)!.kd}
                   </span>
                 </div>
               ) : (
-                <span className="text-[var(--color-text-secondary)] italic">
+                <span className="text-[var(--color-text-secondary)] italic text-xs">
                   Aucune partie jouée
                 </span>
               )}

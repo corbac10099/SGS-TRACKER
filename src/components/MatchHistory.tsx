@@ -56,8 +56,15 @@ export const RoundBar = React.memo(function RoundBar({ round }: { round: any }) 
 
       <span className="text-[10px] text-[var(--color-text-secondary)] font-bold tracking-widest mb-1">{round.roundNum}</span>
 
-      {/* Main round bar */}
-      <div className={`w-3.5 sm:w-4 h-10 sm:h-12 rounded-sm ${isWin ? "bg-[#0ebf99]" : "bg-[#ff4655]"} transition-transform group-hover:-translate-y-1`}></div>
+      {/* Main round bar avec croissance verticale animée en cascade */}
+      <div
+        style={{
+          animationDelay: `${Math.min((round.roundNum || 1) * 30, 650)}ms`,
+        }}
+        className={`w-3.5 sm:w-4 h-10 sm:h-12 rounded-sm ${
+          isWin ? "bg-[#0ebf99]" : "bg-[#ff4655]"
+        } animate-round-grow transition-transform group-hover:-translate-y-1 shadow-sm`}
+      />
 
       {/* Events below the bar */}
       <div className="flex flex-col items-center gap-1.5 mt-1 h-14">

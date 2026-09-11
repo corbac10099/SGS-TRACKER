@@ -1384,19 +1384,30 @@ export default function DashboardGrid({
                       ? "Arrêter la session en direct"
                       : "Activer le mode session en direct pour voir vos gains (+kills, etc.) en direct"
                   }
-                  className={`px-2.5 sm:px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md select-none ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 cursor-pointer shadow-md select-none active:scale-[0.97] ${
                     liveSessionActive
-                      ? "bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
-                      : "glass-pill hover:bg-amber-500/20 border-white/20 hover:border-amber-400/60 text-white/80 hover:text-white"
+                      ? "bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/60 text-emerald-300 shadow-[0_0_16px_rgba(16,185,129,0.35)] ring-1 ring-emerald-500/30"
+                      : "glass-pill hover:bg-amber-500/20 border-white/20 hover:border-amber-400/60 text-white/80 hover:text-white hover:shadow-[0_0_12px_rgba(245,158,11,0.25)]"
                   }`}
                 >
                   {liveSessionActive ? (
                     <>
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-                      <span>Session Direct ({formatElapsed(liveSessionElapsed)}) • Arrêter</span>
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
+                      </span>
+                      <span className="tracking-wide">
+                        Session Direct ({formatElapsed(liveSessionElapsed)})
+                      </span>
+                      <span className="text-[10px] bg-emerald-500/30 px-1.5 py-0.5 rounded text-emerald-200 border border-emerald-500/40">
+                        Stop
+                      </span>
                     </>
                   ) : (
                     <>
+                      <span className="relative flex h-2 w-2">
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
+                      </span>
                       <IconFlame size={13} className="text-amber-400" />
                       <span>Mode Session Direct</span>
                     </>
