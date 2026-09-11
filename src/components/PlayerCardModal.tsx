@@ -409,7 +409,7 @@ export default function PlayerCardModal({
         >
           {/* Holographic Sheen Reflection Overlay */}
           <div
-            className="absolute inset-0 z-30 pointer-events-none rounded-2xl mix-blend-color-dodge"
+            className="absolute inset-0 z-30 pointer-events-none rounded-2xl mix-blend-screen"
             style={sheenStyle}
           />
           {/* Background Image Banner */}
@@ -491,18 +491,18 @@ export default function PlayerCardModal({
             </div>
           </div>
 
-          {/* Center Floating Glass Box */}
-          <div className="relative z-10 w-full bg-black/75 backdrop-blur-xl border border-white/15 rounded-xl sm:rounded-2xl p-3 sm:p-4 grid grid-cols-3 gap-2 text-center shadow-lg">
-            <div className="flex flex-col items-center justify-center">
+          {/* Center Floating Glass Box (Separateurs équilibrés sans artefacts) */}
+          <div className="relative z-10 w-full bg-black/80 backdrop-blur-xl border border-white/15 rounded-xl sm:rounded-2xl py-2.5 sm:py-3.5 px-1 grid grid-cols-3 divide-x divide-white/10 text-center shadow-lg">
+            <div className="flex flex-col items-center justify-center px-1">
               <span className="text-[9px] sm:text-xs font-black uppercase tracking-wider text-gray-400">
                 K/D
               </span>
               <span className="text-base sm:text-2xl font-black text-white font-mono mt-0.5">
-                {stats.kdRatio ?? "1.18"}
+                {typeof stats.kdRatio === "number" ? stats.kdRatio.toFixed(2) : (stats.kdRatio ?? "1.18")}
               </span>
             </div>
 
-            <div className="flex flex-col items-center justify-center border-x border-white/10">
+            <div className="flex flex-col items-center justify-center px-1">
               <span className="text-[9px] sm:text-xs font-black uppercase tracking-wider text-gray-400">
                 HS %
               </span>
@@ -511,7 +511,7 @@ export default function PlayerCardModal({
               </span>
             </div>
 
-            <div className="flex flex-col items-center justify-center">
+            <div className="flex flex-col items-center justify-center px-1">
               <span className="text-[9px] sm:text-xs font-black uppercase tracking-wider text-gray-400">
                 WIN RATE
               </span>

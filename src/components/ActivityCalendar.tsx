@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import { sounds } from "@/lib/soundEffects";
 import { IconFlame, IconTrophy, IconGamepad, IconCrosshair } from "./icons/SpyIcons";
 
@@ -47,6 +47,44 @@ function getLocalDateKey(date: Date): string {
 export default function ActivityCalendar({ matches = [], className = "" }: ActivityCalendarProps) {
   const [hoveredDay, setHoveredDay] = useState<DayData | null>(null);
   const [selectedDay, setSelectedDay] = useState<DayData | null>(null);
+  const [displayedDay, setDisplayedDay] = useState<DayData | null>(null);
+
+  const drawerContentRef = useRef<HTMLDivElement>(null);
+  const [drawerHeight, setDrawerHeight] = useState<number>(0);
+
+  const isOpen = Boolean(selectedDay && selectedDay.matchesCount > 0);
+
+  // Met à jour displayedDay uniquement quand un jour valide avec matchs est cliqué
+  useEffect(() => {
+    if (selectedDay && selectedDay.matchesCount > 0) {
+      setDisplayedDay(selectedDay);
+    }
+  }, [selectedDay]);
+
+  // Recalcule la hauteur exacte du contenu lors d'un changement de jour sélectionné
+  useEffect(() => {
+    if (!isOpen) {
+      setDrawerHeight(0);
+      return;
+    }
+    if (drawerContentRef.current) {
+      setDrawerHeight(drawerContentRef.current.scrollHeight);
+    }
+  }, [isOpen, displayedDay]);
+
+  // Observe les changements de dimensions (chargement d'images, redimensionnement écran)
+  useEffect(() => {
+    if (!isOpen || !drawerContentRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === drawerContentRef.current) {
+          setDrawerHeight(entry.target.scrollHeight);
+        }
+      }
+    });
+    ro.observe(drawerContentRef.current);
+    return () => ro.disconnect();
+  }, [isOpen]);
 
   // Construction des 53 semaines (exactement 365 ou 366 jours selon l'année) jusqu'à aujourd'hui
   const { weeks, statsSummary } = useMemo(() => {
@@ -427,31 +465,33 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
         </div>
       </div>
 
-      {/* Selected Day Match Drawer (Dépliement fluide animé en accordéon) */}
+      {/* Selected Day Match Drawer (Dépliement et redimensionnement fluide continu) */}
       <div
-        className={`grid transition-all duration-350 ease-in-out ${
-          selectedDay && selectedDay.matchesCount > 0
-            ? "grid-rows-[1fr] opacity-100 mt-3"
-            : "grid-rows-[0fr] opacity-0 pointer-events-none"
-        }`}
+        className="w-full overflow-hidden transition-[height,opacity,margin] duration-350 ease-[cubic-bezier(0.16,1,0.3,1)]"
         style={{
-          transition:
-            "grid-template-rows 350ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease, margin 350ms ease",
+          height: isOpen ? `${drawerHeight}px` : "0px",
+          opacity: isOpen ? 1 : 0,
+          marginTop: isOpen ? "12px" : "0px",
+          pointerEvents: isOpen ? "auto" : "none",
         }}
       >
-        <div className="overflow-hidden">
-          {selectedDay && selectedDay.matchesCount > 0 && (
-            <div className="p-4 rounded-xl glass-card border border-[var(--color-val-red)]/30">
+        <div ref={drawerContentRef} className="pb-1">
+          {displayedDay && displayedDay.matchesCount > 0 && (
+            <div
+              key={displayedDay.dateStr}
+              className="p-4 rounded-xl glass-card border border-[var(--color-val-red)]/30 animate-in fade-in-50 duration-200"
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black text-white uppercase tracking-wider">
-                    Détail des matchs — {formatFullDate(selectedDay.date)}
+                    Détail des matchs — {formatFullDate(displayedDay.date)}
                   </span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-val-red)]/20 text-[var(--color-val-red)]">
-                    {selectedDay.matchesCount} {selectedDay.matchesCount > 1 ? "matchs" : "match"}
+                    {displayedDay.matchesCount} {displayedDay.matchesCount > 1 ? "matchs" : "match"}
                   </span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setSelectedDay(null)}
                   className="text-[10px] text-[var(--color-text-secondary)] hover:text-white font-bold cursor-pointer uppercase tracking-widest px-2 py-1"
                 >
@@ -460,7 +500,7 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                {selectedDay.matches.map((m: any, idx: number) => (
+                {displayedDay.matches.map((m: any, idx: number) => (
                   <div
                     key={m.matchId || idx}
                     className={`p-3 rounded-lg flex items-center justify-between border ${
