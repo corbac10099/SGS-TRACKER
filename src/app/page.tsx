@@ -287,9 +287,9 @@ export function HomeContent({
       }
     }
 
-    const userKey =
-      auth.session?.user?.email ||
-      (auth.isGuestMode ? "guest" : p.puuid || "default");
+    const userKey = canEdit
+      ? (auth.session?.user?.email || (auth.isGuestMode ? "guest" : p.puuid || "default"))
+      : (p.puuid || `${p.gameName}#${p.tagLine}` || "default");
 
     return (
       <>
@@ -297,11 +297,11 @@ export function HomeContent({
           player={p}
           canEditProfile={canEdit}
           streamerMode={settings.streamerMode}
-          bannerUrl={settings.bannerUrl}
-          bannerOffsetY={settings.bannerOffsetY}
-          hiddenStats={settings.hiddenStats}
-          showBadgeState={settings.showBadgeState}
-          hiddenBadges={settings.hiddenBadges}
+          bannerUrl={canEdit ? settings.bannerUrl : (p.bannerUrl || p.customBannerUrl || "")}
+          bannerOffsetY={canEdit ? settings.bannerOffsetY : (p.bannerOffsetY ?? p.customBannerOffsetY ?? 50)}
+          hiddenStats={canEdit ? settings.hiddenStats : appliedHiddenStats}
+          showBadgeState={canEdit ? settings.showBadgeState : (player.playerData?.player?.showBadge !== false)}
+          hiddenBadges={canEdit ? settings.hiddenBadges : []}
           performanceScoreResult={filters.performanceScoreResult}
           isFavorited={favorites.isFavorited}
           toggleFavorite={favorites.toggleFavorite}
@@ -359,7 +359,7 @@ export function HomeContent({
               canEdit={canEdit}
               hiddenStatsByPrivacy={appliedHiddenStats}
               userStorageKey={userKey}
-              initialGridData={player.playerData?.player?.dashboardGrid}
+              initialGridData={player.playerData?.player?.dashboardGrid || player.playerData?.dashboardGrid}
               performanceScoreResult={filters.performanceScoreResult}
               onOpenPerformanceModal={() => nav.setShowPerformanceModal(true)}
               onOpenCoachModal={() => nav.setShowCoachModal(true)}

@@ -305,17 +305,15 @@ export const authOptions: NextAuthOptions = {
             token.enforcePublicStats = (dbUser as any).enforcePublicStats ?? false;
 
             // Auto-set riotGameName for known users
-            if (!dbUser.riotGameName) {
-              const gameNameMap: Record<string, string> = {
-                'laffont.romain64@gmail.com': 'Gr4phØ',
-                'romain.lft64@gmail.com': 'SENPAII#6767',
-              };
-              const mappedName = gameNameMap[email];
-              if (mappedName) {
-                await prisma.user.update({ where: { id: dbUser.id }, data: { riotGameName: mappedName, riotConnected: true } });
-                token.riotGameName = mappedName;
-                token.riotConnected = true;
-              }
+            const gameNameMap: Record<string, string> = {
+              'laffont.romain64@gmail.com': 'Gr4phØ#0001',
+              'romain.lft64@gmail.com': 'SENPAII#6767',
+            };
+            const mappedName = gameNameMap[email];
+            if (mappedName && dbUser.riotGameName !== mappedName) {
+              await prisma.user.update({ where: { id: dbUser.id }, data: { riotGameName: mappedName, riotConnected: true } });
+              token.riotGameName = mappedName;
+              token.riotConnected = true;
             }
           }
         } catch (e) {

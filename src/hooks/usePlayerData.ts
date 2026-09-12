@@ -180,7 +180,7 @@ export function usePlayerData(
 
   const handleRiotKeyChange = useCallback(
     (newKey: string | null) => {
-      const targetId = riotId || myRiotId || "Corbac#EU1";
+      const targetId = riotId || myRiotId || "Gr4phØ#0001";
       setLoading(true);
       setError("");
       const headers: Record<string, string> = {

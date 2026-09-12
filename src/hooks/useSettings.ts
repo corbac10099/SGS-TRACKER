@@ -165,8 +165,7 @@ export function useSettings(): SettingsState {
 
   // Applique le thème sur le body
   useEffect(() => {
-    const effectiveTheme = activeThemeOverride || theme;
-
+    // Le fond et la structure de la page restent TOUJOURS sur le thème choisi par l'utilisateur
     document.body.classList.remove(
       "theme-light",
       "theme-midnight",
@@ -175,33 +174,44 @@ export function useSettings(): SettingsState {
       "theme-custom"
     );
     document.documentElement.style.removeProperty("--custom-bg");
-    document.documentElement.style.removeProperty("--custom-accent");
 
-    let activeAccent = "#ff4655";
-
-    if (effectiveTheme !== "dark" && !effectiveTheme?.startsWith("custom:")) {
-      document.body.classList.add(`theme-${effectiveTheme}`);
-      if (effectiveTheme === "midnight") activeAccent = "#8c64ff";
-      else if (effectiveTheme === "ocean") activeAccent = "#32c8b4";
-      else if (effectiveTheme === "crimson" || effectiveTheme === "light") activeAccent = "#ff4655";
-    } else if (effectiveTheme?.startsWith("custom:")) {
+    if (theme !== "dark" && !theme?.startsWith("custom:")) {
+      document.body.classList.add(`theme-${theme}`);
+    } else if (theme?.startsWith("custom:")) {
       document.body.classList.add("theme-custom");
-      const matchBg = effectiveTheme.match(/bg=([^,]+)/);
-      const matchAccent = effectiveTheme.match(/accent=([^,]+)/);
-      if (matchBg)
+      const matchBg = theme.match(/bg=([^,]+)/);
+      if (matchBg) {
         document.documentElement.style.setProperty("--custom-bg", matchBg[1]);
-      if (matchAccent) {
-        activeAccent = matchAccent[1];
-        document.documentElement.style.setProperty(
-          "--custom-accent",
-          matchAccent[1]
-        );
       }
     }
 
-    // Définit la couleur d'accent et de contraste sur :root (documentElement)
+    // Détermination de la couleur d'accent :
+    // Lors de la visite d'un profil tiers (activeThemeOverride), SEULS les boutons et accents prennent sa couleur.
+    const extractAccent = (t: string | null | undefined): string => {
+      if (!t) return "#ff4655";
+      if (t === "midnight") return "#8c64ff";
+      if (t === "ocean") return "#32c8b4";
+      if (t === "crimson" || t === "light") return "#ff4655";
+      if (t.startsWith("custom:")) {
+        const match = t.match(/accent=([^,]+)/);
+        if (match) return match[1];
+      }
+      return "#ff4655";
+    };
+
+    const activeAccent = extractAccent(activeThemeOverride || theme);
+
+    // Applique l'accent sur :root et en style inline sur body pour surcharger les règles CSS de fond
     document.documentElement.style.setProperty("--color-val-red", activeAccent);
+    document.documentElement.style.setProperty("--custom-accent", activeAccent);
     document.documentElement.style.setProperty(
+      "--color-accent-contrast",
+      computeContrastColor(activeAccent)
+    );
+
+    document.body.style.setProperty("--color-val-red", activeAccent);
+    document.body.style.setProperty("--custom-accent", activeAccent);
+    document.body.style.setProperty(
       "--color-accent-contrast",
       computeContrastColor(activeAccent)
     );

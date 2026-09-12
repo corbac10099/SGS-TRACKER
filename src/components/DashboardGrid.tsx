@@ -327,7 +327,7 @@ export default function DashboardGrid({
     saveState(layout, true);
     saveChartsConfig(chartsConfig);
     if (onSaveGridData) {
-      onSaveGridData(JSON.stringify({ cols: DEFAULT_COLS, items: layout }));
+      onSaveGridData(JSON.stringify({ cols: DEFAULT_COLS, items: layout, chartsConfig }));
     }
     setSnapshotLayout(JSON.parse(JSON.stringify(layout)));
     setSnapshotChartsConfig(JSON.parse(JSON.stringify(chartsConfig)));
@@ -489,13 +489,30 @@ export default function DashboardGrid({
             });
             const missing = DEFAULT_LAYOUT.filter((item) => !existingIds.has(item.id));
             setLayout([...normalized, ...missing]);
+
+            if (Array.isArray(parsed.chartsConfig) && parsed.chartsConfig.length > 0) {
+              setChartsConfig(parsed.chartsConfig);
+            } else if (!canEdit) {
+              setChartsConfig([
+                { id: "chart", title: "Progression", metrics: ["kd", "acs", "hs", "spi"] },
+              ]);
+            }
             return;
           }
         }
       } catch {}
     }
 
-    // 2. Fallback to localStorage
+    // 2. Visite d'un profil tiers sans grille personnalisée : disposition par défaut garantie, sans localStorage
+    if (!canEdit) {
+      setLayout(DEFAULT_LAYOUT);
+      setChartsConfig([
+        { id: "chart", title: "Progression", metrics: ["kd", "acs", "hs", "spi"] },
+      ]);
+      return;
+    }
+
+    // 3. Fallback to localStorage ONLY for own profile (canEdit === true)
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
@@ -519,8 +536,16 @@ export default function DashboardGrid({
           }
         }
       }
+
+      const storedCharts = localStorage.getItem(chartsStorageKey);
+      if (storedCharts) {
+        const parsedCharts = JSON.parse(storedCharts);
+        if (Array.isArray(parsedCharts) && parsedCharts.length > 0) {
+          setChartsConfig(parsedCharts);
+        }
+      }
     } catch {}
-  }, [storageKey, initialGridData]);
+  }, [storageKey, chartsStorageKey, initialGridData, canEdit]);
 
   // Synchronise automatiquement les graphiques détachés (ex: chart_spi) avec layout
   useEffect(() => {
@@ -559,7 +584,7 @@ export default function DashboardGrid({
   const saveState = useCallback(
     (newLayout: GridItemConfig[], syncToDatabase = false) => {
       setLayout(newLayout);
-      const payload = { cols: DEFAULT_COLS, items: newLayout };
+      const payload = { cols: DEFAULT_COLS, items: newLayout, chartsConfig };
       try {
         localStorage.setItem(storageKey, JSON.stringify(payload));
       } catch {}
@@ -572,7 +597,7 @@ export default function DashboardGrid({
         }).catch((err) => console.warn("Erreur sauvegarde Neon:", err));
       }
     },
-    [storageKey, canEdit]
+    [storageKey, canEdit, chartsConfig]
   );
 
   const handleResetLayout = () => {

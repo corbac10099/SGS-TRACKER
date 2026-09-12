@@ -39,5 +39,11 @@ export function normalizePlayerData(playerData: any): any {
     mainAgent: playerData.mainAgent || playerData.player?.mainAgent,
     badge: playerData.badge || playerData.player?.badge || null,
     showBadge: playerData.showBadge ?? playerData.player?.showBadge ?? true,
+    bannerUrl: playerData.player?.bannerUrl || playerData.bannerUrl || null,
+    bannerOffsetY: playerData.player?.bannerOffsetY ?? playerData.bannerOffsetY ?? 50,
+    customBannerUrl: playerData.player?.bannerUrl || playerData.bannerUrl || null,
+    customBannerOffsetY: playerData.player?.bannerOffsetY ?? playerData.bannerOffsetY ?? 50,
+    customTheme: playerData.player?.theme || playerData.theme || null,
+    dashboardGrid: playerData.player?.dashboardGrid || playerData.dashboardGrid || null,
   };
 }

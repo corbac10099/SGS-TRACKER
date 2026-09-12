@@ -161,6 +161,10 @@ async function handlePlayerRequest(
             badge: customOwnerSettings.badge || cachedProfile.player.badge,
             showBadge: customOwnerSettings.showBadge ?? cachedProfile.player.showBadge,
           };
+          (cachedProfile as any).bannerUrl = customOwnerSettings.bannerUrl || null;
+          (cachedProfile as any).bannerOffsetY = customOwnerSettings.bannerOffsetY || 0;
+          (cachedProfile as any).theme = customOwnerSettings.theme || null;
+          (cachedProfile as any).dashboardGrid = customOwnerSettings.dashboardGrid || null;
         }
         return NextResponse.json(cachedProfile);
       }
@@ -307,7 +311,7 @@ async function handlePlayerRequest(
     const resolvedTagLine = profileData?.player?.tagLine || cleanTagLine;
     const resolvedRiotId = `${resolvedGameName}#${resolvedTagLine}`;
 
-    if (resolvedPuuid) {
+    if (resolvedPuuid && !resolvedPuuid.startsWith("mock-") && !profileData.isMock && profileData.apiStatus?.accountVerified) {
       try {
         // 1. Chercher si un compte utilisateur possède ce PUUID immuable
         let matchedUser = await (prisma.user as any).findFirst({
@@ -420,6 +424,10 @@ async function handlePlayerRequest(
         badge: customOwnerSettings.badge || profileData.player.badge,
         showBadge: customOwnerSettings.showBadge ?? profileData.player.showBadge,
       };
+      (profileData as any).bannerUrl = customOwnerSettings.bannerUrl || null;
+      (profileData as any).bannerOffsetY = customOwnerSettings.bannerOffsetY || 0;
+      (profileData as any).theme = customOwnerSettings.theme || null;
+      (profileData as any).dashboardGrid = customOwnerSettings.dashboardGrid || null;
     }
 
     return NextResponse.json(profileData);
@@ -434,9 +442,9 @@ async function handlePlayerRequest(
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const rawName = searchParams.get("name") || searchParams.get("riotId") || "Corbac";
+  const rawName = searchParams.get("name") || searchParams.get("riotId") || "Gr4phØ";
   let gameName = rawName;
-  let tagLine = searchParams.get("tag") || "EU1";
+  let tagLine = searchParams.get("tag") || "0001";
 
   if (rawName.includes("#")) {
     const parts = rawName.split("#");
@@ -467,7 +475,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     let gameName = body.name || body.gameName || "";
-    let tagLine = body.tag || body.tagLine || "EU1";
+    let tagLine = body.tag || body.tagLine || "0001";
 
     if (body.riotId) {
       if (body.riotId.includes("#")) {
@@ -480,8 +488,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (!gameName) {
-      gameName = "Corbac";
-      tagLine = "EU1";
+      gameName = "Gr4phØ";
+      tagLine = "0001";
     }
 
     const region = (body.region || "eu").toLowerCase();

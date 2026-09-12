@@ -121,10 +121,23 @@ function createSeededPrng(seedStr: string) {
 export function generateDeterministicProfile(
   gameName = "Gr4phØ",
   tagLine = "0001",
-  puuid = "wGGaeUX_00wHMCQVkRO-VOuKJWisaoybcWAzPXsOBpxmwKwOlKFrWW7Y10ZJYqBnM15kBlU4Ol80gg",
+  puuid?: string,
   region = "eu"
 ): ValorantProfileResponse {
-  const rng = createSeededPrng(puuid || `${gameName}#${tagLine}`);
+  const effectivePuuid =
+    puuid ||
+    (() => {
+      let hash = 0;
+      const str = `${gameName.toLowerCase()}#${tagLine.toLowerCase()}`;
+      for (let i = 0; i < str.length; i++) {
+        hash = (hash << 5) - hash + str.charCodeAt(i);
+        hash |= 0;
+      }
+      const hex = Math.abs(hash).toString(16).padStart(8, "0");
+      return `mock-${hex}-4000-8000-${hex}${hex}`;
+    })();
+
+  const rng = createSeededPrng(effectivePuuid);
   const matchHistory: ValorantMatchData[] = [];
   const agentNames = ["Reyna", "Jett", "Omen", "Clove", "Sova", "Fade", "Killjoy", "Viper"];
   const agentPlayCount: Record<
@@ -199,7 +212,7 @@ export function generateDeterministicProfile(
       const isMe = idx === 0;
       const tier = mockTiers[(i + idx) % mockTiers.length];
       return {
-        puuid: isMe ? puuid : `puuid-${puuid.slice(0, 6)}-ally-${i}-${idx}`,
+        puuid: isMe ? effectivePuuid : `puuid-${effectivePuuid.slice(0, 6)}-ally-${i}-${idx}`,
         name: isMe ? gameName : BOT_NAMES[(i * 3 + idx) % BOT_NAMES.length],
         tag: isMe ? tagLine : "EU1",
         agent: aName,
@@ -222,7 +235,7 @@ export function generateDeterministicProfile(
       const ag = AGENTS_CATALOG[aName] || AGENTS_CATALOG.Reyna;
       const tier = mockTiers[(i + idx + 2) % mockTiers.length];
       return {
-        puuid: `puuid-${puuid.slice(0, 6)}-enemy-${i}-${idx}`,
+        puuid: `puuid-${effectivePuuid.slice(0, 6)}-enemy-${i}-${idx}`,
         name: BOT_NAMES[(i * 5 + idx + 7) % BOT_NAMES.length],
         tag: "EU1",
         agent: aName,
@@ -250,7 +263,7 @@ export function generateDeterministicProfile(
     }));
 
     matchHistory.push({
-      matchId: `val-${region}-${puuid.slice(0, 8)}-m${i + 1}`,
+      matchId: `val-${region}-${effectivePuuid.slice(0, 8)}-m${i + 1}`,
       mode: "competitive",
       modeIcon: "https://media.valorant-api.com/gamemodes/96bd3920-4f36-d026-2b28-c683eb0bcac5/displayicon.png",
       map,
@@ -364,7 +377,7 @@ export function generateDeterministicProfile(
 
   return {
     player: {
-      puuid,
+      puuid: effectivePuuid,
       gameName,
       tagLine,
       region,
@@ -405,7 +418,7 @@ export function generateDeterministicProfile(
       accountVerified: true,
       isDevKey: true,
       matchSource: "deterministic_verified_riot",
-      puuid,
+      puuid: effectivePuuid,
       message: "Compte officiel Riot Games certifié. Données télémétriques stables et cohérentes.",
     },
   };

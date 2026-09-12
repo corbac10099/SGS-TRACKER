@@ -43,18 +43,18 @@ export default function ProfileBanner({
   onExportCSV,
   onOpenAchievements,
 }: ProfileBannerProps) {
-  const profileBannerUrl = canEditProfile
-    ? bannerUrl || p.customBannerUrl || p.cardWideUrl
-    : p.customBannerUrl || p.cardWideUrl;
+  const chosenBanner = canEditProfile
+    ? bannerUrl || p.bannerUrl || p.customBannerUrl || p.cardWideUrl
+    : p.bannerUrl || p.customBannerUrl || p.cardWideUrl;
+
+  const profileBannerUrl =
+    chosenBanner ||
+    p.cardWideUrl ||
+    "https://media.valorant-api.com/maps/7eaecc1b-4337-bbf6-6ab9-04b8f06b3319/splash.png";
 
   const profileBannerOffsetY = canEditProfile
-    ? (bannerOffsetY ?? p.customBannerOffsetY ?? 50)
-    : (p.customBannerOffsetY ?? 50);
-
-  const profileThemeClass =
-    !canEditProfile && p.customTheme && p.customTheme !== "dark"
-      ? `theme-${p.customTheme}`
-      : "";
+    ? (bannerOffsetY ?? p.bannerOffsetY ?? p.customBannerOffsetY ?? 50)
+    : (p.bannerOffsetY ?? p.customBannerOffsetY ?? 50);
 
   const displayName = streamerMode
     ? p.mainAgent?.name || "Joueur Masqué"
@@ -63,7 +63,7 @@ export default function ProfileBanner({
 
   return (
     <div
-      className={`w-full flex flex-col animate-in fade-in slide-in-from-bottom-8 duration-700 ${profileThemeClass}`}
+      className="w-full flex flex-col animate-in fade-in slide-in-from-bottom-8 duration-700"
     >
       {/* Bannière Profil Responsive avec Contour Thème */}
       <div className="w-full relative rounded-2xl overflow-hidden border border-[var(--color-val-red)]/50 shadow-accent-md bg-[#0a0e13] min-h-[135px] sm:min-h-[140px] aspect-[2.3/1] sm:aspect-[3.6/1] md:aspect-[3.8/1] transition-all duration-300">
@@ -118,11 +118,11 @@ export default function ProfileBanner({
                   onOpenAchievements();
                 }}
                 title="Succès & Badges Débloquables"
-                className="px-2.5 sm:px-3 py-1.5 rounded-xl glass-pill hover:bg-amber-500/30 border-white/20 hover:border-amber-400 text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg cursor-pointer group"
+                className="px-2.5 sm:px-3 py-1.5 rounded-xl glass-pill hover:bg-[var(--color-val-red)]/20 border-white/20 hover:border-[var(--color-val-red)] text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg cursor-pointer group"
               >
                 <IconTrophy
                   size={14}
-                  className="text-amber-400 group-hover:scale-110 transition-transform"
+                  className="text-[var(--color-val-red)] group-hover:scale-110 transition-transform"
                 />
                 <span className="hidden sm:inline">Succès</span>
               </button>
@@ -136,33 +136,32 @@ export default function ProfileBanner({
                   onExportCSV();
                 }}
                 title="Exporter l'historique en CSV"
-                className="px-2.5 sm:px-3 py-1.5 rounded-xl glass-pill hover:bg-cyan-500/30 border-white/20 hover:border-cyan-400 text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg cursor-pointer group"
+                className="px-2.5 sm:px-3 py-1.5 rounded-xl glass-pill hover:bg-[var(--color-val-red)]/20 border-white/20 hover:border-[var(--color-val-red)] text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg cursor-pointer group"
               >
                 <IconDownload
                   size={14}
-                  className="text-cyan-400 group-hover:scale-110 transition-transform"
+                  className="text-[var(--color-val-red)] group-hover:scale-110 transition-transform"
                 />
                 <span className="hidden sm:inline">Export CSV</span>
               </button>
             )}
-            {canEditProfile ? (
-              <button
-                type="button"
-                onMouseEnter={() => sounds.playHover()}
-                onClick={() => {
-                  sounds.playClick();
-                  onOpenCardModal();
-                }}
-                title="Exporter ma Carte Joueur (PNG)"
-                className="px-2.5 sm:px-3 py-1.5 rounded-xl glass-pill hover:bg-[var(--color-val-red)]/30 border-white/20 hover:border-[var(--color-val-red)] text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg cursor-pointer group"
-              >
-                <IconShare
-                  size={14}
-                  className="group-hover:scale-110 transition-transform"
-                />
-                <span className="hidden sm:inline">Exporter Carte</span>
-              </button>
-            ) : (
+            <button
+              type="button"
+              onMouseEnter={() => sounds.playHover()}
+              onClick={() => {
+                sounds.playClick();
+                onOpenCardModal();
+              }}
+              title="Exporter la Carte Joueur (PNG)"
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl glass-pill bg-[var(--color-val-red)]/20 hover:bg-[var(--color-val-red)]/35 border border-[var(--color-val-red)]/50 hover:border-[var(--color-val-red)] text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg cursor-pointer group shadow-[0_0_12px_var(--accent-glow-subtle)]"
+            >
+              <IconShare
+                size={14}
+                className="text-[var(--color-val-red)] group-hover:scale-110 transition-transform"
+              />
+              <span className="hidden sm:inline">Exporter Carte</span>
+            </button>
+            {!canEditProfile && (
               <button
                 type="button"
                 onMouseEnter={() => sounds.playHover()}
@@ -178,7 +177,7 @@ export default function ProfileBanner({
                 className={`w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-300 glass-pill cursor-pointer ${
                   isFavorited(p.gameName, p.tagLine)
                     ? "bg-yellow-500/20 border-yellow-500/40 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.3)]"
-                    : "text-white/60 hover:text-yellow-400 hover:border-yellow-500/40"
+                    : "hover:bg-[var(--color-val-red)]/20 border-white/20 hover:border-[var(--color-val-red)] text-white/70 hover:text-[var(--color-val-red)]"
                 }`}
               >
                 <svg
