@@ -118,6 +118,9 @@ async function handlePlayerRequest(
             const myName = currentUser.riotGameName.toLowerCase();
             isOwner = myName === `${cleanGameName}#${cleanTagLine}`.toLowerCase() || myName === cleanGameName.toLowerCase();
           }
+          if (!isOwner && currentUser.riotPuuid && registeredUser?.riotPuuid) {
+            isOwner = currentUser.riotPuuid === registeredUser.riotPuuid;
+          }
           if (
             currentUser.email === "laffont.romain64@gmail.com" ||
             currentUser.email === "romain.lft64@gmail.com" ||
@@ -130,8 +133,10 @@ async function handlePlayerRequest(
       }
     } catch {}
 
+    const isProfilePrivate = customOwnerSettings?.isPublic === false;
+
     // Règle de confidentialité : Si le profil est privé, bloquer l'accès pour les tiers hors admin
-    if (customOwnerSettings && customOwnerSettings.isPublic === false && !isOwner && !isAdmin) {
+    if (isProfilePrivate && !isOwner && !isAdmin) {
       return NextResponse.json(
         { error: "Ce profil est privé. Seul le propriétaire ou un administrateur peut y accéder." },
         { status: 403 }
@@ -148,7 +153,7 @@ async function handlePlayerRequest(
         const cachedProfile: ValorantProfileResponse = JSON.parse(JSON.stringify(cached.data));
         cachedProfile.player.isOwner = isOwner;
         cachedProfile.player.canEdit = isOwner;
-        (cachedProfile.player as any).isAdminBypass = isAdmin && !isOwner;
+        (cachedProfile.player as any).isAdminBypass = isAdmin && !isOwner && isProfilePrivate;
         if (customOwnerSettings) {
           cachedProfile.player = {
             ...cachedProfile.player,
@@ -403,7 +408,7 @@ async function handlePlayerRequest(
 
     profileData.player.isOwner = isOwner;
     profileData.player.canEdit = isOwner;
-    (profileData.player as any).isAdminBypass = isAdmin && !isOwner;
+    (profileData.player as any).isAdminBypass = isAdmin && !isOwner && isProfilePrivate;
 
     // Mise en cache du profil de base (sans personnalisations dynamiques Neon)
     PLAYER_CACHE.set(cacheKey, {
