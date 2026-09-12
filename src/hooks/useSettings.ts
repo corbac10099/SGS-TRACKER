@@ -185,8 +185,7 @@ export function useSettings(): SettingsState {
       }
     }
 
-    // Détermination de la couleur d'accent :
-    // Lors de la visite d'un profil tiers (activeThemeOverride), SEULS les boutons et accents prennent sa couleur.
+    // Détermination de la couleur d'accent de l'utilisateur
     const extractAccent = (t: string | null | undefined): string => {
       if (!t) return "#ff4655";
       if (t === "midnight") return "#8c64ff";
@@ -199,23 +198,20 @@ export function useSettings(): SettingsState {
       return "#ff4655";
     };
 
-    const activeAccent = extractAccent(activeThemeOverride || theme);
+    const userAccent = extractAccent(theme);
 
-    // Applique l'accent sur :root et en style inline sur body pour surcharger les règles CSS de fond
-    document.documentElement.style.setProperty("--color-val-red", activeAccent);
-    document.documentElement.style.setProperty("--custom-accent", activeAccent);
+    // Applique l'accent de l'utilisateur connecté sur :root et body pour l'interface globale (Header, navigation, etc.)
+    document.documentElement.style.setProperty("--color-val-red", userAccent);
+    document.documentElement.style.setProperty("--custom-accent", userAccent);
     document.documentElement.style.setProperty(
       "--color-accent-contrast",
-      computeContrastColor(activeAccent)
+      computeContrastColor(userAccent)
     );
 
-    document.body.style.setProperty("--color-val-red", activeAccent);
-    document.body.style.setProperty("--custom-accent", activeAccent);
-    document.body.style.setProperty(
-      "--color-accent-contrast",
-      computeContrastColor(activeAccent)
-    );
-  }, [theme, activeThemeOverride]);
+    document.body.style.removeProperty("--color-val-red");
+    document.body.style.removeProperty("--custom-accent");
+    document.body.style.removeProperty("--color-accent-contrast");
+  }, [theme]);
 
   const toggleFullscreen = useCallback(() => {
     if (typeof document !== "undefined") {
