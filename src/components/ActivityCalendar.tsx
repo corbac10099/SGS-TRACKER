@@ -393,7 +393,7 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
                           )} ${
                             isSelected
                               ? "ring-2 ring-[var(--color-val-red)] scale-135 z-20 shadow-accent-md animate-pulse"
-                              : "hover:scale-135 hover:z-20 shadow-accent-sm hover:border-white/60"
+                              : "hover:scale-135 hover:z-20 hover:shadow-accent-sm hover:border-white/60"
                           }`}
                         />
                       );

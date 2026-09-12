@@ -451,8 +451,8 @@ function PerformanceChartsComponent({
                 onClick={() => setMatchLimit(r.id as any)}
                 className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-all cursor-pointer ${
                   matchLimit === r.id
-                    ? "bg-[var(--color-val-red)] text-white shadow-sm"
-                    : "text-[var(--color-text-secondary)] hover:text-white"
+                    ? "bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] shadow-accent-sm font-bold"
+                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                 }`}
               >
                 {r.label}
@@ -474,7 +474,7 @@ function PerformanceChartsComponent({
               className={`absolute top-0.5 bottom-0.5 rounded-md pointer-events-none z-0 transition-all ${
                 activeMetric === "spi" && spiDynamicEnabled
                   ? "bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.5)]"
-                  : "bg-[var(--color-val-red)] shadow-[0_0_12px_rgba(255,70,85,0.5)]"
+                  : "bg-[var(--color-val-red)] shadow-accent-md"
               }`}
               style={{
                 transform: `translateX(${metricPillStyle.left}px)`,
@@ -516,8 +516,8 @@ function PerformanceChartsComponent({
                       isActive
                         ? m.id === "spi" && spiDynamicEnabled
                           ? "text-black font-black"
-                          : "text-white font-black"
-                        : "text-[var(--color-text-secondary)] hover:text-white"
+                          : "text-[var(--color-accent-contrast,#ffffff)] font-black"
+                        : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                     }`}
                   >
                     {isEditing && (

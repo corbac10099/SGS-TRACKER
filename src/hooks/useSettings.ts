@@ -148,7 +148,8 @@ export function useSettings(): SettingsState {
       }
     }
 
-    // Définit la couleur de contraste pour garantir la lisibilité (ex: noir sur fond blanc)
+    // Définit la couleur d'accent et de contraste sur :root (documentElement)
+    document.documentElement.style.setProperty("--color-val-red", activeAccent);
     document.documentElement.style.setProperty(
       "--color-accent-contrast",
       computeContrastColor(activeAccent)

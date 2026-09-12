@@ -226,7 +226,7 @@ export default function SgsAccountSettings() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-[var(--color-val-red)] text-white">
+              <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] shadow-accent-sm">
                 SGS Passport
               </span>
               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">

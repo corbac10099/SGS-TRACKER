@@ -565,7 +565,7 @@ export default function SpycamAccountPage() {
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-6 py-3 rounded-xl bg-[var(--color-val-red,#ff4655)] hover:bg-[#ff5e6c] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-lg cursor-pointer disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl bg-[var(--color-val-red,#ff4655)] hover:brightness-110 text-[var(--color-accent-contrast,#ffffff)] text-xs font-bold uppercase tracking-wider transition-all shadow-accent-md hover:shadow-accent-lg cursor-pointer disabled:opacity-50"
                 >
                   {actionLoading ? "Enregistrement..." : "Enregistrer les modifications"}
                 </button>

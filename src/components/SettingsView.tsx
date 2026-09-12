@@ -295,6 +295,7 @@ export default function SettingsView({
       previewAccent = draftCustomAccent || "#ff4655";
     }
 
+    document.documentElement.style.setProperty("--color-val-red", previewAccent);
     document.documentElement.style.setProperty(
       "--color-accent-contrast",
       computeContrastColor(previewAccent)
@@ -322,6 +323,7 @@ export default function SettingsView({
           origAccent = matchAccent[1];
         }
       }
+      document.documentElement.style.setProperty("--color-val-red", origAccent);
       document.documentElement.style.setProperty(
         "--color-accent-contrast",
         computeContrastColor(origAccent)
@@ -420,7 +422,7 @@ export default function SettingsView({
             onClose();
           }}
           onMouseEnter={() => sounds.playHover()}
-          className="px-3.5 sm:px-6 py-2 sm:py-2.5 bg-[var(--color-val-red)] hover:bg-[#ff5a67] text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-[0_0_15px_rgba(255,70,85,0.3)] cursor-pointer flex items-center gap-1.5 flex-shrink-0"
+          className="px-3.5 sm:px-6 py-2 sm:py-2.5 bg-[var(--color-val-red)] hover:brightness-110 text-[var(--color-accent-contrast,#ffffff)] text-xs sm:text-sm font-bold rounded-xl transition-all shadow-accent-md hover:shadow-accent-lg cursor-pointer flex items-center gap-1.5 flex-shrink-0"
         >
           <span className="text-sm sm:text-base">←</span>
           <span>Retour au profil</span>
@@ -478,11 +480,13 @@ export default function SettingsView({
                   <button
                     onClick={() => setDraftSmartRating(!draftSmartRating)}
                     className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
-                      draftSmartRating ? "bg-[var(--color-val-red)]" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                      draftSmartRating ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                        draftSmartRating ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                      } shadow-md transition-all duration-300 ${
                         draftSmartRating ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
                       }`}
                     ></span>
@@ -503,11 +507,13 @@ export default function SettingsView({
                       setDraftStreamerMode(!draftStreamerMode);
                     }}
                     className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
-                      draftStreamerMode ? "bg-[var(--color-val-red)]" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                      draftStreamerMode ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                        draftStreamerMode ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                      } shadow-md transition-all duration-300 ${
                         draftStreamerMode ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
                       }`}
                     ></span>
@@ -528,11 +534,13 @@ export default function SettingsView({
                       setDraftSpiDynamicColors(!draftSpiDynamicColors);
                     }}
                     className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
-                      draftSpiDynamicColors ? "bg-[var(--color-val-red)]" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                      draftSpiDynamicColors ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                        draftSpiDynamicColors ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                      } shadow-md transition-all duration-300 ${
                         draftSpiDynamicColors ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
                       }`}
                     ></span>
@@ -556,11 +564,13 @@ export default function SettingsView({
                         sounds.setEnabled(next);
                       }}
                       className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
-                        draftSoundEnabled ? "bg-[var(--color-val-red)]" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                        draftSoundEnabled ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
                       }`}
                     >
                       <span
-                        className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                        className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                          draftSoundEnabled ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                        } shadow-md transition-all duration-300 ${
                           draftSoundEnabled ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
                         }`}
                       ></span>
@@ -608,11 +618,13 @@ export default function SettingsView({
                         setDraftVideoLoop(!draftVideoLoop);
                       }}
                       className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
-                        draftVideoLoop ? "bg-[var(--color-val-red)]" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                        draftVideoLoop ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
                       }`}
                     >
                       <span
-                        className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                        className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                          draftVideoLoop ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                        } shadow-md transition-all duration-300 ${
                           draftVideoLoop ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
                         }`}
                       ></span>
@@ -706,11 +718,13 @@ export default function SettingsView({
                             }}
                             title={draftShowBadge ? "Afficher les badges" : "Masquer les badges"}
                             className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 cursor-pointer ${
-                              draftShowBadge ? "bg-[var(--color-val-red)]" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                              draftShowBadge ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
                             }`}
                           >
                             <span
-                              className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                              className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                                draftShowBadge ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                              } shadow-md transition-all duration-300 ${
                                 draftShowBadge ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
                               }`}
                             ></span>
@@ -827,11 +841,13 @@ export default function SettingsView({
                     }}
                     title={draftShortcutsEnabled ? "Désactiver les raccourcis" : "Activer les raccourcis"}
                     className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 cursor-pointer ${
-                      draftShortcutsEnabled ? "bg-[var(--color-val-red)]" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                      draftShortcutsEnabled ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                        draftShortcutsEnabled ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                      } shadow-md transition-all duration-300 ${
                         draftShortcutsEnabled ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
                       }`}
                     ></span>
@@ -1550,7 +1566,7 @@ export default function SettingsView({
               onClick={handleSave}
               onMouseEnter={() => sounds.playHover()}
               disabled={loading}
-              className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 bg-[var(--color-val-red)] hover:bg-[#ff5a67] text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-[0_0_15px_rgba(255,70,85,0.3)] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer text-center"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 bg-[var(--color-val-red)] hover:brightness-110 text-[var(--color-accent-contrast,#ffffff)] text-xs sm:text-sm font-bold rounded-xl transition-all shadow-accent-md hover:shadow-accent-lg disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer text-center"
             >
               {loading ? (
                 <>

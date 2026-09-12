@@ -1056,7 +1056,7 @@ export default function LobbiesView({
                 </div>
               </div>
 
-              <button className="w-full py-3.5 rounded-2xl bg-[var(--color-val-red)] hover:bg-[#ff5e6c] text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-[rgba(255,70,85,0.3)] transition-all flex items-center justify-center gap-2 cursor-pointer">
+              <button className="w-full py-3.5 rounded-2xl bg-[var(--color-val-red)] hover:brightness-110 text-[var(--color-accent-contrast,#ffffff)] font-black text-xs sm:text-sm uppercase tracking-wider shadow-accent-md hover:shadow-accent-lg transition-all flex items-center justify-center gap-2 cursor-pointer">
                 <span>Créer mon Salon</span>
                 <span>➔</span>
               </button>
@@ -1197,7 +1197,7 @@ export default function LobbiesView({
                             }}
                             className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
                               isSelected
-                                ? "bg-[var(--color-val-red)] text-white border-[var(--color-val-red)]"
+                                ? "bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] border-[var(--color-val-red)] shadow-accent-sm"
                                 : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)]"
                             }`}
                           >
@@ -1339,7 +1339,7 @@ export default function LobbiesView({
                           onClick={() => { sounds.playClick(); setCreateSlotsNeeded(num); }}
                           className={`py-2 rounded-xl text-xs font-black border transition-all cursor-pointer ${
                             createSlotsNeeded === num
-                              ? "bg-[var(--color-val-red)] text-white border-[var(--color-val-red)]"
+                              ? "bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] border-[var(--color-val-red)] shadow-accent-sm"
                               : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)]"
                           }`}
                         >
@@ -1472,7 +1472,7 @@ export default function LobbiesView({
                 <button
                   type="button"
                   onClick={handleCreateSubmit}
-                  className="px-8 py-3.5 rounded-xl bg-[var(--color-val-red)] hover:bg-[#ff5e6c] text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl shadow-[rgba(255,70,85,0.4)] transition-all cursor-pointer flex items-center gap-2"
+                  className="px-8 py-3.5 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-[var(--color-accent-contrast,#ffffff)] font-black text-xs sm:text-sm uppercase tracking-wider shadow-accent-md hover:shadow-accent-lg transition-all cursor-pointer flex items-center gap-2"
                 >
                   <span>Publier mon Salon</span>
                   <IconSend size={16} />
@@ -1509,7 +1509,7 @@ export default function LobbiesView({
                 sounds.playClick();
                 setCurrentView("create");
               }}
-              className="px-4 py-2 rounded-xl bg-[var(--color-val-red)] text-white text-xs font-black uppercase tracking-wider cursor-pointer shadow-md flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-[var(--color-accent-contrast,#ffffff)] text-xs font-black uppercase tracking-wider cursor-pointer shadow-accent-sm hover:shadow-accent-md flex items-center gap-1.5"
             >
               <IconPlus size={14} />
               <span>Créer mon Salon</span>
@@ -1526,7 +1526,7 @@ export default function LobbiesView({
               >
                 {/* Sliding Red Pill */}
                 <div
-                  className="absolute top-1 bottom-1 rounded-xl bg-[var(--color-val-red)] shadow-[0_0_18px_rgba(255,70,85,0.6)] pointer-events-none z-0"
+                  className="absolute top-1 bottom-1 rounded-xl bg-[var(--color-val-red)] shadow-accent-md pointer-events-none z-0"
                   style={{
                     transform: `translateX(${modePillStyle.left}px)`,
                     width: `${modePillStyle.width}px`,
@@ -1549,7 +1549,7 @@ export default function LobbiesView({
                       }}
                       onMouseEnter={() => sounds.playHover()}
                       className={`relative z-10 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors duration-200 cursor-pointer select-none active:scale-95 whitespace-nowrap ${
-                        isActive ? "text-white" : "text-neutral-400 hover:text-white"
+                        isActive ? "text-[var(--color-accent-contrast,#ffffff)] font-black" : "text-neutral-400 hover:text-white"
                       }`}
                     >
                       {tab.label}
@@ -1585,7 +1585,7 @@ export default function LobbiesView({
                   }}
                   className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all border cursor-pointer flex items-center gap-1.5 ${
                     filterRole === r.id
-                      ? "bg-[var(--color-val-red)] text-white border-[var(--color-val-red)] shadow-md"
+                      ? "bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] border-[var(--color-val-red)] shadow-accent-sm font-black"
                       : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-white/20"
                   }`}
                 >
@@ -1653,7 +1653,7 @@ export default function LobbiesView({
 
                     {/* Mode & Badges */}
                     <div className="flex flex-wrap gap-1.5">
-                      <span className="px-2 py-0.5 rounded-md bg-[var(--color-val-red)]/15 border border-[var(--color-val-red)]/30 text-[var(--color-val-red)] text-[10px] font-black uppercase">
+                      <span className="px-2 py-0.5 rounded-md bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] shadow-accent-sm text-[10px] font-black uppercase">
                         {lobby.mode}
                       </span>
                       <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/80 text-[10px] font-semibold flex items-center gap-1">
@@ -1715,7 +1715,7 @@ export default function LobbiesView({
                   <div className="pt-2 border-t border-[var(--color-border)]">
                     <button
                       onClick={() => { sounds.playClick(); handleJoinLobby(lobby); }}
-                      className="w-full py-2.5 rounded-xl bg-[var(--color-val-red)] hover:bg-[#ff5e6c] text-white font-black text-xs uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-2.5 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-[var(--color-accent-contrast,#ffffff)] font-black text-xs uppercase tracking-wider shadow-accent-sm hover:shadow-accent-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <span>Rejoindre le Salon</span>
                       <span>➔</span>
@@ -1742,7 +1742,7 @@ export default function LobbiesView({
                   <h2 className="text-sm font-black text-white uppercase truncate">
                     {activeLobby.leaderName}
                   </h2>
-                  <span className="px-2 py-0.5 rounded-md bg-[var(--color-val-red)] text-white text-[9px] font-black uppercase flex-shrink-0">
+                  <span className="px-2 py-0.5 rounded-md bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] text-[9px] font-black uppercase flex-shrink-0 shadow-accent-sm">
                     {activeLobby.mode}
                   </span>
                 </div>
@@ -2197,7 +2197,7 @@ export default function LobbiesView({
                 <button
                   type="submit"
                   disabled={!chatMessage.trim()}
-                  className="px-5 py-2.5 rounded-2xl bg-[var(--color-val-red)] hover:bg-[#ff5e6c] text-white text-xs font-black uppercase tracking-wider transition-all disabled:opacity-40 cursor-pointer shadow-md flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-2xl bg-[var(--color-val-red)] hover:brightness-110 text-[var(--color-accent-contrast,#ffffff)] text-xs font-black uppercase tracking-wider transition-all disabled:opacity-40 cursor-pointer shadow-accent-sm flex items-center gap-1.5"
                 >
                   <span>Envoyer</span>
                   <IconSend size={13} />

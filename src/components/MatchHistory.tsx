@@ -372,7 +372,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
         <div ref={matchTabsContainerRef} className="relative flex flex-wrap gap-4 sm:gap-6 overflow-x-auto custom-scrollbar">
           {/* Sliding Red Underline Indicator */}
           <div
-            className="absolute bottom-0 h-[2.5px] rounded-full bg-[var(--color-val-red)] shadow-[0_0_12px_rgba(255,70,85,0.9)] pointer-events-none z-10"
+            className="absolute bottom-0 h-[2.5px] rounded-full bg-[var(--color-val-red)] shadow-accent-md pointer-events-none z-10"
             style={{
               transform: `translateX(${matchUnderlineStyle.left}px)`,
               width: `${matchUnderlineStyle.width}px`,
@@ -396,7 +396,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
                 }}
                 className={`pb-2 text-[10px] sm:text-xs uppercase tracking-widest font-black transition-colors duration-300 relative cursor-pointer select-none active:scale-95 whitespace-nowrap ${
                   isActive
-                    ? "text-[var(--color-val-red)] drop-shadow-[0_0_8px_rgba(255,70,85,0.4)]"
+                    ? "text-[var(--color-val-red)] drop-shadow-[0_0_8px_var(--accent-glow-md)]"
                     : "text-[var(--color-text-secondary)] hover:text-white"
                 }`}
               >
@@ -905,7 +905,7 @@ function MatchHistoryComponent({
               sounds.playClick();
               onLoadMore();
             }}
-            className="bg-[var(--color-surface-hover)] hover:bg-[var(--color-val-red)] text-[var(--color-text-primary)] hover:text-white font-bold text-xs uppercase tracking-widest px-6 py-3 rounded-full transition-all duration-300 border border-[var(--color-border)] shadow-md hover:shadow-[0_0_20px_rgba(255,70,85,0.4)] cursor-pointer"
+            className="bg-[var(--color-surface-hover)] hover:bg-[var(--color-val-red)] text-[var(--color-text-primary)] hover:text-[var(--color-accent-contrast,#ffffff)] font-bold text-xs uppercase tracking-widest px-6 py-3 rounded-full transition-all duration-300 border border-[var(--color-border)] shadow-md hover:shadow-accent-md cursor-pointer"
           >
             {tr("Charger plus (+10)")}
           </button>
