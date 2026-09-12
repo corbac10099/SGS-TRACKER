@@ -7,17 +7,47 @@ import crypto from 'crypto';
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    // Email / Password & SGS SSO Handshake Token
+    // Email / Password, Direct 1-Click Login & SGS SSO Handshake Token
     CredentialsProvider({
       name: 'credentials',
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Mot de passe', type: 'password' },
         ssoToken: { label: 'SSO Token', type: 'text' },
+        directLogin: { label: 'Direct Login', type: 'text' },
       },
       async authorize(credentials) {
-        // 1. Branche SGS SSO Token (Connexion 1-Clic depuis un compte SGS existant)
-        if (credentials?.ssoToken && credentials?.email) {
+        if (!credentials?.email) return null;
+        const email = credentials.email.toLowerCase().trim();
+
+        // 1. Branche Connexion Directe 1-Clic
+        if (credentials.directLogin === 'true') {
+          let user = await prisma.user.findUnique({
+            where: { email },
+          });
+
+          if (!user) {
+            const name = email.split('@')[0];
+            user = await prisma.user.create({
+              data: {
+                email,
+                firstName: name,
+                onboardingDone: true,
+                theme: 'dark',
+                language: 'fr',
+              },
+            });
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || user.email.split('@')[0],
+          };
+        }
+
+        // 2. Branche SGS SSO Token (Connexion 1-Clic depuis un compte SGS existant)
+        if (credentials?.ssoToken) {
           try {
             const secret = process.env.NEXTAUTH_SECRET || 'sgs-sso-secret-fallback';
             const [payloadStr, sig] = credentials.ssoToken.split('.');
@@ -25,9 +55,9 @@ export const authOptions: NextAuthOptions = {
 
             if (sig === expectedSig) {
               const payload = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf-8'));
-              if (Date.now() <= payload.exp && payload.email?.toLowerCase() === credentials.email.toLowerCase()) {
+              if (Date.now() <= payload.exp && payload.email?.toLowerCase() === email) {
                 const user = await prisma.user.findUnique({
-                  where: { email: credentials.email.toLowerCase() },
+                  where: { email },
                 });
                 if (user) {
                   return {
@@ -44,10 +74,8 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        if (!credentials?.email || !credentials?.password) return null;
-
-        // Riot Games reviewer demo account bypass & auto-creation
-        if (credentials.email === 'spycam_riot_temp@gmail.com' && credentials.password === '8fb0518f-23af-4755-a994-ef21cd161b25') {
+        // 3. Riot Games reviewer demo account bypass & auto-creation
+        if (email === 'spycam_riot_temp@gmail.com' && credentials.password === '8fb0518f-23af-4755-a994-ef21cd161b25') {
           const hashedPassword = await bcrypt.hash('8fb0518f-23af-4755-a994-ef21cd161b25', 10);
           const demoUser = await prisma.user.upsert({
             where: { email: 'spycam_riot_temp@gmail.com' },
@@ -70,11 +98,31 @@ export const authOptions: NextAuthOptions = {
           };
         }
 
+        // 4. Authentification standard Email / Mot de passe
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { email },
         });
 
-        if (!user || !user.password) return null;
+        if (!user) return null;
+
+        // Si le compte existe sans mot de passe (créé initialement via Google),
+        // autoriser la connexion directe ou enregistrer le mot de passe s'il a été saisi
+        if (!user.password) {
+          if (credentials.password) {
+            const hashedPassword = await bcrypt.hash(credentials.password, 10);
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { password: hashedPassword },
+            });
+          }
+          return {
+            id: user.id,
+            email: user.email,
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || user.email.split('@')[0],
+          };
+        }
+
+        if (!credentials.password) return null;
 
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) return null;
@@ -103,62 +151,62 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 
-  useSecureCookies: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost'),
+  useSecureCookies: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1'),
 
   cookies: {
     sessionToken: {
-      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost')
+      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1')
         ? '__Secure-next-auth.session-token'
         : 'next-auth.session-token',
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost'),
+        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1'),
       },
     },
     callbackUrl: {
-      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost')
+      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1')
         ? '__Secure-next-auth.callback-url'
         : 'next-auth.callback-url',
       options: {
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost'),
+        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1'),
       },
     },
     csrfToken: {
-      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost')
+      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1')
         ? '__Host-next-auth.csrf-token'
         : 'next-auth.csrf-token',
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost'),
+        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1'),
       },
     },
     pkceCodeVerifier: {
-      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost')
+      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1')
         ? '__Secure-next-auth.pkce.code_verifier'
         : 'next-auth.pkce.code_verifier',
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost'),
+        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1'),
         maxAge: 900,
       },
     },
     state: {
-      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost')
+      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1')
         ? '__Secure-next-auth.state'
         : 'next-auth.state',
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost'),
+        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1'),
         maxAge: 900,
       },
     },
@@ -170,7 +218,6 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async redirect({ url, baseUrl }) {
-      // Autoriser les redirections relatives sans forcer baseUrl de production
       if (url.startsWith("/")) return url;
       try {
         const parsed = new URL(url);
@@ -180,7 +227,7 @@ export const authOptions: NextAuthOptions = {
           parsed.hostname.endsWith(".local") ||
           parsed.origin === baseUrl
         ) {
-          return url;
+          return `${parsed.pathname}${parsed.search}`;
         }
       } catch {}
       return "/";

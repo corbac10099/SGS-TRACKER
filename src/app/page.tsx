@@ -165,6 +165,22 @@ export function HomeContent({
 
   // ─── Early returns ───────────────────────────────────────
   if (auth.status === "loading") {
+    // Si la modale de connexion est ouverte, conserver l'interface pour éviter tout saut/scintillement visuel
+    if (auth.loginModalOpen) {
+      return (
+        <>
+          <LandingPage
+            onEnterBeta={auth.handleEnterBeta}
+            onOpenLogin={() => auth.setLoginModalOpen(true)}
+          />
+          <LoginModal
+            isOpen={auth.loginModalOpen}
+            onClose={() => auth.setLoginModalOpen(false)}
+          />
+        </>
+      );
+    }
+
     return (
       <main className="flex-1 flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-5">

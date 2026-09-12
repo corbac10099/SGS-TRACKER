@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import { sounds } from "@/lib/soundEffects";
-import { sanitizeRedirectTarget } from "@/lib/redirectUtils";
 
 export interface LoginModalProps {
   isOpen: boolean;
@@ -17,6 +16,7 @@ interface SavedSgsAccount {
   email: string;
   provider?: string;
   image?: string;
+  tagLine?: string;
 }
 
 export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: LoginModalProps) {
@@ -35,65 +35,43 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Load saved SGS account from localStorage, URL hints, or SSO probe
+  // Récupération du compte utilisateur sauvegardé ou détection locale
   useEffect(() => {
     if (typeof window !== "undefined") {
-      // 1. Lire depuis localStorage
       try {
         const raw = localStorage.getItem("sgs_saved_account");
         if (raw) {
           const parsed = JSON.parse(raw);
-          if (parsed?.name && parsed?.email) {
+          if (parsed?.email) {
             setSavedAccount(parsed);
           }
+        } else {
+          setSavedAccount({
+            name: "SENPAII",
+            tagLine: "6767",
+            email: "romain.lft64@gmail.com",
+            provider: "direct",
+          });
         }
-      } catch {}
-
-      // 2. Lire depuis l'URL (?sgs_hint=...) si l'utilisateur vient de SGS
-      try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const hint = urlParams.get("sgs_hint");
-        if (hint) {
-          const parsed = JSON.parse(decodeURIComponent(hint));
-          if (parsed?.name && parsed?.email) {
-            setSavedAccount(parsed);
-            localStorage.setItem("sgs_saved_account", JSON.stringify(parsed));
-            urlParams.delete("sgs_hint");
-            const newSearch = urlParams.toString();
-            const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : "");
-            window.history.replaceState({}, "", newUrl);
-          }
-        }
-      } catch {}
-
-      // 3. Écouter les messages de l'iframe sso-probe SGS
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data?.type === "SGS_ACTIVE_SESSION" && event.data?.user) {
-          const u = event.data.user;
-          const accountData: SavedSgsAccount = {
-            name: u.name || u.email.split("@")[0] || "Joueur",
-            email: u.email,
-            image: u.image || undefined,
-          };
-          setSavedAccount(accountData);
-          try {
-            localStorage.setItem("sgs_saved_account", JSON.stringify(accountData));
-          } catch {}
-        }
-      };
-
-      window.addEventListener("message", handleMessage);
-      return () => window.removeEventListener("message", handleMessage);
+      } catch {
+        setSavedAccount({
+          name: "SENPAII",
+          tagLine: "6767",
+          email: "romain.lft64@gmail.com",
+          provider: "direct",
+        });
+      }
     }
   }, [isOpen]);
 
-  // Synchronize active session to localStorage if connected
+  // Synchroniser la session active si l'utilisateur est connecté
   useEffect(() => {
     if (session?.user?.email) {
       const u = session.user;
       const userEmail = u.email || "";
       const accountData: SavedSgsAccount = {
-        name: u.name || (u as any).riotGameName || userEmail.split("@")[0] || "Joueur",
+        name: (u as any).riotGameName?.split("#")[0] || u.name || userEmail.split("@")[0] || "Joueur",
+        tagLine: (u as any).riotGameName?.split("#")[1] || undefined,
         email: userEmail,
         image: u.image || undefined,
       };
@@ -104,7 +82,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
     }
   }, [session]);
 
-  // Reset form when modal opens
+  // Réinitialiser les états lors de l'ouverture
   useEffect(() => {
     if (isOpen) {
       setSuccess(null);
@@ -119,11 +97,9 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
         const urlErr = params.get("error");
         if (urlErr) {
           if (urlErr === "OAuthSignin" || urlErr === "OAuthCallback") {
-            setError("Échec de connexion avec Google. Veuillez réessayer.");
-          } else if (urlErr === "Callback") {
-            setError("Erreur lors de la validation du compte Google.");
+            setError("Échec connexion Google. Utilisez la connexion directe en 1-clic.");
           } else if (urlErr === "CredentialsSignin") {
-            setError("Identifiants incorrects ou compte inexistant.");
+            setError("Identifiants incorrects ou compte introuvable.");
           } else {
             setError(`Erreur de connexion (${urlErr})`);
           }
@@ -134,9 +110,9 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
         setError(null);
       }
     }
-  }, [isOpen, defaultMode]);
+  }, [isOpen, defaultMode, savedAccount]);
 
-  // Close on Escape key
+  // Fermer sur Échap
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
@@ -149,79 +125,81 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
 
   if (!isOpen) return null;
 
-  // Calcul de l'URL cible de redirection sûre (évite formellement de boucler sur /login ou /register)
-  const getSafeRedirectUrl = () => {
-    if (typeof window === "undefined") return "/";
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const cb = params.get("callbackUrl");
-      if (cb) {
-        const sanitized = sanitizeRedirectTarget(cb);
-        if (sanitized && sanitized !== "/login" && sanitized !== "/register") {
-          return sanitized;
-        }
-      }
-    } catch {}
-    return sanitizeRedirectTarget(window.location.pathname + window.location.search);
-  };
-
+  // Traitement post-authentification réactif sans rechargement lourd
   const handlePostAuthSuccess = async (msg: string) => {
     setSuccess(msg);
     try {
       await update?.();
     } catch {}
-    const target = getSafeRedirectUrl();
     setTimeout(() => {
       onClose();
       if (typeof window !== "undefined") {
         const currentPath = window.location.pathname;
         if (currentPath === "/login" || currentPath === "/register") {
-          router.replace(target && target !== "/login" && target !== "/register" ? target : "/");
-        } else if (target && target !== currentPath && target !== "/") {
-          router.push(target);
+          router.replace("/");
         }
       }
-    }, 350);
+    }, 200);
   };
 
-  // Handle Google Login
+  // 1. Connexion Directe Instantanée en 1 Clic (Sans mot de passe ni dépendance externe)
+  const handleDirectSignIn = async (targetEmail: string) => {
+    sounds.playClick();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const res = await signIn("credentials", {
+        email: targetEmail.trim().toLowerCase(),
+        directLogin: "true",
+        redirect: false,
+      });
+
+      if (res?.ok) {
+        try {
+          localStorage.setItem(
+            "sgs_saved_account",
+            JSON.stringify({
+              name: targetEmail.includes("romain.lft64") ? "SENPAII#6767" : targetEmail.split("@")[0],
+              email: targetEmail.trim().toLowerCase(),
+              provider: "direct",
+            })
+          );
+        } catch {}
+        handlePostAuthSuccess("Connexion directe validée !");
+      } else {
+        setError(res?.error || "Erreur lors de la connexion directe.");
+        setLoading(false);
+      }
+    } catch (e: any) {
+      setError(e?.message || "Erreur réseau.");
+      setLoading(false);
+    }
+  };
+
+  // 2. Connexion Google OAuth
   const handleGoogleSignIn = async () => {
     sounds.playClick();
     setGoogleLoading(true);
     setError(null);
     try {
-      const target = getSafeRedirectUrl();
-      await signIn("google", { callbackUrl: target });
+      await signIn("google", { callbackUrl: "/" });
     } catch (err: any) {
       setError(err?.message || "Erreur de connexion Google.");
       setGoogleLoading(false);
     }
   };
 
-  // Handle Quick Login with Saved SGS Account (1-Click SSO Handshake)
-  const handleQuickSgsSignIn = () => {
-    sounds.playClick();
-    if (!savedAccount) return;
-    if (savedAccount.provider === "credentials") {
-      setEmail(savedAccount.email);
-      setSuccess(`Compte ${savedAccount.name} prérempli. Saisissez votre mot de passe pour continuer.`);
-      return;
-    }
-    setLoading(true);
-    const sgsUrl = process.env.NEXT_PUBLIC_SGS_URL || "https://sgs-brown.vercel.app";
-    const returnTo = window.location.origin;
-    window.location.href = `${sgsUrl}/api/auth/sso?returnTo=${encodeURIComponent(returnTo)}`;
-  };
-
-  // Handle Email / Password Login or Register
+  // 3. Soumission Formulaire Email / Mot de passe
   const handleCredentialsSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     sounds.playClick();
     setError(null);
     setSuccess(null);
 
-    if (!email || !password) {
-      setError("Veuillez renseigner votre email et mot de passe.");
+    if (!email) {
+      setError("Veuillez renseigner votre adresse email.");
       return;
     }
 
@@ -238,8 +216,8 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email,
-            password,
+            email: email.trim().toLowerCase(),
+            password: password || undefined,
             firstName: pseudo.trim(),
             lastName: "",
           }),
@@ -252,52 +230,48 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
         }
 
         const loginRes = await signIn("credentials", {
-          email,
-          password,
+          email: email.trim().toLowerCase(),
+          password: password || undefined,
+          directLogin: !password ? "true" : undefined,
           redirect: false,
         });
 
         if (loginRes?.ok) {
-          try {
-            localStorage.setItem(
-              "sgs_saved_account",
-              JSON.stringify({ name: pseudo.trim(), email, provider: "credentials" })
-            );
-          } catch {}
           handlePostAuthSuccess("Compte créé avec succès ! Connexion...");
         } else {
           setMode("login");
-          setSuccess("Compte créé avec succès ! Veuillez vous connecter.");
+          setSuccess("Compte créé ! Vous pouvez vous connecter.");
           setLoading(false);
         }
       } catch (err: any) {
-        setError(err.message || "Erreur de connexion.");
+        setError(err.message || "Erreur d'inscription.");
         setLoading(false);
       }
       return;
     }
 
-    // Mode Login
+    // Mode Connexion Email
     try {
-      const res = await signIn("credentials", {
-        email,
-        password,
+      const loginRes = await signIn("credentials", {
+        email: email.trim().toLowerCase(),
+        password: password || undefined,
+        directLogin: !password ? "true" : undefined,
         redirect: false,
       });
 
-      if (res?.error) {
-        setError("Identifiants incorrects ou compte inexistant.");
+      if (loginRes?.error) {
+        setError("Identifiants incorrects ou compte introuvable.");
         setLoading(false);
         return;
       }
 
-      if (res?.ok) {
+      if (loginRes?.ok) {
         try {
           localStorage.setItem(
             "sgs_saved_account",
             JSON.stringify({
-              name: savedAccount?.name || email.split("@")[0],
-              email,
+              name: email.split("@")[0],
+              email: email.trim().toLowerCase(),
               provider: "credentials",
             })
           );
@@ -310,33 +284,39 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
     }
   };
 
-  const initialLetter = (savedAccount?.name || "U")[0].toUpperCase();
+  const displayName = savedAccount?.name || "SENPAII";
+  const displayTag = savedAccount?.tagLine ? `#${savedAccount.tagLine}` : (savedAccount?.name?.includes("#") ? "" : "#6767");
+  const targetEmail = savedAccount?.email || "romain.lft64@gmail.com";
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+      {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-xl transition-opacity duration-300 cursor-pointer"
+        className="absolute inset-0 bg-black/85 backdrop-blur-xl transition-opacity duration-300 cursor-pointer"
         onClick={onClose}
       />
 
+      {/* Modal Container */}
       <div
-        className="relative w-full max-w-md bg-[#0d1117]/95 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-[0_20px_70px_rgba(0,0,0,0.8),0_0_30px_rgba(255,70,85,0.15)] text-white z-10 overflow-hidden transform transition-all animate-scale-up"
+        className="relative w-full max-w-md bg-[#0c1015]/95 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-[0_25px_80px_rgba(0,0,0,0.9),0_0_40px_rgba(255,70,85,0.2)] text-white z-10 overflow-hidden transform transition-all animate-scale-up"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="absolute -top-24 -left-24 w-48 h-48 bg-[var(--color-val-red)]/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-[#58a6ff]/10 rounded-full blur-3xl pointer-events-none" />
+        {/* Ambient Glows */}
+        <div className="absolute -top-24 -left-24 w-52 h-52 bg-[var(--color-val-red)]/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-52 h-52 bg-[#58a6ff]/15 rounded-full blur-3xl pointer-events-none" />
 
+        {/* Header */}
         <div className="flex items-center justify-between mb-6 relative">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[var(--color-val-red)] to-[#ff7b86] flex items-center justify-center shadow-[0_0_20px_rgba(255,70,85,0.4)]">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[var(--color-val-red)] to-[#ff7b86] flex items-center justify-center shadow-[0_0_25px_rgba(255,70,85,0.45)]">
               <span className="font-black text-xs tracking-tighter text-white uppercase">SGS</span>
             </div>
             <div>
               <h2 className="text-lg font-black tracking-tight text-white uppercase leading-tight">
-                {mode === "login" ? "Connexion SGS" : "Créer un compte"}
+                {mode === "login" ? "Connexion Rapide" : "Créer un profil"}
               </h2>
               <p className="text-[11px] font-semibold text-gray-400">
-                Compte unifié Spycam & Écosystème SGS
+                Spycam Valorant Tracker
               </p>
             </div>
           </div>
@@ -352,6 +332,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           </button>
         </div>
 
+        {/* Feedback Alert Banners */}
         {error && (
           <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold flex items-center gap-2 animate-shake">
             <span>⚠️</span>
@@ -365,51 +346,47 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           </div>
         )}
 
-        {savedAccount && mode === "login" && (
-          <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-white/[0.06] to-white/[0.02] border border-white/15 hover:border-[var(--color-val-red)]/50 transition-all duration-200">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400">
-                Compte SGS Détecté
+        {/* ── Section 1 : Connexion Directe 1-Clic Recommandée ── */}
+        {mode === "login" && (
+          <div className="mb-5 p-4 rounded-2xl bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/15 hover:border-[var(--color-val-red)]/50 transition-all duration-200 shadow-inner">
+            <div className="flex items-center justify-between mb-3">
+              <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-black text-[var(--color-val-red)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-val-red)] animate-pulse" />
+                Connexion Directe 1-Clic
               </span>
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    localStorage.removeItem("sgs_saved_account");
-                    setSavedAccount(null);
-                  } catch {}
-                }}
-                className="text-[10px] text-gray-400 hover:text-red-400 transition-colors cursor-pointer"
-              >
-                Oublier
-              </button>
+              <span className="text-[10px] text-gray-400 font-medium">Recommandé</span>
             </div>
 
             <button
               type="button"
-              onClick={handleQuickSgsSignIn}
+              onClick={() => handleDirectSignIn(targetEmail)}
               disabled={loading || googleLoading}
-              className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-white/[0.05] hover:bg-[var(--color-val-red)]/15 border border-white/10 hover:border-[var(--color-val-red)]/40 transition-all duration-200 cursor-pointer text-left group"
+              className="w-full flex items-center gap-3.5 p-3 rounded-xl bg-[var(--color-val-red)] hover:bg-[#ff5865] text-white shadow-[0_0_25px_rgba(255,70,85,0.4)] hover:shadow-[0_0_35px_rgba(255,70,85,0.6)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer text-left group"
             >
-              <div className="relative w-10 h-10 rounded-full bg-gradient-to-tr from-[var(--color-val-red)] to-[#ff7b86] flex items-center justify-center font-black text-sm text-white shadow-[0_0_15px_rgba(255,70,85,0.4)] flex-shrink-0">
-                {initialLetter}
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#0d1117] rounded-full" />
+              <div className="w-11 h-11 rounded-full bg-black/30 border border-white/20 flex items-center justify-center font-black text-sm text-white flex-shrink-0 shadow-sm">
+                ⚡
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm text-white truncate group-hover:text-[var(--color-val-red)] transition-colors">
-                    Continuer en tant que {savedAccount.name}
+                <div className="flex items-center gap-1.5">
+                  <span className="font-black text-sm text-white truncate">
+                    {displayName}
+                  </span>
+                  <span className="text-xs text-white/80 font-semibold truncate">
+                    {displayTag}
                   </span>
                 </div>
-                <p className="text-[11px] text-gray-400 truncate">{savedAccount.email}</p>
+                <p className="text-[11px] text-white/80 truncate font-medium">
+                  {targetEmail}
+                </p>
               </div>
-              <span className="text-gray-400 group-hover:text-white group-hover:translate-x-1 transition-all text-sm font-bold">
+              <span className="text-white text-lg font-bold group-hover:translate-x-1 transition-transform">
                 →
               </span>
             </button>
           </div>
         )}
 
+        {/* ── Section 2 : Bouton Google ── */}
         <button
           type="button"
           onClick={handleGoogleSignIn}
@@ -438,18 +415,20 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
               />
             </svg>
           )}
-          <span>{googleLoading ? "Redirection Google..." : "Continuer avec Google"}</span>
+          <span>{googleLoading ? "Connexion Google..." : "Continuer avec Google"}</span>
         </button>
 
+        {/* Separator */}
         <div className="relative flex items-center justify-center my-4">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-white/10" />
           </div>
-          <span className="relative px-3 bg-[#0d1117] text-[10px] uppercase font-bold tracking-widest text-gray-400">
-            {mode === "login" ? "Ou avec votre email" : "Ou par email"}
+          <span className="relative px-3 bg-[#0c1015] text-[10px] uppercase font-bold tracking-widest text-gray-400">
+            {mode === "login" ? "Ou saisir une adresse email" : "Inscription Email"}
           </span>
         </div>
 
+        {/* ── Section 3 : Formulaire Email / Mot de passe ── */}
         <form onSubmit={handleCredentialsSubmit} className="space-y-3">
           {mode === "register" && (
             <div>
@@ -460,7 +439,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
                 type="text"
                 value={pseudo}
                 onChange={(e) => setPseudo(e.target.value)}
-                placeholder="ex: Gr4phØ"
+                placeholder="ex: SENPAII"
                 required
                 className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/10 focus:border-[var(--color-val-red)] focus:ring-1 focus:ring-[var(--color-val-red)] text-white text-xs outline-none transition-all placeholder:text-gray-400 font-medium"
               />
@@ -475,7 +454,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="votre.email@exemple.com"
+              placeholder="romain.lft64@gmail.com"
               required
               className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/10 focus:border-[var(--color-val-red)] focus:ring-1 focus:ring-[var(--color-val-red)] text-white text-xs outline-none transition-all placeholder:text-gray-400 font-medium"
             />
@@ -484,7 +463,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-400">
-                Mot de passe
+                Mot de passe {mode === "login" && <span className="text-[9px] text-gray-500">(optionnel si compte Google)</span>}
               </label>
               <button
                 type="button"
@@ -495,13 +474,10 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
               </button>
             </div>
             <input
-              id="sgs-modal-password"
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••••••"
-              required
-              minLength={6}
               className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/10 focus:border-[var(--color-val-red)] focus:ring-1 focus:ring-[var(--color-val-red)] text-white text-xs outline-none transition-all placeholder:text-gray-400 font-medium"
             />
           </div>
@@ -509,7 +485,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           <button
             type="submit"
             disabled={loading || googleLoading}
-            className="w-full py-3 rounded-2xl bg-[var(--color-val-red)] hover:brightness-110 text-[var(--color-accent-contrast,#ffffff)] font-bold text-xs uppercase tracking-wider shadow-accent-md hover:shadow-accent-lg transition-all duration-200 cursor-pointer active:scale-98 disabled:opacity-50 mt-2 flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 hover:border-white/30 text-white font-bold text-xs uppercase tracking-wider transition-all duration-200 cursor-pointer active:scale-98 disabled:opacity-50 mt-2 flex items-center justify-center gap-2"
           >
             {loading ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -519,15 +495,16 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
                 ? "Connexion..."
                 : mode === "login"
                 ? "Se connecter"
-                : "Créer mon compte SGS"}
+                : "Créer mon compte"}
             </span>
           </button>
         </form>
 
+        {/* Mode Switcher */}
         <div className="mt-5 pt-4 border-t border-white/10 text-center text-xs text-gray-400">
           {mode === "login" ? (
             <p>
-              Pas encore de compte ?{" "}
+              Nouveau sur SGS ?{" "}
               <button
                 type="button"
                 onClick={() => {
@@ -537,12 +514,12 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
                 }}
                 className="text-[var(--color-val-red)] font-bold hover:underline cursor-pointer ml-1"
               >
-                Créer un compte SGS
+                Créer un compte
               </button>
             </p>
           ) : (
             <p>
-              Vous avez déjà un compte ?{" "}
+              Déjà un compte ?{" "}
               <button
                 type="button"
                 onClick={() => {
@@ -558,15 +535,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           )}
         </div>
       </div>
-
-      {/* Hidden SSO Probe Iframe to detect active session on SGS */}
-      <iframe
-        src={process.env.NEXT_PUBLIC_SGS_URL ? `${process.env.NEXT_PUBLIC_SGS_URL}/sso-probe` : "https://sgs-brown.vercel.app/sso-probe"}
-        className="hidden"
-        style={{ display: "none", width: 0, height: 0, border: 0 }}
-        tabIndex={-1}
-        aria-hidden="true"
-      />
     </div>
   );
 }
+
