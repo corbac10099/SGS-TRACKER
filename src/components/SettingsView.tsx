@@ -25,9 +25,11 @@ import {
   IconFileText,
   IconInfo,
   IconBrain,
+  IconUsers,
 } from "./icons/SpyIcons";
 import { BADGES_REGISTRY, parseBadges } from "./UserBadges";
 import { sounds } from "@/lib/soundEffects";
+import { useFriends } from "@/hooks/useFriends";
 import { requestPushPermission, sendLocalNotification } from "@/lib/pushNotifications";
 import SgsAccountSettings from "./SgsAccountSettings";
 import SgsLegalModal from "./SgsLegalModal";
@@ -129,9 +131,10 @@ export default function SettingsView({
   forceMyTheme = false,
   setForceMyTheme,
 }: SettingsViewProps) {
+  const { friends: sgsFriends, updatePermission: updateFriendPermission } = useFriends();
   const statOptions = [
     { id: "performanceScore", label: "Score de Performance (SPI)", icon: <IconTrophy size={16} />, desc: "Score intelligent sur 1000 points (Grades C à SSS)" },
-    { id: "coach", label: "Coach Tactique Spycam", icon: <IconBrain size={16} />, desc: "Débriefing et diagnostic télémétrique (Privé par défaut)" },
+    { id: "coach", label: "Coach Tactique SGS", icon: <IconBrain size={16} />, desc: "Débriefing et diagnostic télémétrique (Privé par défaut)" },
     { id: "chart", label: "Graphique de Progression", icon: <IconChart size={16} />, desc: "Courbe d'évolution" },
     { id: "weapons", label: "Top Armes & Précision", icon: <IconCrosshair size={16} />, desc: "Top 3 armes et zones de tir" },
     { id: "kills", label: "Éliminations", icon: <IconCrosshair size={16} />, desc: "Total des kills" },
@@ -1201,6 +1204,73 @@ export default function SettingsView({
                         );
                       })}
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Section : Autorisations Spécifiques pour vos Amis */}
+              <div className="pt-4 sm:pt-6 border-t border-[var(--color-border)] space-y-3">
+                <div>
+                  <h4 className="font-bold text-xs sm:text-base text-[var(--color-text-primary)] flex items-center gap-2">
+                    <IconUsers size={18} className="text-sky-400" />
+                    <span>Autorisations Spécifiques pour vos Amis</span>
+                  </h4>
+                  <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] mt-0.5">
+                    Réglez pour chaque ami l&apos;autorisation d&apos;accéder à vos statistiques lorsque votre profil est en mode Privé.
+                  </p>
+                </div>
+
+                {sgsFriends.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-xs text-gray-400 text-center">
+                    Vous n&apos;avez pas encore d&apos;amis ajoutés sur votre compte.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {sgsFriends.map((f) => (
+                      <div
+                        key={f.friendshipId}
+                        className="p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {f.avatarUrl ? (
+                            <img src={f.avatarUrl} alt={f.name} className="w-8 h-8 rounded-lg object-cover border border-white/10" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-xs font-bold text-white border border-white/10">
+                              {f.name.slice(0, 1).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-white truncate">{f.name}</div>
+                            <div className="text-[10px] text-gray-400 font-mono">{f.riotId}</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span className={`text-[11px] font-bold ${f.canViewStats ? "text-emerald-400" : "text-red-400"}`}>
+                            {f.canViewStats ? "Accès autorisé" : "Accès bloqué"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              sounds.playClick();
+                              if (f.friendId) {
+                                updateFriendPermission(f.friendId, !f.canViewStats);
+                              }
+                            }}
+                            className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors duration-300 flex-shrink-0 cursor-pointer ${
+                              f.canViewStats ? "bg-emerald-500" : "bg-gray-600"
+                            }`}
+                            title="Basculer l'autorisation pour cet ami"
+                          >
+                            <span
+                              className={`inline-block h-3.5 w-3.5 sm:h-4 sm:w-4 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                                f.canViewStats ? "translate-x-4 sm:translate-x-5" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

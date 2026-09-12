@@ -83,7 +83,7 @@ export default function PerformanceScoreModal({
 
           <div className="space-y-0.5 min-w-0">
             <span className="text-[10px] font-black uppercase tracking-widest text-[var(--color-val-red,#ff4655)]">
-              Spycam Performance Index (SPI)
+              SGS Performance Index (SPI)
             </span>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight">
@@ -217,7 +217,7 @@ export default function PerformanceScoreModal({
           <div className="p-4 rounded-2xl bg-[var(--color-val-red,#ff4655)]/10 border border-[var(--color-val-red,#ff4655)]/25 space-y-1.5">
             <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-val-red,#ff4655)] flex items-center gap-1.5">
               <IconLightbulb size={13} />
-              <span>Recommandation Tactique Spycam</span>
+              <span>Recommandation Tactique SGS</span>
             </span>
             <p className="text-xs text-gray-300 leading-relaxed">{tips[0]}</p>
           </div>

@@ -50,6 +50,8 @@ import TiltAlertBanner from "@/components/TiltAlertBanner";
 import PersonalGoalsWidget from "@/components/PersonalGoalsWidget";
 import PlayerCompareModal from "@/components/PlayerCompareModal";
 import AchievementsModal from "@/components/AchievementsModal";
+import FriendsModal from "@/components/FriendsModal";
+import { useFriends } from "@/hooks/useFriends";
 import { exportMatchesToCSV } from "@/lib/exportUtils";
 import { IconSword } from "@/components/icons/SpyIcons";
 import { sounds } from "@/lib/soundEffects";
@@ -100,6 +102,8 @@ export function HomeContent({
 
   const [showCompareModal, setShowCompareModal] = useState<boolean>(false);
   const [showAchievementsModal, setShowAchievementsModal] = useState<boolean>(false);
+  const [showFriendsModal, setShowFriendsModal] = useState<boolean>(false);
+  const friendsManager = useFriends();
   const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(null);
 
   // ─── Derived values ──────────────────────────────────────
@@ -469,6 +473,9 @@ export function HomeContent({
               onOpenCoachModal={() => nav.setShowCoachModal(true)}
               agentStats={player.playerData?.player?.agentStats}
               playerName={player.playerData?.player?.name}
+              friendsStats={friendsManager.friendsStats}
+              onSelectPlayer={(id) => player.searchPlayer(id)}
+              onOpenFriendsModal={() => setShowFriendsModal(true)}
               onSaveGridData={(gridJson) => {
                 player.setPlayerData((prev: any) => {
                   if (!prev) return prev;
@@ -626,6 +633,8 @@ export function HomeContent({
           playerStats={player.playerData?.player?.stats}
           onOpenCompare={() => setShowCompareModal(true)}
           onOpenAchievements={() => setShowAchievementsModal(true)}
+          onOpenFriends={() => setShowFriendsModal(true)}
+          pendingFriendsCount={friendsManager.pendingIncomingCount}
         />
 
         {/* Dynamic Views */}
@@ -974,7 +983,7 @@ export function HomeContent({
           </div>
 
           <p className="text-[10px] text-center max-w-3xl mx-auto text-gray-500 leading-relaxed">
-            « Spycam et tout l&apos;écosystème SGS » est un projet
+            « SGS Tracker et tout l&apos;écosystème SGS » est un projet
             indépendant qui n&apos;est pas approuvé par Riot Games et ne
             reflète pas les opinions ou les avis de Riot Games ou de toute
             personne officiellement impliquée dans la production ou la
@@ -1059,6 +1068,16 @@ export function HomeContent({
           player.riotId ||
           "Joueur"
         }
+      />
+
+      {/* Modal Amis SGS */}
+      <FriendsModal
+        isOpen={showFriendsModal}
+        onClose={() => setShowFriendsModal(false)}
+        onSelectPlayer={(selectedRiotId) => {
+          setShowFriendsModal(false);
+          player.searchPlayer(selectedRiotId);
+        }}
       />
 
       {/* Local Dev Stats Panel (localhost only) */}

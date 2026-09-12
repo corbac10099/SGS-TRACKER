@@ -1032,7 +1032,7 @@ export default function LobbiesView({
                   </span>
                   <h2 className="text-2xl sm:text-3xl font-black text-white uppercase">Créer un Salon</h2>
                   <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                    Définissez les rôles recherchés, ajoutez les pseudos de vos mates déjà présents, et laissez Spycam calculer automatiquement le niveau du salon.
+                    Définissez les rôles recherchés, ajoutez les pseudos de vos mates déjà présents, et laissez SGS calculer automatiquement le niveau du salon.
                   </p>
                 </div>
 
@@ -1082,7 +1082,7 @@ export default function LobbiesView({
                   </span>
                   <h2 className="text-2xl sm:text-3xl font-black text-white uppercase">Rejoindre un Salon</h2>
                   <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                    Filtrez par rôle joué et taille d&apos;escouade. Spycam analyse votre rang et vous propose les salons adaptés à votre niveau avec chat &amp; vocal.
+                    Filtrez par rôle joué et taille d&apos;escouade. SGS analyse votre rang et vous propose les salons adaptés à votre niveau avec chat &amp; vocal.
                   </p>
                 </div>
 
@@ -2243,7 +2243,7 @@ export default function LobbiesView({
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-black text-white uppercase tracking-wide">
-                              Isolation Vocale Spycam AI
+                              Isolation Vocale SGS AI
                             </span>
                             <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase border border-emerald-500/30">
                               Gratuit • DSP Local

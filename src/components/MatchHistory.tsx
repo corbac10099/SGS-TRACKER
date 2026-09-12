@@ -288,7 +288,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
       // Top Logo
       ctx.fillStyle = "#ff4655";
       ctx.font = "bold 24px sans-serif";
-      ctx.fillText("SPYCAM // VALORANT PERFORMANCE TRACKER", 50, 65);
+      ctx.fillText("SGS // VALORANT PERFORMANCE TRACKER", 50, 65);
 
       // Map & Date
       ctx.fillStyle = "#8b97a3";
@@ -355,7 +355,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
 
       // Download
       const link = document.createElement("a");
-      link.download = `spycam_match_${match.map}_${match.won ? "win" : "loss"}.png`;
+      link.download = `sgs_match_${match.map}_${match.won ? "win" : "loss"}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
     } catch (err) {

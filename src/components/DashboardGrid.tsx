@@ -7,6 +7,7 @@ import WeaponHitmap from "./WeaponHitmap";
 import PerformanceScoreCard from "./PerformanceScoreCard";
 import AiCoachWidget from "./AiCoachWidget";
 import { PerformanceScoreResult } from "@/lib/valorant/performanceScore";
+import { FriendComparisonStatItem } from "@/hooks/useFriends";
 import {
   IconCrosshair,
   IconSkull,
@@ -55,6 +56,9 @@ export interface DashboardGridProps {
   agentStats?: any[];
   playerName?: string;
   onSaveGridData?: (gridJson: string) => void;
+  friendsStats?: FriendComparisonStatItem[];
+  onSelectPlayer?: (riotId: string) => void;
+  onOpenFriendsModal?: () => void;
 }
 
 const DEFAULT_COLS = 29;
@@ -223,6 +227,9 @@ export default function DashboardGrid({
   agentStats = [],
   playerName = "Joueur",
   onSaveGridData,
+  friendsStats,
+  onSelectPlayer,
+  onOpenFriendsModal,
 }: DashboardGridProps) {
   const storageKey = `spycam_grid_layout_v8_29_${userStorageKey}`;
   const chartsStorageKey = `spycam_charts_config_v1_${userStorageKey}`;
@@ -1282,11 +1289,11 @@ export default function DashboardGrid({
       case "weapons":
         return <WeaponHitmap matchHistory={matchHistory} stats={stats} />;
       case "kills":
-        return <StatCard label="Éliminations" value={stats?.kills ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("kills")} />;
+        return <StatCard label="Éliminations" value={stats?.kills ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("kills")} metricKey="kills" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} />;
       case "deaths":
-        return <StatCard label="Morts" value={stats?.deaths ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("deaths")} />;
+        return <StatCard label="Morts" value={stats?.deaths ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("deaths")} metricKey="deaths" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} />;
       case "assists":
-        return <StatCard label="Passes décisives" value={stats?.assists ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("assists")} />;
+        return <StatCard label="Passes décisives" value={stats?.assists ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("assists")} metricKey="assists" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} />;
       case "kd":
         return (
           <StatCard
@@ -1296,10 +1303,14 @@ export default function DashboardGrid({
             warning={warnings?.kd}
             smartRating={smartRating}
             sessionDelta={getStatDelta("kd")}
+            metricKey="kd"
+            friendsStats={friendsStats}
+            onSelectPlayer={onSelectPlayer}
+            onOpenFriendsModal={onOpenFriendsModal}
           />
         );
       case "adr":
-        return <StatCard label="Dégâts/Tour (ADR)" value={stats?.adr ?? 0} highlight smartRating={smartRating} sessionDelta={getStatDelta("adr")} />;
+        return <StatCard label="Dégâts/Tour (ADR)" value={stats?.adr ?? 0} highlight smartRating={smartRating} sessionDelta={getStatDelta("adr")} metricKey="adr" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} />;
       case "hs":
         return (
           <StatCard
@@ -1309,6 +1320,10 @@ export default function DashboardGrid({
             warning={warnings?.hs}
             smartRating={smartRating}
             sessionDelta={getStatDelta("hs")}
+            metricKey="hs"
+            friendsStats={friendsStats}
+            onSelectPlayer={onSelectPlayer}
+            onOpenFriendsModal={onOpenFriendsModal}
           />
         );
       case "wr":
@@ -1320,6 +1335,10 @@ export default function DashboardGrid({
             warning={warnings?.wr}
             smartRating={smartRating}
             sessionDelta={getStatDelta("wr")}
+            metricKey="wr"
+            friendsStats={friendsStats}
+            onSelectPlayer={onSelectPlayer}
+            onOpenFriendsModal={onOpenFriendsModal}
           />
         );
       case "acs":
@@ -1331,12 +1350,16 @@ export default function DashboardGrid({
             warning={warnings?.acs}
             smartRating={smartRating}
             sessionDelta={getStatDelta("acs")}
+            metricKey="acs"
+            friendsStats={friendsStats}
+            onSelectPlayer={onSelectPlayer}
+            onOpenFriendsModal={onOpenFriendsModal}
           />
         );
       case "fb":
-        return <StatCard label="Premiers sangs" value={stats?.firstBloods ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("fb")} />;
+        return <StatCard label="Premiers sangs" value={stats?.firstBloods ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("fb")} metricKey="firstBloods" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} />;
       case "ace":
-        return <StatCard label="ACE" value={stats?.aceCount ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("ace")} />;
+        return <StatCard label="ACE" value={stats?.aceCount ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("ace")} metricKey="aces" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} />;
       case "kast":
         return (
           <StatCard

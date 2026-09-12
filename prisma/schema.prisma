@@ -40,6 +40,8 @@ model User {
   updatedAt       DateTime  @updatedAt
   accounts        Account[]
   sessions        Session[]
+  sentFriendships     Friendship[] @relation("UserFriendships")
+  receivedFriendships Friendship[] @relation("FriendOfUser")
 }
 
 model Account {
@@ -260,4 +262,25 @@ model SgsService {
   updatedAt   DateTime @updatedAt
 }
 
+// ==========================================
+// Système d'Amis Social (SGS Friends)
+// ==========================================
 
+model Friendship {
+  id           String    @id @default(cuid())
+  userId       String    // Demandeur ou propriétaire de la relation
+  friendId     String?   // Destinataire (si inscrit sur SGS Tracker)
+  targetRiotId String?   // Riot ID ciblé (ex: "TenZ#NA1") pour inviter n'importe quel joueur
+  status       String    @default("pending") // "pending", "accepted", "declined", "blocked"
+  canViewStats Boolean   @default(true) // Autorisation d'accès aux stats privées pour cet ami
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user         User      @relation("UserFriendships", fields: [userId], references: [id], onDelete: Cascade)
+  friend       User?     @relation("FriendOfUser", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([friendId])
+  @@index([targetRiotId])
+  @@index([status])
+}

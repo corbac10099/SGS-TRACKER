@@ -86,7 +86,7 @@ export interface CoachAnalysisReport {
 }
 
 /**
- * Moteur d'analyse du Coach Virtuel Intelligent Spycam
+ * Moteur d'analyse du Coach Virtuel Intelligent SGS
  * Traite en simultané l'ensemble des données télémétriques pour un diagnostic exhaustif.
  */
 export function generateCoachReport(

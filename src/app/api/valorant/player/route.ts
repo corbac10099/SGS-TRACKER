@@ -109,10 +109,11 @@ async function handlePlayerRequest(
     // Check if current viewer is the authenticated owner of the profile or an administrator
     let isOwner = false;
     let isAdmin = adminBypassHeader === true;
+    let currentUser: any = null;
     try {
       const session = await getServerSession(authOptions);
       if (session?.user?.email) {
-        const currentUser = await (prisma.user as any).findUnique({ where: { email: session.user.email } });
+        currentUser = await (prisma.user as any).findUnique({ where: { email: session.user.email } });
         if (currentUser) {
           if (currentUser.riotGameName) {
             const myName = currentUser.riotGameName.toLowerCase();
@@ -135,11 +136,30 @@ async function handlePlayerRequest(
 
     const isProfilePrivate = customOwnerSettings?.isPublic === false;
 
-    // Règle de confidentialité (Riot Games Developer Policy & RGPD) :
-    // Si le profil est privé, bloquer strictement l'accès pour tout le monde sauf le propriétaire.
-    if (isProfilePrivate && !isOwner) {
+    // Règle de confidentialité :
+    // Si le profil est privé, bloquer l'accès pour les tiers sauf si le visiteur est un ami autorisé
+    let isFriendAllowed = false;
+    if (isProfilePrivate && !isOwner && registeredUser && currentUser) {
+      try {
+        const friendship = await (prisma as any).friendship.findFirst({
+          where: {
+            userId: registeredUser.id,
+            friendId: currentUser.id,
+            status: "accepted",
+            canViewStats: true,
+          },
+        });
+        if (friendship) {
+          isFriendAllowed = true;
+        }
+      } catch (friendErr) {
+        console.warn("[Privacy Friend Check Warning]:", friendErr);
+      }
+    }
+
+    if (isProfilePrivate && !isOwner && !isFriendAllowed) {
       return NextResponse.json(
-        { error: "Ce profil est privé. Seul le propriétaire peut y accéder." },
+        { error: "Ce profil est privé. Seul le propriétaire ou ses amis autorisés peuvent y accéder." },
         { status: 403 }
       );
     }
@@ -154,6 +174,7 @@ async function handlePlayerRequest(
         const cachedProfile: ValorantProfileResponse = JSON.parse(JSON.stringify(cached.data));
         cachedProfile.player.isOwner = isOwner;
         cachedProfile.player.canEdit = isOwner;
+        (cachedProfile.player as any).isFriendAllowed = isFriendAllowed;
         if (customOwnerSettings) {
           cachedProfile.player = {
             ...cachedProfile.player,
@@ -408,6 +429,7 @@ async function handlePlayerRequest(
 
     profileData.player.isOwner = isOwner;
     profileData.player.canEdit = isOwner;
+    (profileData.player as any).isFriendAllowed = isFriendAllowed;
 
     // Mise en cache du profil de base (sans personnalisations dynamiques Neon)
     PLAYER_CACHE.set(cacheKey, {

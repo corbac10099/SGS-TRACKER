@@ -255,7 +255,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
                 {mode === "login" ? "Connexion" : "Créer un compte"}
               </h2>
               <p className="text-[11px] font-semibold text-gray-400">
-                Spycam Valorant Tracker
+                SGS Valorant Tracker
               </p>
             </div>
           </div>

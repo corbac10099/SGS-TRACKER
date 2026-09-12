@@ -163,7 +163,7 @@ export default function PlayerCardModal({
       // 3. Top Left Section
       ctx.fillStyle = "#ff4655";
       ctx.font = "900 16px sans-serif";
-      ctx.fillText("SPYCAM // CARD", 50, 65);
+      ctx.fillText("SGS // CARD", 50, 65);
 
       // Player Name
       ctx.fillStyle = "#ffffff";
@@ -361,7 +361,7 @@ export default function PlayerCardModal({
 
       // Export Download
       const link = document.createElement("a");
-      link.download = `spycam-${player.gameName || "player"}-card.png`;
+      link.download = `sgs-${player.gameName || "player"}-card.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
     } catch (err) {

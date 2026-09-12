@@ -40,6 +40,8 @@ export interface HeaderProps {
   leaderboardOpen?: boolean;
   onOpenCompare?: () => void;
   onOpenAchievements?: () => void;
+  onOpenFriends?: () => void;
+  pendingFriendsCount?: number;
   favorites: Array<{ riotId: string; gameName: string; tagLine: string; cardUrl: string; rank?: string }>;
   onSelectFavorite: (riotId: string) => void;
   onRemoveFavorite?: (player: any) => void;
@@ -69,6 +71,8 @@ export default function Header({
   leaderboardOpen = false,
   onOpenCompare,
   onOpenAchievements,
+  onOpenFriends,
+  pendingFriendsCount = 0,
   favorites,
   onSelectFavorite,
   onRemoveFavorite,
@@ -463,6 +467,27 @@ export default function Header({
                 <span className="hidden xl:inline">Succès</span>
               </button>
             )}
+
+            {onOpenFriends && (
+              <button
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  onOpenFriends();
+                }}
+                onMouseEnter={() => sounds.playHover()}
+                title="Amis SGS & Invitations"
+                className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-neutral-300 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer select-none"
+              >
+                <IconUsers size={14} className="text-sky-400" />
+                <span className="hidden xl:inline">Amis</span>
+                {pendingFriendsCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-[var(--color-val-red)] text-white text-[9px] font-black animate-pulse">
+                    {pendingFriendsCount}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
 
           {/* ── Capsule 1: LiveClock + Notifications ── */}
@@ -513,8 +538,24 @@ export default function Header({
             </button>
           </div>
 
-          {/* ── Mobile fallback: notification bell only (settings via Menu drawer) ── */}
-          <div className="flex md:hidden items-center flex-shrink-0">
+          {/* ── Mobile fallback: Friends + notification bell ── */}
+          <div className="flex md:hidden items-center gap-1 flex-shrink-0">
+            {onOpenFriends && (
+              <button
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  onOpenFriends();
+                }}
+                className="relative p-2 rounded-xl text-neutral-300 hover:text-white hover:bg-white/10"
+                title="Amis SGS"
+              >
+                <IconUsers size={18} className="text-sky-400" />
+                {pendingFriendsCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[var(--color-val-red)] animate-ping" />
+                )}
+              </button>
+            )}
             <NotificationsDropdown
               onNavigateToNews={onOpenNews}
               onNavigateToAgents={onOpenAgents}
