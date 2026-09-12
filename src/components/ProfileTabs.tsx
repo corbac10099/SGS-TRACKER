@@ -67,7 +67,7 @@ export default function ProfileTabs({
         >
           {/* Sliding Red Underline Indicator */}
           <div
-            className="absolute bottom-0 h-[2.5px] rounded-full bg-[var(--color-val-red)] shadow-[0_0_12px_rgba(255,70,85,0.9)] pointer-events-none z-10"
+            className="absolute bottom-0 h-[2.5px] rounded-full bg-[var(--color-val-red)] shadow-accent-sm pointer-events-none z-10"
             style={{
               transform: `translateX(${profileUnderlineStyle.left}px)`,
               width: `${profileUnderlineStyle.width}px`,
@@ -92,8 +92,8 @@ export default function ProfileTabs({
                 }}
                 className={`pb-3 text-xs sm:text-sm uppercase tracking-widest font-black transition-colors duration-300 relative cursor-pointer select-none active:scale-95 ${
                   isActive
-                    ? "text-[var(--color-val-red)] drop-shadow-[0_0_8px_rgba(255,70,85,0.4)]"
-                    : "text-[var(--color-text-secondary)] hover:text-white"
+                    ? "text-[var(--color-val-red)]"
+                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                 }`}
               >
                 {tab.label}
@@ -126,7 +126,7 @@ export default function ProfileTabs({
             className="relative flex items-center gap-0.5 p-1 rounded-2xl glass-pill"
           >
             <div
-              className="absolute top-1 bottom-1 rounded-xl bg-[var(--color-val-red)] shadow-[0_0_18px_rgba(255,70,85,0.6)] pointer-events-none z-0"
+              className="absolute top-1 bottom-1 rounded-xl bg-[var(--color-val-red)] shadow-accent-md pointer-events-none z-0"
               style={{
                 transform: `translateX(${gameModePillStyle.left}px)`,
                 width: `${gameModePillStyle.width}px`,
@@ -152,8 +152,8 @@ export default function ProfileTabs({
                   onMouseEnter={() => sounds.playHover()}
                   className={`relative z-10 px-3 py-1 rounded-xl text-xs font-bold transition-colors duration-200 cursor-pointer select-none active:scale-95 whitespace-nowrap ${
                     isActive
-                      ? "text-white"
-                      : "text-neutral-400 hover:text-white"
+                      ? "text-[var(--color-accent-contrast,#ffffff)] font-black"
+                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                   }`}
                 >
                   {mode.label}

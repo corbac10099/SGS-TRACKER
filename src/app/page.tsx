@@ -105,6 +105,18 @@ export function HomeContent({
   // ─── Derived values ──────────────────────────────────────
   const canEdit = auth.canEditProfile(player.playerData);
 
+  // Synchronisation du thème du profil visité (si l'utilisateur n'a pas forcé son propre thème)
+  const isVisitingOther = !canEdit && Boolean(player.playerData?.player?.theme || player.playerData?.theme);
+  const visitedProfileTheme = player.playerData?.player?.theme || player.playerData?.theme || null;
+
+  useEffect(() => {
+    if (isVisitingOther && !settings.forceMyTheme && visitedProfileTheme) {
+      settings.setActiveThemeOverride(visitedProfileTheme);
+    } else {
+      settings.setActiveThemeOverride(null);
+    }
+  }, [isVisitingOther, settings.forceMyTheme, visitedProfileTheme, settings.setActiveThemeOverride]);
+
   // URL search params handling
   useEffect(() => {
     const ep = searchParams?.get("error");
@@ -524,6 +536,10 @@ export function HomeContent({
               locale={locale}
               streamerMode={settings.streamerMode}
               setStreamerMode={settings.setStreamerMode}
+              disableAnimations={settings.disableAnimations}
+              setDisableAnimations={settings.setDisableAnimations}
+              forceMyTheme={settings.forceMyTheme}
+              setForceMyTheme={settings.setForceMyTheme}
             />
           </div>
         ) : nav.leaderboardView ? (

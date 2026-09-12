@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useRef, useEffect } from "react";
+import React, { useMemo, useState, useRef, useEffect, useLayoutEffect } from "react";
 import { sounds } from "@/lib/soundEffects";
 import { IconFlame, IconTrophy, IconGamepad, IconCrosshair } from "./icons/SpyIcons";
 
@@ -54,15 +54,15 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
 
   const isOpen = Boolean(selectedDay && selectedDay.matchesCount > 0);
 
-  // Met à jour displayedDay uniquement quand un jour valide avec matchs est cliqué
-  useEffect(() => {
+  // Met à jour displayedDay immédiatement avant le paint du navigateur
+  useLayoutEffect(() => {
     if (selectedDay && selectedDay.matchesCount > 0) {
       setDisplayedDay(selectedDay);
     }
   }, [selectedDay]);
 
-  // Recalcule la hauteur exacte du contenu lors d'un changement de jour sélectionné
-  useEffect(() => {
+  // Recalcule la hauteur exacte du contenu de façon synchrone avant le rendu
+  useLayoutEffect(() => {
     if (!isOpen) {
       setDrawerHeight(0);
       return;
@@ -386,13 +386,20 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
                           onMouseLeave={() => setHoveredDay(null)}
                           onClick={() => {
                             sounds.playClick();
-                            setSelectedDay(isSelected ? null : day);
+                            if (isSelected) {
+                              setSelectedDay(null);
+                            } else {
+                              setSelectedDay(day);
+                              if (day.matchesCount > 0) {
+                                setDisplayedDay(day);
+                              }
+                            }
                           }}
                           className={`w-full aspect-square rounded-[2.5px] sm:rounded-[3px] border transition-all duration-200 cursor-pointer ${getCellIntensityClass(
                             day.matchesCount
                           )} ${
                             isSelected
-                              ? "ring-2 ring-[var(--color-val-red)] scale-135 z-20 shadow-accent-md animate-pulse"
+                              ? "ring-2 ring-[var(--color-val-red)] scale-135 z-20 shadow-accent-md"
                               : "hover:scale-135 hover:z-20 hover:shadow-accent-sm hover:border-white/60"
                           }`}
                         />
@@ -461,23 +468,23 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
 
       {/* Selected Day Match Drawer (Dépliement et redimensionnement fluide continu) */}
       <div
-        className="w-full overflow-hidden transition-[height,opacity,margin] duration-350 ease-[cubic-bezier(0.16,1,0.3,1)]"
+        className="w-full overflow-hidden transition-[height,opacity,margin] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
         style={{
           height: isOpen ? `${drawerHeight}px` : "0px",
           opacity: isOpen ? 1 : 0,
           marginTop: isOpen ? "12px" : "0px",
           pointerEvents: isOpen ? "auto" : "none",
+          willChange: "height, opacity",
         }}
       >
         <div ref={drawerContentRef} className="pb-1">
           {displayedDay && displayedDay.matchesCount > 0 && (
             <div
-              key={displayedDay.dateStr}
-              className="p-4 rounded-xl glass-card border border-[var(--color-val-red)]/30 animate-in fade-in-50 duration-200"
+              className="p-4 rounded-xl glass-card border border-[var(--color-val-red)]/30 transition-all duration-200"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-white uppercase tracking-wider">
+                  <span className="text-xs font-black text-[var(--color-text-primary)] uppercase tracking-wider">
                     Détail des matchs — {formatFullDate(displayedDay.date)}
                   </span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-val-red)]/20 text-[var(--color-val-red)]">
@@ -487,7 +494,7 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
                 <button
                   type="button"
                   onClick={() => setSelectedDay(null)}
-                  className="text-[10px] text-[var(--color-text-secondary)] hover:text-white font-bold cursor-pointer uppercase tracking-widest px-2 py-1"
+                  className="text-[10px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] font-bold cursor-pointer uppercase tracking-widest px-2 py-1"
                 >
                   Fermer ✕
                 </button>
@@ -513,7 +520,7 @@ export default function ActivityCalendar({ matches = [], className = "" }: Activ
                         />
                       )}
                       <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-black text-white truncate">
+                        <span className="text-xs font-black text-[var(--color-text-primary)] truncate">
                           {m.agent || "Agent"} — {m.map || "Carte"}
                         </span>
                         <span className="text-[10px] text-[var(--color-text-secondary)]">

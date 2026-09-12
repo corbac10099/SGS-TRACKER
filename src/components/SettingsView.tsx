@@ -86,6 +86,10 @@ export interface SettingsViewProps {
   locale: Locale;
   streamerMode?: boolean;
   setStreamerMode?: (val: boolean) => void;
+  disableAnimations?: boolean;
+  setDisableAnimations?: (val: boolean) => void;
+  forceMyTheme?: boolean;
+  setForceMyTheme?: (val: boolean) => void;
 }
 
 export default function SettingsView({
@@ -120,6 +124,10 @@ export default function SettingsView({
   locale,
   streamerMode = false,
   setStreamerMode,
+  disableAnimations = false,
+  setDisableAnimations,
+  forceMyTheme = false,
+  setForceMyTheme,
 }: SettingsViewProps) {
   const statOptions = [
     { id: "performanceScore", label: "Score de Performance (SPI)", icon: <IconTrophy size={16} />, desc: "Score intelligent sur 1000 points (Grades C à SSS)" },
@@ -249,6 +257,20 @@ export default function SettingsView({
   const [draftBannerOffsetY, setDraftBannerOffsetY] = useState(bannerOffsetY);
   const [draftIsPublic, setDraftIsPublic] = useState(isPublic ?? true);
   const [draftLocale, setDraftLocale] = useState<string>(locale || "french");
+  const [draftDisableAnimations, setDraftDisableAnimations] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("spycam_disable_animations");
+      if (stored !== null) return stored === "true";
+    }
+    return disableAnimations;
+  });
+  const [draftForceMyTheme, setDraftForceMyTheme] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("spycam_force_my_theme");
+      if (stored !== null) return stored === "true";
+    }
+    return forceMyTheme;
+  });
   const [legalModalOpen, setLegalModalOpen] = useState<boolean>(false);
   const [legalModalTab, setLegalModalTab] = useState<"cgu" | "mentions" | "privacy" | "riot">("cgu");
 
@@ -342,9 +364,13 @@ export default function SettingsView({
         localStorage.setItem("spycam_shortcuts_config", JSON.stringify(draftShortcuts));
         localStorage.setItem("spycam_spi_dynamic_chart_color", String(draftSpiDynamicColors));
         localStorage.setItem("spycam_spi_theme_adapt", String(draftSpiThemeAdapt));
+        localStorage.setItem("spycam_disable_animations", String(draftDisableAnimations));
+        localStorage.setItem("spycam_force_my_theme", String(draftForceMyTheme));
         sounds.setEnabled(draftSoundEnabled);
         sounds.setVolume(draftSoundVolume);
         if (setStreamerMode) setStreamerMode(draftStreamerMode);
+        if (setDisableAnimations) setDisableAnimations(draftDisableAnimations);
+        if (setForceMyTheme) setForceMyTheme(draftForceMyTheme);
         window.dispatchEvent(new CustomEvent("spycam_settings_updated", {
           detail: { spiDynamicColors: draftSpiDynamicColors, spiThemeAdapt: draftSpiThemeAdapt }
         }));
@@ -673,6 +699,60 @@ export default function SettingsView({
                       Activer / Tester
                     </button>
                   </div>
+                </div>
+
+                {/* Disable All Animations Toggle */}
+                <div className="flex items-center justify-between pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                  <div>
+                    <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Désactiver toutes les animations</h3>
+                    <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                      Supprime l&apos;ensemble des transitions, effets de fondu et animations d&apos;interface pour une réactivité instantanée maximale
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      setDraftDisableAnimations(!draftDisableAnimations);
+                    }}
+                    className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
+                      draftDisableAnimations ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                        draftDisableAnimations ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                      } shadow-md transition-all duration-300 ${
+                        draftDisableAnimations ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                      }`}
+                    ></span>
+                  </button>
+                </div>
+
+                {/* Force Personal Theme on Visited Profiles Toggle */}
+                <div className="flex items-center justify-between pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                  <div>
+                    <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Forcer mon thème sur les profils visités</h3>
+                    <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                      Conserve votre thème personnalisé même lors de la consultation du profil d&apos;un autre joueur (désactivé par défaut : vous visualisez le thème du propriétaire)
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      setDraftForceMyTheme(!draftForceMyTheme);
+                    }}
+                    className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
+                      draftForceMyTheme ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                        draftForceMyTheme ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                      } shadow-md transition-all duration-300 ${
+                        draftForceMyTheme ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                      }`}
+                    ></span>
+                  </button>
                 </div>
 
                 {/* Badges de Profil Section - Only rendered if user actually has badges */}

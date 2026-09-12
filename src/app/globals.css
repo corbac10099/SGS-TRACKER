@@ -27,6 +27,19 @@
   --accent-border-subtle: color-mix(in srgb, var(--color-val-red, #ff4655) 30%, transparent);
 }
 
+/* ===== Mode Sans Animations ===== */
+html.disable-animations,
+html.disable-animations *,
+html.disable-animations *::before,
+html.disable-animations *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+}
+
 /* ===== Theme: Light ===== */
 .theme-light {
   --color-val-red: #ff4655;

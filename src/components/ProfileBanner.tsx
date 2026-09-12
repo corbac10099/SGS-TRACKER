@@ -65,8 +65,8 @@ export default function ProfileBanner({
     <div
       className={`w-full flex flex-col animate-in fade-in slide-in-from-bottom-8 duration-700 ${profileThemeClass}`}
     >
-      {/* Bannière Profil Responsive */}
-      <div className="w-full relative rounded-2xl overflow-hidden border border-[var(--color-border)] shadow-[0_8px_30px_var(--color-glass-shadow)] bg-[#0a0e13] min-h-[135px] sm:min-h-[140px] aspect-[2.3/1] sm:aspect-[3.6/1] md:aspect-[3.8/1]">
+      {/* Bannière Profil Responsive avec Contour Thème */}
+      <div className="w-full relative rounded-2xl overflow-hidden border border-[var(--color-val-red)]/50 shadow-accent-md bg-[#0a0e13] min-h-[135px] sm:min-h-[140px] aspect-[2.3/1] sm:aspect-[3.6/1] md:aspect-[3.8/1] transition-all duration-300">
         <img
           referrerPolicy="no-referrer"
           src={profileBannerUrl}

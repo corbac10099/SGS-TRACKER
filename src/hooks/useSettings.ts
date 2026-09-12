@@ -29,6 +29,12 @@ export interface SettingsState {
   setHiddenBadges: (v: string[]) => void;
   ecoMode: boolean;
   setEcoMode: (v: boolean) => void;
+  disableAnimations: boolean;
+  setDisableAnimations: (v: boolean) => void;
+  forceMyTheme: boolean;
+  setForceMyTheme: (v: boolean) => void;
+  activeThemeOverride: string | null;
+  setActiveThemeOverride: (v: string | null) => void;
   settingsTab: string;
   setSettingsTab: (v: string) => void;
   toggleFullscreen: () => void;
@@ -114,8 +120,53 @@ export function useSettings(): SettingsState {
     }
   }, [ecoMode]);
 
+  const [disableAnimations, setDisableAnimations] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return localStorage.getItem("spycam_disable_animations") === "true";
+      } catch (_) {}
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      if (disableAnimations) {
+        document.documentElement.classList.add("disable-animations");
+      } else {
+        document.documentElement.classList.remove("disable-animations");
+      }
+    }
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("spycam_disable_animations", String(disableAnimations));
+      } catch (_) {}
+    }
+  }, [disableAnimations]);
+
+  const [forceMyTheme, setForceMyTheme] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return localStorage.getItem("spycam_force_my_theme") === "true";
+      } catch (_) {}
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("spycam_force_my_theme", String(forceMyTheme));
+      } catch (_) {}
+    }
+  }, [forceMyTheme]);
+
+  const [activeThemeOverride, setActiveThemeOverride] = useState<string | null>(null);
+
   // Applique le thème sur le body
   useEffect(() => {
+    const effectiveTheme = activeThemeOverride || theme;
+
     document.body.classList.remove(
       "theme-light",
       "theme-midnight",
@@ -128,15 +179,15 @@ export function useSettings(): SettingsState {
 
     let activeAccent = "#ff4655";
 
-    if (theme !== "dark" && !theme?.startsWith("custom:")) {
-      document.body.classList.add(`theme-${theme}`);
-      if (theme === "midnight") activeAccent = "#8c64ff";
-      else if (theme === "ocean") activeAccent = "#32c8b4";
-      else if (theme === "crimson" || theme === "light") activeAccent = "#ff4655";
-    } else if (theme?.startsWith("custom:")) {
+    if (effectiveTheme !== "dark" && !effectiveTheme?.startsWith("custom:")) {
+      document.body.classList.add(`theme-${effectiveTheme}`);
+      if (effectiveTheme === "midnight") activeAccent = "#8c64ff";
+      else if (effectiveTheme === "ocean") activeAccent = "#32c8b4";
+      else if (effectiveTheme === "crimson" || effectiveTheme === "light") activeAccent = "#ff4655";
+    } else if (effectiveTheme?.startsWith("custom:")) {
       document.body.classList.add("theme-custom");
-      const matchBg = theme.match(/bg=([^,]+)/);
-      const matchAccent = theme.match(/accent=([^,]+)/);
+      const matchBg = effectiveTheme.match(/bg=([^,]+)/);
+      const matchAccent = effectiveTheme.match(/accent=([^,]+)/);
       if (matchBg)
         document.documentElement.style.setProperty("--custom-bg", matchBg[1]);
       if (matchAccent) {
@@ -154,7 +205,7 @@ export function useSettings(): SettingsState {
       "--color-accent-contrast",
       computeContrastColor(activeAccent)
     );
-  }, [theme]);
+  }, [theme, activeThemeOverride]);
 
   const toggleFullscreen = useCallback(() => {
     if (typeof document !== "undefined") {
@@ -223,6 +274,12 @@ export function useSettings(): SettingsState {
     setHiddenBadges,
     ecoMode,
     setEcoMode,
+    disableAnimations,
+    setDisableAnimations,
+    forceMyTheme,
+    setForceMyTheme,
+    activeThemeOverride,
+    setActiveThemeOverride,
     settingsTab,
     setSettingsTab,
     toggleFullscreen,
