@@ -35,7 +35,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Récupération du compte utilisateur sauvegardé ou détection locale
+  // Récupération du compte utilisateur sauvegardé en local si existant
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -45,22 +45,8 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           if (parsed?.email) {
             setSavedAccount(parsed);
           }
-        } else {
-          setSavedAccount({
-            name: "SENPAII",
-            tagLine: "6767",
-            email: "romain.lft64@gmail.com",
-            provider: "direct",
-          });
         }
-      } catch {
-        setSavedAccount({
-          name: "SENPAII",
-          tagLine: "6767",
-          email: "romain.lft64@gmail.com",
-          provider: "direct",
-        });
-      }
+      } catch {}
     }
   }, [isOpen]);
 
@@ -142,43 +128,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
     }, 200);
   };
 
-  // 1. Connexion Directe Instantanée en 1 Clic (Sans mot de passe ni dépendance externe)
-  const handleDirectSignIn = async (targetEmail: string) => {
-    sounds.playClick();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const res = await signIn("credentials", {
-        email: targetEmail.trim().toLowerCase(),
-        directLogin: "true",
-        redirect: false,
-      });
-
-      if (res?.ok) {
-        try {
-          localStorage.setItem(
-            "sgs_saved_account",
-            JSON.stringify({
-              name: targetEmail.includes("romain.lft64") ? "SENPAII#6767" : targetEmail.split("@")[0],
-              email: targetEmail.trim().toLowerCase(),
-              provider: "direct",
-            })
-          );
-        } catch {}
-        handlePostAuthSuccess("Connexion directe validée !");
-      } else {
-        setError(res?.error || "Erreur lors de la connexion directe.");
-        setLoading(false);
-      }
-    } catch (e: any) {
-      setError(e?.message || "Erreur réseau.");
-      setLoading(false);
-    }
-  };
-
-  // 2. Connexion Google OAuth
+  // 1. Connexion Google OAuth
   const handleGoogleSignIn = async () => {
     sounds.playClick();
     setGoogleLoading(true);
@@ -191,15 +141,20 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
     }
   };
 
-  // 3. Soumission Formulaire Email / Mot de passe
+  // 2. Soumission Formulaire Email / Mot de passe
   const handleCredentialsSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     sounds.playClick();
     setError(null);
     setSuccess(null);
 
-    if (!email) {
+    if (!email || !email.trim()) {
       setError("Veuillez renseigner votre adresse email.");
+      return;
+    }
+
+    if (!password) {
+      setError("Veuillez renseigner votre mot de passe.");
       return;
     }
 
@@ -217,7 +172,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: email.trim().toLowerCase(),
-            password: password || undefined,
+            password,
             firstName: pseudo.trim(),
             lastName: "",
           }),
@@ -231,16 +186,15 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
 
         const loginRes = await signIn("credentials", {
           email: email.trim().toLowerCase(),
-          password: password || undefined,
-          directLogin: !password ? "true" : undefined,
+          password,
           redirect: false,
         });
 
         if (loginRes?.ok) {
-          handlePostAuthSuccess("Compte créé avec succès ! Connexion...");
+          handlePostAuthSuccess("Compte créé avec succès !");
         } else {
           setMode("login");
-          setSuccess("Compte créé ! Vous pouvez vous connecter.");
+          setSuccess("Compte créé ! Veuillez vous connecter avec votre mot de passe.");
           setLoading(false);
         }
       } catch (err: any) {
@@ -250,32 +204,21 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
       return;
     }
 
-    // Mode Connexion Email
+    // Mode Connexion Email + Mot de passe
     try {
       const loginRes = await signIn("credentials", {
         email: email.trim().toLowerCase(),
-        password: password || undefined,
-        directLogin: !password ? "true" : undefined,
+        password,
         redirect: false,
       });
 
       if (loginRes?.error) {
-        setError("Identifiants incorrects ou compte introuvable.");
+        setError("Identifiants incorrects ou mot de passe invalide.");
         setLoading(false);
         return;
       }
 
       if (loginRes?.ok) {
-        try {
-          localStorage.setItem(
-            "sgs_saved_account",
-            JSON.stringify({
-              name: email.split("@")[0],
-              email: email.trim().toLowerCase(),
-              provider: "credentials",
-            })
-          );
-        } catch {}
         handlePostAuthSuccess("Connexion réussie !");
       }
     } catch (err: any) {
@@ -283,10 +226,6 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
       setLoading(false);
     }
   };
-
-  const displayName = savedAccount?.name || "SENPAII";
-  const displayTag = savedAccount?.tagLine ? `#${savedAccount.tagLine}` : (savedAccount?.name?.includes("#") ? "" : "#6767");
-  const targetEmail = savedAccount?.email || "romain.lft64@gmail.com";
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 animate-fade-in">
@@ -313,7 +252,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
             </div>
             <div>
               <h2 className="text-lg font-black tracking-tight text-white uppercase leading-tight">
-                {mode === "login" ? "Connexion Rapide" : "Créer un profil"}
+                {mode === "login" ? "Connexion" : "Créer un compte"}
               </h2>
               <p className="text-[11px] font-semibold text-gray-400">
                 Spycam Valorant Tracker
@@ -346,47 +285,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           </div>
         )}
 
-        {/* ── Section 1 : Connexion Directe 1-Clic Recommandée ── */}
-        {mode === "login" && (
-          <div className="mb-5 p-4 rounded-2xl bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/15 hover:border-[var(--color-val-red)]/50 transition-all duration-200 shadow-inner">
-            <div className="flex items-center justify-between mb-3">
-              <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-black text-[var(--color-val-red)]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-val-red)] animate-pulse" />
-                Connexion Directe 1-Clic
-              </span>
-              <span className="text-[10px] text-gray-400 font-medium">Recommandé</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => handleDirectSignIn(targetEmail)}
-              disabled={loading || googleLoading}
-              className="w-full flex items-center gap-3.5 p-3 rounded-xl bg-[var(--color-val-red)] hover:bg-[#ff5865] text-white shadow-[0_0_25px_rgba(255,70,85,0.4)] hover:shadow-[0_0_35px_rgba(255,70,85,0.6)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer text-left group"
-            >
-              <div className="w-11 h-11 rounded-full bg-black/30 border border-white/20 flex items-center justify-center font-black text-sm text-white flex-shrink-0 shadow-sm">
-                ⚡
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-black text-sm text-white truncate">
-                    {displayName}
-                  </span>
-                  <span className="text-xs text-white/80 font-semibold truncate">
-                    {displayTag}
-                  </span>
-                </div>
-                <p className="text-[11px] text-white/80 truncate font-medium">
-                  {targetEmail}
-                </p>
-              </div>
-              <span className="text-white text-lg font-bold group-hover:translate-x-1 transition-transform">
-                →
-              </span>
-            </button>
-          </div>
-        )}
-
-        {/* ── Section 2 : Bouton Google ── */}
+        {/* ── Section 1 : Bouton Google ── */}
         <button
           type="button"
           onClick={handleGoogleSignIn}
@@ -424,7 +323,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
             <div className="w-full border-t border-white/10" />
           </div>
           <span className="relative px-3 bg-[#0c1015] text-[10px] uppercase font-bold tracking-widest text-gray-400">
-            {mode === "login" ? "Ou saisir une adresse email" : "Inscription Email"}
+            {mode === "login" ? "Ou avec votre email" : "Ou inscription par email"}
           </span>
         </div>
 
@@ -463,7 +362,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-400">
-                Mot de passe {mode === "login" && <span className="text-[9px] text-gray-500">(optionnel si compte Google)</span>}
+                Mot de passe
               </label>
               <button
                 type="button"
@@ -478,6 +377,8 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••••••"
+              required
+              minLength={6}
               className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/10 focus:border-[var(--color-val-red)] focus:ring-1 focus:ring-[var(--color-val-red)] text-white text-xs outline-none transition-all placeholder:text-gray-400 font-medium"
             />
           </div>
@@ -485,7 +386,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           <button
             type="submit"
             disabled={loading || googleLoading}
-            className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 hover:border-white/30 text-white font-bold text-xs uppercase tracking-wider transition-all duration-200 cursor-pointer active:scale-98 disabled:opacity-50 mt-2 flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-2xl bg-[var(--color-val-red)] hover:brightness-110 text-white font-bold text-xs uppercase tracking-wider shadow-accent-md hover:shadow-accent-lg transition-all duration-200 cursor-pointer active:scale-98 disabled:opacity-50 mt-2 flex items-center justify-center gap-2"
           >
             {loading ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

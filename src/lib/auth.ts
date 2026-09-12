@@ -7,46 +7,19 @@ import crypto from 'crypto';
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    // Email / Password, Direct 1-Click Login & SGS SSO Handshake Token
+    // Email / Mot de passe & SGS SSO Handshake Token
     CredentialsProvider({
       name: 'credentials',
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Mot de passe', type: 'password' },
         ssoToken: { label: 'SSO Token', type: 'text' },
-        directLogin: { label: 'Direct Login', type: 'text' },
       },
       async authorize(credentials) {
         if (!credentials?.email) return null;
         const email = credentials.email.toLowerCase().trim();
 
-        // 1. Branche Connexion Directe 1-Clic
-        if (credentials.directLogin === 'true') {
-          let user = await prisma.user.findUnique({
-            where: { email },
-          });
-
-          if (!user) {
-            const name = email.split('@')[0];
-            user = await prisma.user.create({
-              data: {
-                email,
-                firstName: name,
-                onboardingDone: true,
-                theme: 'dark',
-                language: 'fr',
-              },
-            });
-          }
-
-          return {
-            id: user.id,
-            email: user.email,
-            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || user.email.split('@')[0],
-          };
-        }
-
-        // 2. Branche SGS SSO Token (Connexion 1-Clic depuis un compte SGS existant)
+        // 1. Branche SGS SSO Token (Connexion 1-Clic depuis un compte SGS existant)
         if (credentials?.ssoToken) {
           try {
             const secret = process.env.NEXTAUTH_SECRET || 'sgs-sso-secret-fallback';
@@ -74,7 +47,7 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // 3. Riot Games reviewer demo account bypass & auto-creation
+        // 2. Riot Games reviewer demo account bypass & auto-creation
         if (email === 'spycam_riot_temp@gmail.com' && credentials.password === '8fb0518f-23af-4755-a994-ef21cd161b25') {
           const hashedPassword = await bcrypt.hash('8fb0518f-23af-4755-a994-ef21cd161b25', 10);
           const demoUser = await prisma.user.upsert({
@@ -98,31 +71,29 @@ export const authOptions: NextAuthOptions = {
           };
         }
 
-        // 4. Authentification standard Email / Mot de passe
+        // 3. Authentification standard Email / Mot de passe obligatoire
+        if (!credentials.password) return null;
+
         const user = await prisma.user.findUnique({
           where: { email },
         });
 
         if (!user) return null;
 
-        // Si le compte existe sans mot de passe (créé initialement via Google),
-        // autoriser la connexion directe ou enregistrer le mot de passe s'il a été saisi
+        // Si le compte a été créé initialement via Google (mot de passe absent en base),
+        // on enregistre le mot de passe fourni et on connecte l'utilisateur
         if (!user.password) {
-          if (credentials.password) {
-            const hashedPassword = await bcrypt.hash(credentials.password, 10);
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { password: hashedPassword },
-            });
-          }
+          const hashedPassword = await bcrypt.hash(credentials.password, 10);
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { password: hashedPassword },
+          });
           return {
             id: user.id,
             email: user.email,
             name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || user.email.split('@')[0],
           };
         }
-
-        if (!credentials.password) return null;
 
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) return null;
@@ -151,62 +122,52 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 
-  useSecureCookies: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1'),
+  useSecureCookies: false,
 
   cookies: {
     sessionToken: {
-      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1')
-        ? '__Secure-next-auth.session-token'
-        : 'next-auth.session-token',
+      name: 'next-auth.session-token',
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1'),
+        secure: false,
       },
     },
     callbackUrl: {
-      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1')
-        ? '__Secure-next-auth.callback-url'
-        : 'next-auth.callback-url',
+      name: 'next-auth.callback-url',
       options: {
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1'),
+        secure: false,
       },
     },
     csrfToken: {
-      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1')
-        ? '__Host-next-auth.csrf-token'
-        : 'next-auth.csrf-token',
+      name: 'next-auth.csrf-token',
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1'),
+        secure: false,
       },
     },
     pkceCodeVerifier: {
-      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1')
-        ? '__Secure-next-auth.pkce.code_verifier'
-        : 'next-auth.pkce.code_verifier',
+      name: 'next-auth.pkce.code_verifier',
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1'),
+        secure: false,
         maxAge: 900,
       },
     },
     state: {
-      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1')
-        ? '__Secure-next-auth.state'
-        : 'next-auth.state',
+      name: 'next-auth.state',
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost') && !process.env.NEXTAUTH_URL?.includes('127.0.0.1'),
+        secure: false,
         maxAge: 900,
       },
     },
