@@ -85,6 +85,8 @@ async function handlePlayerRequest(
           OR: [
             { riotGameName: { equals: `${cleanGameName}#${cleanTagLine}`, mode: "insensitive" } },
             { riotGameName: { equals: cleanGameName, mode: "insensitive" } },
+            { name: { equals: `${cleanGameName}#${cleanTagLine}`, mode: "insensitive" } },
+            { name: { equals: cleanGameName, mode: "insensitive" } },
             ...(cleanGameName.length > 25 ? [{ riotPuuid: cleanGameName }] : []),
           ],
         },
@@ -115,10 +117,17 @@ async function handlePlayerRequest(
       if (session?.user?.email) {
         currentUser = await (prisma.user as any).findUnique({ where: { email: session.user.email } });
         if (currentUser) {
-          if (currentUser.riotGameName) {
-            const myName = currentUser.riotGameName.toLowerCase();
-            isOwner = myName === `${cleanGameName}#${cleanTagLine}`.toLowerCase() || myName === cleanGameName.toLowerCase();
-          }
+          const myRiot = (currentUser.riotGameName || "").toLowerCase();
+          const myName = (currentUser.name || "").toLowerCase();
+          const targetFull = `${cleanGameName}#${cleanTagLine}`.toLowerCase();
+          const targetName = cleanGameName.toLowerCase();
+
+          isOwner =
+            myRiot === targetFull ||
+            myRiot === targetName ||
+            myName === targetFull ||
+            myName === targetName;
+
           if (!isOwner && currentUser.riotPuuid && registeredUser?.riotPuuid) {
             isOwner = currentUser.riotPuuid === registeredUser.riotPuuid;
           }
@@ -134,10 +143,13 @@ async function handlePlayerRequest(
       }
     } catch {}
 
-    const isProfilePrivate = customOwnerSettings?.isPublic === false;
+    // Un profil est public UNIQUEMENT si le joueur est inscrit et a activé "Profil Public" (isPublic === true).
+    // S'il n'a pas été configuré en public (non inscrit ou isPublic === false), il est privé.
+    const isProfilePublic = Boolean(registeredUser && registeredUser.isPublic === true);
+    const isProfilePrivate = !isProfilePublic;
 
     // Règle de confidentialité :
-    // Si le profil est privé, bloquer l'accès pour les tiers sauf si le visiteur est un ami autorisé
+    // Si le profil est privé, bloquer l'accès pour les tiers sauf si le visiteur est le propriétaire ou un ami autorisé
     let isFriendAllowed = false;
     if (isProfilePrivate && !isOwner && registeredUser && currentUser) {
       try {
@@ -159,7 +171,7 @@ async function handlePlayerRequest(
 
     if (isProfilePrivate && !isOwner && !isFriendAllowed) {
       return NextResponse.json(
-        { error: "Ce profil est privé. Seul le propriétaire ou ses amis autorisés peuvent y accéder." },
+        { error: "Ce profil est privé. Ce joueur n'a pas configuré son profil en public sur SGS Tracker. Seul le propriétaire ou ses amis autorisés peuvent y accéder." },
         { status: 403 }
       );
     }

@@ -379,9 +379,15 @@ export function HomeContent({
     const s = p.stats;
     const w = getWarnings(s);
 
-    // Hidden stats for privacy
+    const isFriendAllowed = Boolean(
+      player.playerData?.player?.isFriendAllowed ||
+      player.playerData?.isFriendAllowed ||
+      player.playerData?.player?.canViewStats
+    );
+
+    // Hidden stats for privacy (masquées uniquement pour les visiteurs externes non autorisés)
     let appliedHiddenStats: string[] = [];
-    if (!canEdit && player.playerData?.player?.hiddenStats) {
+    if (!canEdit && !isFriendAllowed && player.playerData?.player?.hiddenStats) {
       try {
         appliedHiddenStats =
           typeof player.playerData.player.hiddenStats === "string"
@@ -407,7 +413,7 @@ export function HomeContent({
           streamerMode={settings.streamerMode}
           bannerUrl={canEdit ? settings.bannerUrl : (p.bannerUrl || p.customBannerUrl || "")}
           bannerOffsetY={canEdit ? settings.bannerOffsetY : (p.bannerOffsetY ?? p.customBannerOffsetY ?? 50)}
-          hiddenStats={canEdit ? settings.hiddenStats : appliedHiddenStats}
+          hiddenStats={canEdit || isFriendAllowed ? [] : appliedHiddenStats}
           showBadgeState={canEdit ? settings.showBadgeState : (player.playerData?.player?.showBadge !== false)}
           hiddenBadges={canEdit ? settings.hiddenBadges : []}
           performanceScoreResult={filters.performanceScoreResult}
@@ -474,6 +480,7 @@ export function HomeContent({
               agentStats={player.playerData?.player?.agentStats}
               playerName={player.playerData?.player?.name}
               friendsStats={friendsManager.friendsStats}
+              isFriendAllowed={isFriendAllowed}
               onSelectPlayer={(id) => player.searchPlayer(id)}
               onOpenFriendsModal={() => setShowFriendsModal(true)}
               onSaveGridData={(gridJson) => {

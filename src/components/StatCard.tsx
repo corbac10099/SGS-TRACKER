@@ -21,6 +21,8 @@ export interface StatCardProps {
   friendsStats?: FriendComparisonStatItem[];
   onSelectPlayer?: (riotId: string) => void;
   onOpenFriendsModal?: () => void;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
 }
 
 /**
@@ -93,8 +95,21 @@ function StatCardComponent({
   friendsStats,
   onSelectPlayer,
   onOpenFriendsModal,
+  isExpanded: controlledExpanded,
+  onToggleExpand,
 }: StatCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isExp = controlledExpanded !== undefined ? controlledExpanded : internalExpanded;
+
+  const toggleExpand = () => {
+    sounds.playClick();
+    if (onToggleExpand) {
+      onToggleExpand();
+    } else {
+      setInternalExpanded(!internalExpanded);
+    }
+  };
+
   const hasWarning = !!(warning && smartRating);
   const ratingClass = hasWarning ? "border-[var(--color-val-red)]/40 bg-[var(--color-val-red)]/5" : "";
   const animatedValue = useAnimatedNumber(value);
@@ -112,7 +127,7 @@ function StatCardComponent({
   const rankedFriends = useMemo(() => {
     if (!metricKey || !friendsStats || friendsStats.length === 0) return [];
     return friendsStats
-      .filter((f) => f.canViewStats)
+      .filter((f) => f.canViewStats || f.isPublic)
       .map((f) => {
         const val = f.stats?.[metricKey as keyof typeof f.stats] ?? 0;
         const diff = val - myNum;
@@ -136,11 +151,11 @@ function StatCardComponent({
 
   return (
     <div
-      className={`glass-panel-interactive group relative p-2.5 xs:p-3 sm:p-4 rounded-xl sm:rounded-2xl flex flex-col justify-between transition-all duration-300 ${
-        colSpan ? `col-span-${colSpan}` : ""
-      } ${ratingClass} ${liveContourClass} ${
-        isExpanded ? "z-30 shadow-2xl border-[var(--color-val-red)]/50 ring-1 ring-[var(--color-val-red)]/30" : ""
-      } ${className}`}
+      className={`glass-panel-interactive group rounded-xl sm:rounded-2xl flex flex-col transition-all duration-300 ${
+        isExp
+          ? "absolute top-0 left-0 right-0 z-50 min-h-full bg-[#121824] border border-[var(--color-val-red)]/70 shadow-[0_25px_60px_rgba(0,0,0,0.95)] ring-1 ring-[var(--color-val-red)]/40 p-3 sm:p-4"
+          : "relative w-full h-full justify-between p-2.5 xs:p-3 sm:p-4"
+      } ${colSpan ? `col-span-${colSpan}` : ""} ${ratingClass} ${liveContourClass} ${className}`}
     >
       {/* Header : Label & Bouton de comparaison avec les amis */}
       <div className="flex items-center justify-between text-[9px] xs:text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)] mb-1 sm:mb-1.5 min-w-0">
@@ -154,19 +169,18 @@ function StatCardComponent({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              sounds.playClick();
-              setIsExpanded(!isExpanded);
+              toggleExpand();
             }}
             className={`p-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-              isExpanded
+              isExp
                 ? "opacity-100 bg-[var(--color-val-red)] text-white shadow-accent-sm"
                 : "opacity-0 group-hover:opacity-100 hover:bg-white/15 text-gray-400 hover:text-white"
             }`}
-            title={isExpanded ? "Replier la comparaison" : "Comparer avec mes amis SGS"}
+            title={isExp ? "Replier la comparaison" : "Comparer avec mes amis SGS"}
           >
             <IconChevronDown
               size={13}
-              className={`transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}
+              className={`transition-transform duration-300 ${isExp ? "rotate-180" : ""}`}
             />
           </button>
         )}
@@ -204,7 +218,7 @@ function StatCardComponent({
       {sub && <span className="text-[8px] xs:text-[9px] sm:text-[10px] text-[var(--color-text-secondary)] font-medium mt-0.5 truncate">{sub}</span>}
 
       {/* TIROIR DÉPLIABLE : COMPARAISON AMIS SGS */}
-      {isExpanded && (
+      {isExp && (
         <div className="mt-3 pt-3 border-t border-[var(--color-border)] space-y-2.5 animate-in fade-in-0 zoom-in-95 duration-200">
           <div className="flex items-center justify-between text-[9px] uppercase tracking-wider font-black text-gray-400">
             <span className="flex items-center gap-1 text-[var(--color-val-red)]">

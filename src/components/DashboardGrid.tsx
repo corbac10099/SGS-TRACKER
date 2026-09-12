@@ -59,6 +59,7 @@ export interface DashboardGridProps {
   friendsStats?: FriendComparisonStatItem[];
   onSelectPlayer?: (riotId: string) => void;
   onOpenFriendsModal?: () => void;
+  isFriendAllowed?: boolean;
 }
 
 const DEFAULT_COLS = 29;
@@ -230,7 +231,9 @@ export default function DashboardGrid({
   friendsStats,
   onSelectPlayer,
   onOpenFriendsModal,
+  isFriendAllowed = false,
 }: DashboardGridProps) {
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
   const storageKey = `spycam_grid_layout_v8_29_${userStorageKey}`;
   const chartsStorageKey = `spycam_charts_config_v1_${userStorageKey}`;
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -990,11 +993,11 @@ export default function DashboardGrid({
   const activeItems = useMemo(() => {
     return layout.filter((item) => {
       if (!item.visible) return false;
-      // Par défaut, le Coach Tactique et les statistiques masquées sont invisibles pour les visiteurs externes
-      if (!canEdit && (item.id === "coach" || hiddenStatsByPrivacy?.includes(item.id))) return false;
+      // Par défaut, le Coach Tactique et les statistiques masquées sont invisibles pour les visiteurs externes non autorisés
+      if (!canEdit && !isFriendAllowed && (item.id === "coach" || hiddenStatsByPrivacy?.includes(item.id))) return false;
       return true;
     });
-  }, [layout, canEdit, hiddenStatsByPrivacy]);
+  }, [layout, canEdit, isFriendAllowed, hiddenStatsByPrivacy]);
 
   const sortedActiveItems = useMemo(() => {
     return [...activeItems].sort((a, b) => {
@@ -1289,11 +1292,11 @@ export default function DashboardGrid({
       case "weapons":
         return <WeaponHitmap matchHistory={matchHistory} stats={stats} />;
       case "kills":
-        return <StatCard label="Éliminations" value={stats?.kills ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("kills")} metricKey="kills" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} />;
+        return <StatCard label="Éliminations" value={stats?.kills ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("kills")} metricKey="kills" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "kills"} onToggleExpand={() => setExpandedCardId(expandedCardId === "kills" ? null : "kills")} />;
       case "deaths":
-        return <StatCard label="Morts" value={stats?.deaths ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("deaths")} metricKey="deaths" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} />;
+        return <StatCard label="Morts" value={stats?.deaths ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("deaths")} metricKey="deaths" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "deaths"} onToggleExpand={() => setExpandedCardId(expandedCardId === "deaths" ? null : "deaths")} />;
       case "assists":
-        return <StatCard label="Passes décisives" value={stats?.assists ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("assists")} metricKey="assists" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} />;
+        return <StatCard label="Passes décisives" value={stats?.assists ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("assists")} metricKey="assists" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "assists"} onToggleExpand={() => setExpandedCardId(expandedCardId === "assists" ? null : "assists")} />;
       case "kd":
         return (
           <StatCard
@@ -1307,10 +1310,12 @@ export default function DashboardGrid({
             friendsStats={friendsStats}
             onSelectPlayer={onSelectPlayer}
             onOpenFriendsModal={onOpenFriendsModal}
+            isExpanded={expandedCardId === "kd"}
+            onToggleExpand={() => setExpandedCardId(expandedCardId === "kd" ? null : "kd")}
           />
         );
       case "adr":
-        return <StatCard label="Dégâts/Tour (ADR)" value={stats?.adr ?? 0} highlight smartRating={smartRating} sessionDelta={getStatDelta("adr")} metricKey="adr" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} />;
+        return <StatCard label="Dégâts/Tour (ADR)" value={stats?.adr ?? 0} highlight smartRating={smartRating} sessionDelta={getStatDelta("adr")} metricKey="adr" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "adr"} onToggleExpand={() => setExpandedCardId(expandedCardId === "adr" ? null : "adr")} />;
       case "hs":
         return (
           <StatCard
@@ -1324,6 +1329,8 @@ export default function DashboardGrid({
             friendsStats={friendsStats}
             onSelectPlayer={onSelectPlayer}
             onOpenFriendsModal={onOpenFriendsModal}
+            isExpanded={expandedCardId === "hs"}
+            onToggleExpand={() => setExpandedCardId(expandedCardId === "hs" ? null : "hs")}
           />
         );
       case "wr":
@@ -1339,6 +1346,8 @@ export default function DashboardGrid({
             friendsStats={friendsStats}
             onSelectPlayer={onSelectPlayer}
             onOpenFriendsModal={onOpenFriendsModal}
+            isExpanded={expandedCardId === "wr"}
+            onToggleExpand={() => setExpandedCardId(expandedCardId === "wr" ? null : "wr")}
           />
         );
       case "acs":
@@ -1354,12 +1363,14 @@ export default function DashboardGrid({
             friendsStats={friendsStats}
             onSelectPlayer={onSelectPlayer}
             onOpenFriendsModal={onOpenFriendsModal}
+            isExpanded={expandedCardId === "acs"}
+            onToggleExpand={() => setExpandedCardId(expandedCardId === "acs" ? null : "acs")}
           />
         );
       case "fb":
-        return <StatCard label="Premiers sangs" value={stats?.firstBloods ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("fb")} metricKey="firstBloods" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} />;
+        return <StatCard label="Premiers sangs" value={stats?.firstBloods ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("fb")} metricKey="firstBloods" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "fb"} onToggleExpand={() => setExpandedCardId(expandedCardId === "fb" ? null : "fb")} />;
       case "ace":
-        return <StatCard label="ACE" value={stats?.aceCount ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("ace")} metricKey="aces" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} />;
+        return <StatCard label="ACE" value={stats?.aceCount ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("ace")} metricKey="aces" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "ace"} onToggleExpand={() => setExpandedCardId(expandedCardId === "ace" ? null : "ace")} />;
       case "kast":
         return (
           <StatCard
@@ -1620,7 +1631,8 @@ export default function DashboardGrid({
               {sortedActiveItems.map((item) => {
                 const isChart = item.id === "chart" || item.id.startsWith("chart_");
                 const isWeapons = item.id === "weapons";
-                const isFull = isChart || isWeapons;
+                const isThisExpanded = expandedCardId === item.id;
+                const isFull = isChart || isWeapons || isThisExpanded;
 
                 return (
                   <div
@@ -1632,10 +1644,14 @@ export default function DashboardGrid({
                         ? "h-[250px] min-h-[250px]"
                         : isWeapons
                         ? "min-h-[290px]"
-                        : "h-24 min-h-[96px]"
-                    } min-w-0 flex flex-col overflow-hidden`}
+                        : "min-h-[96px]"
+                    } min-w-0 flex flex-col relative ${
+                      isChart || isWeapons ? "overflow-hidden" : "overflow-visible"
+                    } ${isThisExpanded ? "z-50" : "z-1"}`}
                   >
-                    <div className="w-full h-full flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <div className={`w-full h-full flex-1 flex flex-col min-h-0 ${
+                      isChart || isWeapons ? "overflow-hidden" : "overflow-visible"
+                    }`}>
                       {renderItemContent(item.id)}
                     </div>
                   </div>
@@ -1654,16 +1670,25 @@ export default function DashboardGrid({
             >
               {activeItems.map((item) => {
                 const actualColSpan = Math.min(item.colSpan, gridCols);
+                const isChart = item.id === "chart" || item.id.startsWith("chart_");
+                const isWeapons = item.id === "weapons";
+                const isThisExpanded = expandedCardId === item.id;
+
                 return (
                   <div
                     key={item.id}
                     style={{
                       gridColumn: `${item.x + 1} / span ${actualColSpan}`,
                       gridRow: `${item.y + 1} / span ${item.rowSpan}`,
+                      zIndex: isThisExpanded ? 60 : 1,
                     }}
-                    className="flex flex-col min-h-0 overflow-hidden"
+                    className={`relative flex flex-col min-h-0 ${
+                      isChart || isWeapons ? "overflow-hidden" : "overflow-visible"
+                    }`}
                   >
-                    <div className="w-full h-full flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <div className={`w-full h-full flex-1 flex flex-col min-h-0 ${
+                      isChart || isWeapons ? "overflow-hidden" : "overflow-visible"
+                    }`}>
                       {renderItemContent(item.id)}
                     </div>
                   </div>
