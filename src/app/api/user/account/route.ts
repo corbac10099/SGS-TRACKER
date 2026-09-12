@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { fetchRiotAccount, getDynamicRiotApiKey } from "@/lib/valorant/riotApi";
+import { fetchHenrikPlayerData } from "@/lib/valorant/henrikApi";
 
 export async function GET(req: NextRequest) {
   try {
@@ -195,15 +197,48 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Nom Riot ID requis (ex: Joueur#TAG)" }, { status: 400 });
       }
 
+      let finalPuuid = riotPuuid || null;
+      let finalName = riotGameName.trim();
+
+      // Résolution automatique du PUUID officiel si non fourni
+      if (!finalPuuid) {
+        try {
+          const parts = finalName.split("#");
+          const gName = parts[0].trim();
+          const gTag = (parts[1] || "EU1").trim();
+          const apiKey = getDynamicRiotApiKey();
+          if (apiKey && apiKey.startsWith("HDEV-")) {
+            const hAcc = await fetchHenrikPlayerData(gName, gTag, "eu", apiKey);
+            if (hAcc?.player?.puuid) {
+              finalPuuid = hAcc.player.puuid;
+              finalName = `${hAcc.player.gameName}#${hAcc.player.tagLine}`;
+            }
+          } else if (apiKey) {
+            const rAcc = await fetchRiotAccount(gName, gTag, "eu", apiKey);
+            if (rAcc?.puuid) {
+              finalPuuid = rAcc.puuid;
+              finalName = `${rAcc.gameName}#${rAcc.tagLine}`;
+            }
+          }
+        } catch (resolveErr) {
+          console.warn("[Link Riot PUUID Resolution Warning]:", resolveErr);
+        }
+      }
+
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          riotGameName: riotGameName.trim(),
-          riotPuuid: riotPuuid || user.riotPuuid,
+          riotGameName: finalName,
+          riotPuuid: finalPuuid || user.riotPuuid,
           riotConnected: true,
         },
       });
-      return NextResponse.json({ success: true, message: "Compte Riot lié avec succès" });
+      return NextResponse.json({
+        success: true,
+        message: "Compte Riot lié avec succès",
+        riotGameName: finalName,
+        riotPuuid: finalPuuid || user.riotPuuid,
+      });
     }
 
     if (action === "unlink-riot") {

@@ -218,20 +218,20 @@ export function usePlayerData(
       }
 
       if (!playerData && !loading) {
-        let initialRiotId = user.riotId;
+        let initialRiotId = user.riotGameName || user.riotId;
 
         if (!auth.isDemo && user.email === "laffont.romain64@gmail.com") {
-          initialRiotId = "Gr4phØ#0001";
+          initialRiotId = user.riotGameName || "Gr4phØ#0001";
         } else if (
           !auth.isDemo &&
           user.email === "spycam_riot_temp@gmail.com"
         ) {
-          initialRiotId = "riot_test#TEST";
+          initialRiotId = user.riotGameName || "riot_test#TEST";
         } else if (
           !auth.isDemo &&
           user.email === "romain.lft64@gmail.com"
         ) {
-          initialRiotId = "biflette64#1294";
+          initialRiotId = user.riotGameName || "SENPAII#6767";
         } else if (auth.isGuestMode) {
           initialRiotId = "Shadow#BETA";
         }

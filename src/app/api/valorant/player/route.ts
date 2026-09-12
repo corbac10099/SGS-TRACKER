@@ -78,26 +78,28 @@ async function handlePlayerRequest(
 
     // Check Neon database for registered user & custom settings
     let customOwnerSettings: any = null;
+    let registeredUser: any = null;
     try {
-      const user = await (prisma.user as any).findFirst({
+      registeredUser = await (prisma.user as any).findFirst({
         where: {
           OR: [
-            { riotGameName: { equals: `${gameName}#${tagLine}`, mode: "insensitive" } },
-            { riotGameName: { equals: gameName, mode: "insensitive" } },
+            { riotGameName: { equals: `${cleanGameName}#${cleanTagLine}`, mode: "insensitive" } },
+            { riotGameName: { equals: cleanGameName, mode: "insensitive" } },
+            ...(cleanGameName.length > 25 ? [{ riotPuuid: cleanGameName }] : []),
           ],
         },
       });
-      if (user) {
+      if (registeredUser) {
         customOwnerSettings = {
-          theme: user.theme,
-          bannerUrl: user.bannerUrl,
-          bannerOffsetY: user.bannerOffsetY,
-          isPublic: user.isPublic,
-          hiddenStats: user.hiddenStats,
-          dashboardGrid: user.dashboardGrid,
-          badge: user.badge || null,
-          showBadge: user.showBadge !== false,
-          puuid: user.riotPuuid,
+          theme: registeredUser.theme,
+          bannerUrl: registeredUser.bannerUrl,
+          bannerOffsetY: registeredUser.bannerOffsetY,
+          isPublic: registeredUser.isPublic,
+          hiddenStats: registeredUser.hiddenStats,
+          dashboardGrid: registeredUser.dashboardGrid,
+          badge: registeredUser.badge || null,
+          showBadge: registeredUser.showBadge !== false,
+          puuid: registeredUser.riotPuuid,
         };
       }
     } catch (dbErr) {
@@ -113,9 +115,15 @@ async function handlePlayerRequest(
         const currentUser = await (prisma.user as any).findUnique({ where: { email: session.user.email } });
         if (currentUser) {
           if (currentUser.riotGameName) {
-            isOwner = currentUser.riotGameName.toLowerCase() === `${gameName}#${tagLine}`.toLowerCase();
+            const myName = currentUser.riotGameName.toLowerCase();
+            isOwner = myName === `${cleanGameName}#${cleanTagLine}`.toLowerCase() || myName === cleanGameName.toLowerCase();
           }
-          if (currentUser.email === "laffont.romain64@gmail.com" || (currentUser as any).role === "ADMIN") {
+          if (
+            currentUser.email === "laffont.romain64@gmail.com" ||
+            currentUser.email === "romain.lft64@gmail.com" ||
+            (currentUser as any).role === "ADMIN" ||
+            (currentUser as any).sgsRole === "admin"
+          ) {
             isAdmin = true;
           }
         }
@@ -292,6 +300,106 @@ async function handlePlayerRequest(
         profileData.apiStatus = apiStatusInfo;
       }
     }
+
+    // ─── Auto-Détection et Synchronisation de Changement de Pseudo Riot (via PUUID immuable) ───
+    const resolvedPuuid = profileData?.player?.puuid;
+    const resolvedGameName = profileData?.player?.gameName || cleanGameName;
+    const resolvedTagLine = profileData?.player?.tagLine || cleanTagLine;
+    const resolvedRiotId = `${resolvedGameName}#${resolvedTagLine}`;
+
+    if (resolvedPuuid) {
+      try {
+        // 1. Chercher si un compte utilisateur possède ce PUUID immuable
+        let matchedUser = await (prisma.user as any).findFirst({
+          where: { riotPuuid: resolvedPuuid },
+        });
+
+        // 2. Si aucun compte n'a encore ce PUUID, mais qu'un compte correspond au nom actuel : lier le PUUID
+        if (!matchedUser && registeredUser && !registeredUser.riotPuuid) {
+          matchedUser = registeredUser;
+          await (prisma.user as any).update({
+            where: { id: matchedUser.id },
+            data: { riotPuuid: resolvedPuuid, riotConnected: true },
+          });
+          matchedUser.riotPuuid = resolvedPuuid;
+          console.log(`[Riot PUUID Auto-Link] PUUID ${resolvedPuuid} enregistré pour ${matchedUser.email}`);
+        } else if (!matchedUser) {
+          matchedUser = await (prisma.user as any).findFirst({
+            where: {
+              OR: [
+                { riotGameName: { equals: `${cleanGameName}#${cleanTagLine}`, mode: "insensitive" } },
+                { riotGameName: { equals: cleanGameName, mode: "insensitive" } },
+                { riotGameName: { equals: resolvedRiotId, mode: "insensitive" } },
+              ],
+            },
+          });
+          if (matchedUser && !matchedUser.riotPuuid) {
+            await (prisma.user as any).update({
+              where: { id: matchedUser.id },
+              data: { riotPuuid: resolvedPuuid, riotConnected: true },
+            });
+            matchedUser.riotPuuid = resolvedPuuid;
+            console.log(`[Riot PUUID Auto-Link] PUUID ${resolvedPuuid} lié à ${matchedUser.email}`);
+          }
+        }
+
+        // 3. Détection de changement de pseudo Riot (Renommage de compte) :
+        if (matchedUser) {
+          if (
+            resolvedRiotId &&
+            matchedUser.riotGameName?.toLowerCase() !== resolvedRiotId.toLowerCase()
+          ) {
+            console.log(
+              `[Riot ID Rename Detected] Le joueur ${matchedUser.email} a changé de pseudo : ${matchedUser.riotGameName} -> ${resolvedRiotId}. Mise à jour automatique de la base.`
+            );
+            await (prisma.user as any).update({
+              where: { id: matchedUser.id },
+              data: { riotGameName: resolvedRiotId },
+            });
+            matchedUser.riotGameName = resolvedRiotId;
+          }
+
+          // Injecter les paramètres personnalisés du propriétaire
+          customOwnerSettings = {
+            theme: matchedUser.theme,
+            bannerUrl: matchedUser.bannerUrl,
+            bannerOffsetY: matchedUser.bannerOffsetY,
+            isPublic: matchedUser.isPublic,
+            hiddenStats: matchedUser.hiddenStats,
+            dashboardGrid: matchedUser.dashboardGrid,
+            badge: matchedUser.badge || null,
+            showBadge: matchedUser.showBadge !== false,
+            puuid: matchedUser.riotPuuid || resolvedPuuid,
+          };
+        }
+
+        // 4. Re-vérifier isOwner par PUUID si une session est active
+        const session = await getServerSession(authOptions);
+        if (session?.user?.email) {
+          const currentUser = await (prisma.user as any).findUnique({ where: { email: session.user.email } });
+          if (currentUser) {
+            if (currentUser.riotPuuid && currentUser.riotPuuid === resolvedPuuid) {
+              isOwner = true;
+            } else if (currentUser.riotGameName) {
+              const myName = currentUser.riotGameName.toLowerCase();
+              if (
+                myName === resolvedRiotId.toLowerCase() ||
+                myName === `${cleanGameName}#${cleanTagLine}`.toLowerCase() ||
+                myName === cleanGameName.toLowerCase()
+              ) {
+                isOwner = true;
+              }
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.warn("[Riot Sync Error]:", syncErr);
+      }
+    }
+
+    profileData.player.isOwner = isOwner;
+    profileData.player.canEdit = isOwner;
+    (profileData.player as any).isAdminBypass = isAdmin && !isOwner;
 
     // Mise en cache du profil de base (sans personnalisations dynamiques Neon)
     PLAYER_CACHE.set(cacheKey, {

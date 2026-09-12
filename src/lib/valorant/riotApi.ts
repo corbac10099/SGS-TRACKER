@@ -92,6 +92,45 @@ export async function fetchRiotAccount(
   return null;
 }
 
+export async function fetchRiotAccountByPuuid(
+  puuid: string,
+  region = "eu",
+  overrideKey?: string | null
+) {
+  const key = overrideKey?.trim() || getDynamicRiotApiKey();
+  if (!key) return null;
+
+  const primaryCluster = CLUSTERS[region.toLowerCase()] || "europe";
+  const clustersToTry = [
+    primaryCluster,
+    ...["europe", "americas", "asia"].filter((c) => c !== primaryCluster),
+  ];
+
+  for (const cluster of clustersToTry) {
+    const url = `https://${cluster}.api.riotgames.com/riot/account/v1/accounts/by-puuid/${encodeURIComponent(
+      puuid
+    )}`;
+
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "X-Riot-Token": key,
+        },
+        cache: "no-store",
+      });
+
+      if (res.status === 200) {
+        const data = await res.json();
+        return { ...data, cluster };
+      }
+    } catch (err) {
+      console.warn(`[Riot API] Error by-puuid on cluster ${cluster}:`, err);
+    }
+  }
+
+  return null;
+}
+
 export async function fetchRiotMatchlist(
   puuid: string,
   region = "eu",

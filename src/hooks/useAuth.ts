@@ -179,20 +179,53 @@ export function useAuth(searchParams: any): AuthState {
 
   const canEditProfile = useCallback(
     (playerData: any) => {
-      return (
-        isGuestMode ||
-        (!isSimulatedNewUser &&
-          (playerData?.player?.puuid?.startsWith("debug-") ||
-            (session?.user?.email === "laffont.romain64@gmail.com" &&
-              playerData?.player?.gameName === "Gr4phØ") ||
-            (session?.user?.email === "spycam_riot_temp@gmail.com" &&
-              playerData?.player?.gameName?.toLowerCase() === "riot_test") ||
-            (session?.user?.email === "romain.lft64@gmail.com" &&
-              playerData?.player?.gameName?.toLowerCase() === "biflette64") ||
-            ((session?.user as any)?.riotPuuid &&
-              (session?.user as any)?.riotPuuid ===
-                playerData?.player?.puuid)))
-      );
+      if (isGuestMode) return true;
+      if (isSimulatedNewUser) return false;
+      if (!playerData?.player) return false;
+
+      // 1. Autorisation directe retournée par l'API serveur
+      if (playerData.player.canEdit === true || playerData.player.isOwner === true) {
+        return true;
+      }
+
+      // 2. Correspondance immuable par PUUID
+      const sessionUser = session?.user as any;
+      if (sessionUser?.riotPuuid && playerData.player.puuid) {
+        if (sessionUser.riotPuuid === playerData.player.puuid) return true;
+      }
+
+      // 3. Comptes administrateurs ou développeurs
+      if (playerData.player.puuid?.startsWith("debug-")) return true;
+      if (
+        sessionUser?.email === "laffont.romain64@gmail.com" &&
+        playerData.player.gameName === "Gr4phØ"
+      ) {
+        return true;
+      }
+      if (
+        sessionUser?.email === "spycam_riot_temp@gmail.com" &&
+        playerData.player.gameName?.toLowerCase() === "riot_test"
+      ) {
+        return true;
+      }
+      if (
+        sessionUser?.email === "romain.lft64@gmail.com" &&
+        (playerData.player.gameName?.toLowerCase() === "senpaii" ||
+          playerData.player.gameName?.toLowerCase() ===
+            sessionUser?.riotGameName?.toLowerCase()?.split("#")[0])
+      ) {
+        return true;
+      }
+
+      // 4. Correspondance par Riot ID complet
+      if (sessionUser?.riotGameName && playerData.player.gameName && playerData.player.tagLine) {
+        const fullProfileName = `${playerData.player.gameName}#${playerData.player.tagLine}`.toLowerCase();
+        if (sessionUser.riotGameName.toLowerCase() === fullProfileName) {
+          return true;
+        }
+      }
+
+      return false;
     },
     [isGuestMode, isSimulatedNewUser, session]
   );

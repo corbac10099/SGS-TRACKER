@@ -191,6 +191,8 @@ export const authOptions: NextAuthOptions = {
           token.firstName = dbUser.firstName;
           token.lastName = dbUser.lastName;
           token.riotConnected = dbUser.riotConnected;
+          token.riotGameName = dbUser.riotGameName;
+          token.riotPuuid = dbUser.riotPuuid;
           token.bannerUrl = dbUser.bannerUrl;
           token.bannerOffsetY = dbUser.bannerOffsetY;
           token.smartRating = dbUser.smartRating;
@@ -204,10 +206,13 @@ export const authOptions: NextAuthOptions = {
           if (!dbUser.riotGameName) {
             const gameNameMap: Record<string, string> = {
               'laffont.romain64@gmail.com': 'Gr4phØ',
+              'romain.lft64@gmail.com': 'SENPAII#6767',
             };
             const mappedName = gameNameMap[dbUser.email];
             if (mappedName) {
-              await prisma.user.update({ where: { id: dbUser.id }, data: { riotGameName: mappedName } });
+              await prisma.user.update({ where: { id: dbUser.id }, data: { riotGameName: mappedName, riotConnected: true } });
+              token.riotGameName = mappedName;
+              token.riotConnected = true;
             }
           }
         }
@@ -224,6 +229,9 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).firstName = token.firstName;
         (session.user as any).lastName = token.lastName;
         (session.user as any).riotConnected = token.riotConnected;
+        (session.user as any).riotGameName = token.riotGameName;
+        (session.user as any).riotPuuid = token.riotPuuid;
+        (session.user as any).riotId = token.riotGameName;
         (session.user as any).bannerUrl = token.bannerUrl;
         (session.user as any).bannerOffsetY = token.bannerOffsetY;
         (session.user as any).smartRating = token.smartRating;

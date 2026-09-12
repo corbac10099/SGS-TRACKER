@@ -34,6 +34,24 @@ async function henrikFetch(endpoint: string, apiKey: string) {
 }
 
 /**
+ * Récupère le compte actif (Riot ID actuel) par PUUID via HenrikDev
+ */
+export async function fetchHenrikAccountByPuuid(
+  puuid: string,
+  apiKey: string
+): Promise<{ puuid: string; gameName: string; tagLine: string } | null> {
+  const accountRes = await henrikFetch(`/v1/by-puuid/account/${encodeURIComponent(puuid)}`, apiKey);
+  if (accountRes?.data) {
+    return {
+      puuid: accountRes.data.puuid,
+      gameName: accountRes.data.name,
+      tagLine: accountRes.data.tag,
+    };
+  }
+  return null;
+}
+
+/**
  * Récupère le compte, le rang réel (MMR) et l'historique complet des matchs via HenrikDev
  */
 export async function fetchHenrikPlayerData(
