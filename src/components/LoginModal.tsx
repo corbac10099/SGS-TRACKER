@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import { sounds } from "@/lib/soundEffects";
 import { sanitizeRedirectTarget } from "@/lib/redirectUtils";
@@ -19,7 +20,8 @@ interface SavedSgsAccount {
 }
 
 export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: LoginModalProps) {
-  const { data: session } = useSession();
+  const router = useRouter();
+  const { data: session, update } = useSession();
   const [mode, setMode] = useState<"login" | "register">(defaultMode);
   const [savedAccount, setSavedAccount] = useState<SavedSgsAccount | null>(null);
 
@@ -145,14 +147,23 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
     return sanitizeRedirectTarget(window.location.pathname + window.location.search);
   };
 
-  const handlePostAuthSuccess = (msg: string) => {
+  const handlePostAuthSuccess = async (msg: string) => {
     setSuccess(msg);
+    try {
+      await update?.();
+    } catch {}
     const target = getSafeRedirectUrl();
     setTimeout(() => {
+      onClose();
       if (typeof window !== "undefined") {
-        window.location.replace(target);
+        const currentPath = window.location.pathname;
+        if (currentPath === "/login" || currentPath === "/register") {
+          router.replace(target && target !== "/login" && target !== "/register" ? target : "/");
+        } else if (target && target !== currentPath && target !== "/") {
+          router.push(target);
+        }
       }
-    }, 250);
+    }, 350);
   };
 
   // Handle Google Login
@@ -173,8 +184,13 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
   const handleQuickSgsSignIn = () => {
     sounds.playClick();
     if (!savedAccount) return;
+    if (savedAccount.provider === "credentials") {
+      setEmail(savedAccount.email);
+      setSuccess(`Compte ${savedAccount.name} prérempli. Saisissez votre mot de passe pour continuer.`);
+      return;
+    }
     setLoading(true);
-    const sgsUrl = process.env.NEXT_PUBLIC_SGS_URL || (window.location.hostname.includes("localhost") ? "http://localhost:3001" : "https://sgs-brown.vercel.app");
+    const sgsUrl = process.env.NEXT_PUBLIC_SGS_URL || "https://sgs-brown.vercel.app";
     const returnTo = window.location.origin;
     window.location.href = `${sgsUrl}/api/auth/sso?returnTo=${encodeURIComponent(returnTo)}`;
   };

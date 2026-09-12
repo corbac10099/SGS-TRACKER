@@ -1,11 +1,29 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import prisma from '@/lib/prisma';
+import { generateDeterministicProfile } from '@/lib/valorant/mock';
 
 export async function GET() {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get('riot_access_token')?.value;
 
   if (!accessToken) {
+    const session = await getServerSession(authOptions);
+    if (session?.user?.email) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { email: session.user.email },
+        });
+        const riotId = user?.riotGameName || (session.user as any).riotGameName || (session.user as any).name || "SENPAII#6767";
+        const parts = riotId.split("#");
+        const profile = generateDeterministicProfile(parts[0]?.trim() || "Joueur", parts[1]?.trim() || "EU1");
+        return NextResponse.json(profile);
+      } catch (e) {
+        return NextResponse.json(generateDeterministicProfile("Joueur", "EU1"));
+      }
+    }
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
   }
 

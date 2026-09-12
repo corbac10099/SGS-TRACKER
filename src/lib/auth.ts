@@ -245,5 +245,5 @@ export const authOptions: NextAuthOptions = {
     },
   },
 
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET || "sgs-spycam-nextauth-super-secret-key-32chars",
 };

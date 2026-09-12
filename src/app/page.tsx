@@ -136,7 +136,14 @@ export function HomeContent({
           if (d.error) player.setError(d.error);
           else player.setPlayerData(d);
         })
-        .catch(() => player.setError("Session invalide."));
+        .catch(() => player.setError("Session invalide."))
+        .finally(() => {
+          if (typeof window !== "undefined") {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("loggedIn");
+            window.history.replaceState({}, "", url.pathname + (url.search || ""));
+          }
+        });
     }
 
     const viewParam = searchParams?.get("view");

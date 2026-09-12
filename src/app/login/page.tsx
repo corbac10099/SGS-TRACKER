@@ -19,9 +19,9 @@ function LoginPageContent() {
       redirectedRef.current = true;
       const callbackParam = searchParams.get("callbackUrl");
       const target = sanitizeRedirectTarget(callbackParam);
-      window.location.replace(target);
+      router.replace(target || "/");
     }
-  }, [status, session, searchParams]);
+  }, [status, session, searchParams, router]);
 
   if (status === "authenticated") {
     return (

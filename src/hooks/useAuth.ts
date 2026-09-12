@@ -60,6 +60,8 @@ export function useAuth(searchParams: any): AuthState {
   );
 
   useEffect(() => {
+    if (realStatus === "loading") return;
+
     if (realSession?.user) {
       if (typeof window !== "undefined") {
         sessionStorage.removeItem("spycam_guest_mode");
@@ -75,7 +77,7 @@ export function useAuth(searchParams: any): AuthState {
     ) {
       initGuestSession(false);
     }
-  }, [realSession, initGuestSession]);
+  }, [realSession, realStatus, initGuestSession]);
 
   const handleEnterBeta = useCallback(() => {
     initGuestSession(true);
