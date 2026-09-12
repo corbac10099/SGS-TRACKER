@@ -135,10 +135,11 @@ async function handlePlayerRequest(
 
     const isProfilePrivate = customOwnerSettings?.isPublic === false;
 
-    // Règle de confidentialité : Si le profil est privé, bloquer l'accès pour les tiers hors admin
-    if (isProfilePrivate && !isOwner && !isAdmin) {
+    // Règle de confidentialité (Riot Games Developer Policy & RGPD) :
+    // Si le profil est privé, bloquer strictement l'accès pour tout le monde sauf le propriétaire.
+    if (isProfilePrivate && !isOwner) {
       return NextResponse.json(
-        { error: "Ce profil est privé. Seul le propriétaire ou un administrateur peut y accéder." },
+        { error: "Ce profil est privé. Seul le propriétaire peut y accéder." },
         { status: 403 }
       );
     }
@@ -153,7 +154,6 @@ async function handlePlayerRequest(
         const cachedProfile: ValorantProfileResponse = JSON.parse(JSON.stringify(cached.data));
         cachedProfile.player.isOwner = isOwner;
         cachedProfile.player.canEdit = isOwner;
-        (cachedProfile.player as any).isAdminBypass = isAdmin && !isOwner && isProfilePrivate;
         if (customOwnerSettings) {
           cachedProfile.player = {
             ...cachedProfile.player,
@@ -408,7 +408,6 @@ async function handlePlayerRequest(
 
     profileData.player.isOwner = isOwner;
     profileData.player.canEdit = isOwner;
-    (profileData.player as any).isAdminBypass = isAdmin && !isOwner && isProfilePrivate;
 
     // Mise en cache du profil de base (sans personnalisations dynamiques Neon)
     PLAYER_CACHE.set(cacheKey, {

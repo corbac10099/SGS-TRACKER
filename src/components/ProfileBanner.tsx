@@ -245,11 +245,6 @@ export default function ProfileBanner({
                 <span className="md:hidden text-[9px] font-black text-[var(--color-val-light)] bg-white/10 border border-white/15 px-1.5 py-0.5 rounded-md">
                   Nv. {p.level}
                 </span>
-                {p.isAdminBypass && (
-                  <span className="text-[9px] font-black text-amber-300 bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
-                    🔒 Profil Privé (Bypass Admin)
-                  </span>
-                )}
                 {!streamerMode && (
                   <UserBadges
                     badges={p.badge}
