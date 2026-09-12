@@ -103,59 +103,115 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 
+  useSecureCookies: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost'),
+
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost')
+        ? '__Secure-next-auth.session-token'
+        : 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost'),
+      },
+    },
+    callbackUrl: {
+      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost')
+        ? '__Secure-next-auth.callback-url'
+        : 'next-auth.callback-url',
+      options: {
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost'),
+      },
+    },
+    csrfToken: {
+      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost')
+        ? '__Host-next-auth.csrf-token'
+        : 'next-auth.csrf-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost'),
+      },
+    },
+    pkceCodeVerifier: {
+      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost')
+        ? '__Secure-next-auth.pkce.code_verifier'
+        : 'next-auth.pkce.code_verifier',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost'),
+        maxAge: 900,
+      },
+    },
+    state: {
+      name: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost')
+        ? '__Secure-next-auth.state'
+        : 'next-auth.state',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL?.includes('localhost'),
+        maxAge: 900,
+      },
+    },
+  },
+
   pages: {
     signIn: '/login',
   },
 
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      // Autoriser les redirections relatives sans forcer baseUrl de production
+      if (url.startsWith("/")) return url;
+      try {
+        const parsed = new URL(url);
+        if (
+          parsed.hostname === "localhost" ||
+          parsed.hostname === "127.0.0.1" ||
+          parsed.hostname.endsWith(".local") ||
+          parsed.origin === baseUrl
+        ) {
+          return url;
+        }
+      } catch {}
+      return "/";
+    },
+
     async signIn({ user, account }) {
       // For OAuth providers, auto-create the user if they don't exist
       if (account?.provider === 'google' && user.email) {
-        const existingUser = await prisma.user.findUnique({
-          where: { email: user.email },
-        });
-
-        if (!existingUser) {
-          const nameParts = (user.name || '').split(' ');
-          const newUser = await prisma.user.create({
-            data: {
-              email: user.email,
-              firstName: nameParts[0] || '',
-              lastName: nameParts.slice(1).join(' ') || '',
-              onboardingDone: false,
-            },
+        try {
+          const email = user.email.toLowerCase().trim();
+          const existingUser = await prisma.user.findUnique({
+            where: { email },
           });
 
-          // Link the OAuth account
-          await prisma.account.create({
-            data: {
-              userId: newUser.id,
-              type: account.type,
-              provider: account.provider,
-              providerAccountId: account.providerAccountId,
-              access_token: account.access_token,
-              refresh_token: account.refresh_token,
-              expires_at: account.expires_at,
-              token_type: account.token_type,
-              scope: account.scope,
-              id_token: account.id_token,
-            },
-          });
-        } else {
-          // Check if this OAuth account is already linked
-          const existingAccount = await prisma.account.findUnique({
-            where: {
-              provider_providerAccountId: {
-                provider: account.provider,
-                providerAccountId: account.providerAccountId,
+          if (!existingUser) {
+            const nameParts = (user.name || '').split(' ');
+            const newUser = await prisma.user.create({
+              data: {
+                email,
+                firstName: nameParts[0] || '',
+                lastName: nameParts.slice(1).join(' ') || '',
+                onboardingDone: true,
+                googleConnected: true,
+                googleEmail: email,
               },
-            },
-          });
+            });
 
-          if (!existingAccount) {
+            // Link the OAuth account
             await prisma.account.create({
               data: {
-                userId: existingUser.id,
+                userId: newUser.id,
                 type: account.type,
                 provider: account.provider,
                 providerAccountId: account.providerAccountId,
@@ -167,7 +223,43 @@ export const authOptions: NextAuthOptions = {
                 id_token: account.id_token,
               },
             });
+          } else {
+            if (!existingUser.googleConnected) {
+              await prisma.user.update({
+                where: { id: existingUser.id },
+                data: { googleConnected: true, googleEmail: email },
+              });
+            }
+
+            // Check if this OAuth account is already linked
+            const existingAccount = await prisma.account.findUnique({
+              where: {
+                provider_providerAccountId: {
+                  provider: account.provider,
+                  providerAccountId: account.providerAccountId,
+                },
+              },
+            });
+
+            if (!existingAccount) {
+              await prisma.account.create({
+                data: {
+                  userId: existingUser.id,
+                  type: account.type,
+                  provider: account.provider,
+                  providerAccountId: account.providerAccountId,
+                  access_token: account.access_token,
+                  refresh_token: account.refresh_token,
+                  expires_at: account.expires_at,
+                  token_type: account.token_type,
+                  scope: account.scope,
+                  id_token: account.id_token,
+                },
+              });
+            }
           }
+        } catch (e) {
+          console.error('[NEXTAUTH GOOGLE SIGNIN ERROR]', e);
         }
       }
       return true;
@@ -180,41 +272,46 @@ export const authOptions: NextAuthOptions = {
 
       // Always fetch fresh user data
       if (token.email) {
-        const dbUser = await prisma.user.findUnique({
-          where: { email: token.email },
-        });
-        if (dbUser) {
-          token.id = dbUser.id;
-          token.onboardingDone = dbUser.onboardingDone;
-          token.theme = dbUser.theme;
-          token.language = dbUser.language;
-          token.firstName = dbUser.firstName;
-          token.lastName = dbUser.lastName;
-          token.riotConnected = dbUser.riotConnected;
-          token.riotGameName = dbUser.riotGameName;
-          token.riotPuuid = dbUser.riotPuuid;
-          token.bannerUrl = dbUser.bannerUrl;
-          token.bannerOffsetY = dbUser.bannerOffsetY;
-          token.smartRating = dbUser.smartRating;
-          token.isPublic = (dbUser as any).isPublic ?? true;
-          token.videoLoop = (dbUser as any).videoLoop ?? true;
-          token.videoLoopDelay = (dbUser as any).videoLoopDelay ?? 500;
-          token.hiddenStats = (dbUser as any).hiddenStats ?? "[]";
-          token.enforcePublicStats = (dbUser as any).enforcePublicStats ?? false;
+        try {
+          const email = token.email.toLowerCase().trim();
+          const dbUser = await prisma.user.findUnique({
+            where: { email },
+          });
+          if (dbUser) {
+            token.id = dbUser.id;
+            token.onboardingDone = dbUser.onboardingDone;
+            token.theme = dbUser.theme;
+            token.language = dbUser.language;
+            token.firstName = dbUser.firstName;
+            token.lastName = dbUser.lastName;
+            token.riotConnected = dbUser.riotConnected;
+            token.riotGameName = dbUser.riotGameName;
+            token.riotPuuid = dbUser.riotPuuid;
+            token.bannerUrl = dbUser.bannerUrl;
+            token.bannerOffsetY = dbUser.bannerOffsetY;
+            token.smartRating = dbUser.smartRating;
+            token.isPublic = (dbUser as any).isPublic ?? true;
+            token.videoLoop = (dbUser as any).videoLoop ?? true;
+            token.videoLoopDelay = (dbUser as any).videoLoopDelay ?? 500;
+            token.hiddenStats = (dbUser as any).hiddenStats ?? "[]";
+            token.enforcePublicStats = (dbUser as any).enforcePublicStats ?? false;
 
-          // Auto-set riotGameName for known users
-          if (!dbUser.riotGameName) {
-            const gameNameMap: Record<string, string> = {
-              'laffont.romain64@gmail.com': 'Gr4phØ',
-              'romain.lft64@gmail.com': 'SENPAII#6767',
-            };
-            const mappedName = gameNameMap[dbUser.email];
-            if (mappedName) {
-              await prisma.user.update({ where: { id: dbUser.id }, data: { riotGameName: mappedName, riotConnected: true } });
-              token.riotGameName = mappedName;
-              token.riotConnected = true;
+            // Auto-set riotGameName for known users
+            if (!dbUser.riotGameName) {
+              const gameNameMap: Record<string, string> = {
+                'laffont.romain64@gmail.com': 'Gr4phØ',
+                'romain.lft64@gmail.com': 'SENPAII#6767',
+              };
+              const mappedName = gameNameMap[email];
+              if (mappedName) {
+                await prisma.user.update({ where: { id: dbUser.id }, data: { riotGameName: mappedName, riotConnected: true } });
+                token.riotGameName = mappedName;
+                token.riotConnected = true;
+              }
             }
           }
+        } catch (e) {
+          console.error('[NEXTAUTH JWT ERROR]', e);
         }
       }
       return token;

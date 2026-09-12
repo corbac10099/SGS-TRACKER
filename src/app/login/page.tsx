@@ -34,13 +34,6 @@ function LoginPageContent() {
     );
   }
 
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0e13]">
-        <div className="w-8 h-8 border-2 border-white/20 border-t-[var(--color-val-red)] rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0e13] text-white p-4 relative overflow-hidden">

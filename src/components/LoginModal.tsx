@@ -107,13 +107,31 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
-      setError(null);
       setSuccess(null);
       setLoading(false);
       setGoogleLoading(false);
       setMode(defaultMode);
       if (savedAccount && !email) {
         setEmail(savedAccount.email);
+      }
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const urlErr = params.get("error");
+        if (urlErr) {
+          if (urlErr === "OAuthSignin" || urlErr === "OAuthCallback") {
+            setError("Échec de connexion avec Google. Veuillez réessayer.");
+          } else if (urlErr === "Callback") {
+            setError("Erreur lors de la validation du compte Google.");
+          } else if (urlErr === "CredentialsSignin") {
+            setError("Identifiants incorrects ou compte inexistant.");
+          } else {
+            setError(`Erreur de connexion (${urlErr})`);
+          }
+        } else {
+          setError(null);
+        }
+      } else {
+        setError(null);
       }
     }
   }, [isOpen, defaultMode]);
