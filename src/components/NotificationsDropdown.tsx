@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { sounds } from "@/lib/soundEffects";
+import type { LobbyInviteItem } from "@/hooks/useLobbyInvites";
+import { getPlayerAvatar } from "@/components/LobbiesView";
 
 export interface NotificationItem {
   id: string;
@@ -19,6 +21,10 @@ export interface NotificationsDropdownProps {
   onNavigateToAgents?: () => void;
   playerStats?: any;
   compact?: boolean;
+  lobbyInvites?: LobbyInviteItem[];
+  onAcceptInvite?: (inviteId: string) => void;
+  onDeclineInvite?: (inviteId: string) => void;
+  actionLoading?: boolean;
 }
 
 export default function NotificationsDropdown({
@@ -26,6 +32,10 @@ export default function NotificationsDropdown({
   onNavigateToAgents,
   playerStats,
   compact = false,
+  lobbyInvites = [],
+  onAcceptInvite,
+  onDeclineInvite,
+  actionLoading = false,
 }: NotificationsDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -119,7 +129,7 @@ export default function NotificationsDropdown({
       });
   }, [playerStats]);
 
-  const unreadCount = notifications.filter((n) => !readIds.includes(n.id)).length;
+  const unreadCount = notifications.filter((n) => !readIds.includes(n.id)).length + (lobbyInvites?.length || 0);
 
   const markAllAsRead = () => {
     const allIds = notifications.map((n) => n.id);
@@ -197,7 +207,7 @@ export default function NotificationsDropdown({
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 sm:w-96 max-h-[460px] bg-[var(--color-surface)]/95 backdrop-blur-xl border border-[var(--color-border)] rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.7)] z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="absolute right-0 mt-3 w-80 sm:w-96 max-h-[500px] bg-[var(--color-surface)]/95 backdrop-blur-xl border border-[var(--color-border)] rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.7)] z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           {/* Header */}
           <div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between bg-[var(--color-val-dark)] text-white">
             <div className="flex items-center gap-2">
@@ -220,9 +230,72 @@ export default function NotificationsDropdown({
             )}
           </div>
 
+          {/* Section 1 : INVITATIONS DE SALON EN DIRECT (SI PRÉSENTES) */}
+          {lobbyInvites.length > 0 && (
+            <div className="p-3 border-b border-[var(--color-border)] bg-[var(--color-val-red)]/10 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-val-red)] flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[var(--color-val-red)] animate-ping" />
+                  <span>Invitations de Salon ({lobbyInvites.length})</span>
+                </span>
+              </div>
+              <div className="space-y-2">
+                {lobbyInvites.map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="p-2.5 rounded-xl bg-black/50 border border-[var(--color-val-red)]/30 hover:border-[var(--color-val-red)]/60 transition-all flex items-center justify-between gap-3 shadow-md"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img
+                        src={inv.senderAvatar || getPlayerAvatar(inv.senderName)}
+                        alt={inv.senderName}
+                        className="w-9 h-9 rounded-xl object-cover border border-white/20 flex-shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white truncate">
+                          {inv.senderName}#{inv.senderTag}
+                        </div>
+                        <div className="text-[10px] text-[var(--color-text-secondary)] truncate">
+                          Vous invite • <span className="text-white font-bold">{inv.lobby?.mode || "Compétitif"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => {
+                          sounds.playLockIn();
+                          setIsOpen(false);
+                          onAcceptInvite?.(inv.id);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-[var(--color-val-red)] hover:brightness-110 text-white text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                      >
+                        Rejoindre
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => {
+                          sounds.playCancel();
+                          onDeclineInvite?.(inv.id);
+                        }}
+                        className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white flex items-center justify-center text-xs cursor-pointer"
+                        title="Refuser"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* List of Notifications */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar max-h-[380px]">
-            {notifications.length === 0 ? (
+          <div className="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar max-h-[350px]">
+            {notifications.length === 0 && lobbyInvites.length === 0 ? (
               <div className="p-8 text-center text-[var(--color-text-secondary)] text-xs font-bold uppercase tracking-wider">
                 Aucune notification
               </div>

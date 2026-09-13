@@ -47,6 +47,10 @@ export interface HeaderProps {
   onRemoveFavorite?: (player: any) => void;
   activeGameName?: string;
   playerStats?: any;
+  lobbyInvites?: any[];
+  onAcceptLobbyInvite?: (id: string) => void;
+  onDeclineLobbyInvite?: (id: string) => void;
+  lobbyActionLoading?: boolean;
 }
 
 type NavId = "profile" | "news" | "agents" | "lobbies" | "leaderboard";
@@ -78,6 +82,10 @@ export default function Header({
   onRemoveFavorite,
   activeGameName,
   playerStats,
+  lobbyInvites = [],
+  onAcceptLobbyInvite,
+  onDeclineLobbyInvite,
+  lobbyActionLoading = false,
 }: HeaderProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -499,6 +507,10 @@ export default function Header({
               onNavigateToNews={onOpenNews}
               onNavigateToAgents={onOpenAgents}
               playerStats={playerStats}
+              lobbyInvites={lobbyInvites}
+              onAcceptInvite={onAcceptLobbyInvite}
+              onDeclineInvite={onDeclineLobbyInvite}
+              actionLoading={lobbyActionLoading}
             />
           </div>
 
@@ -560,6 +572,10 @@ export default function Header({
               onNavigateToNews={onOpenNews}
               onNavigateToAgents={onOpenAgents}
               playerStats={playerStats}
+              lobbyInvites={lobbyInvites}
+              onAcceptInvite={onAcceptLobbyInvite}
+              onDeclineInvite={onDeclineLobbyInvite}
+              actionLoading={lobbyActionLoading}
             />
           </div>
         </div>

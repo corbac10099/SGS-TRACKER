@@ -40,22 +40,31 @@ export function useLobbyInvites(onJoinedLobby?: (lobbyId: string, lobby: any) =>
 
   const myUser = session?.user as any;
   const myId = myUser?.id;
-  const myRiot = myUser?.riotGameName || "";
+  const myRiot = myUser?.riotGameName || myUser?.name || "";
 
   // Récupérer les invitations
   const fetchInvites = useCallback(async () => {
-    if (!myId && !myRiot) return;
     try {
-      const res = await fetch("/api/lobbies/invites", { cache: "no-store" });
+      const guestId = typeof window !== "undefined" ? sessionStorage.getItem("spycam_guest_id") : null;
+      const res = await fetch("/api/lobbies/invites", {
+        cache: "no-store",
+        headers: guestId ? { "x-guest-id": guestId } : {},
+      });
       if (res.ok) {
         const data = await res.json();
         const list: LobbyInviteItem[] = data.invites || [];
         setInvites(list);
-        // Si nouvelle invitation reçue récemment, l'afficher en banner si pas déjà active
         if (list.length > 0) {
           const latest = list[0];
           setActiveBannerInvite((prev) => {
-            if (!prev || prev.id !== latest.id) return latest;
+            if (!prev || prev.id !== latest.id) {
+              sounds.playLockIn();
+              sendLocalNotification(
+                "🎮 Invitation de Salon Valorant",
+                `${latest.senderName}#${latest.senderTag} vous invite à rejoindre son salon (${latest.lobby?.mode || "Compétitif"}) !`
+              );
+              return latest;
+            }
             return prev;
           });
         }
@@ -63,17 +72,13 @@ export function useLobbyInvites(onJoinedLobby?: (lobbyId: string, lobby: any) =>
     } catch (err) {
       console.warn("[useLobbyInvites] fetch error:", err);
     }
-  }, [myId, myRiot]);
+  }, []);
 
   // Écoute Pusher en temps réel
   useEffect(() => {
-    if (!myId && !myRiot) return;
-
     fetchInvites();
 
     const pusher = getPusherClient();
-    if (!pusher) return;
-
     const channels: string[] = [];
 
     const handleNewInvite = (data: any) => {
@@ -112,29 +117,40 @@ export function useLobbyInvites(onJoinedLobby?: (lobbyId: string, lobby: any) =>
       );
     };
 
-    if (myId) {
-      const userChan = pusher.subscribe(`user-${myId}`);
-      userChan.bind("lobby-invite", handleNewInvite);
-      channels.push(`user-${myId}`);
+    if (pusher) {
+      if (myId) {
+        const userChan = pusher.subscribe(`user-${myId}`);
+        userChan.bind("lobby-invite", handleNewInvite);
+        channels.push(`user-${myId}`);
+      }
+
+      if (myRiot) {
+        const cleanRiot = myRiot.toLowerCase().replace(/[^a-z0-9]/g, "-");
+        const riotChan = pusher.subscribe(`user-riot-${cleanRiot}`);
+        riotChan.bind("lobby-invite", handleNewInvite);
+        channels.push(`user-riot-${cleanRiot}`);
+
+        const nameOnly = myRiot.split("#")[0].toLowerCase().replace(/[^a-z0-9]/g, "-");
+        if (`user-riot-${nameOnly}` !== `user-riot-${cleanRiot}`) {
+          const nameChan = pusher.subscribe(`user-riot-${nameOnly}`);
+          nameChan.bind("lobby-invite", handleNewInvite);
+          channels.push(`user-riot-${nameOnly}`);
+        }
+      }
     }
 
-    if (myRiot) {
-      const cleanRiot = myRiot.toLowerCase().replace(/[^a-z0-9]/g, "-");
-      const riotChan = pusher.subscribe(`user-riot-${cleanRiot}`);
-      riotChan.bind("lobby-invite", handleNewInvite);
-      channels.push(`user-riot-${cleanRiot}`);
-    }
-
-    // Polling régulier de secours toutes les 10 secondes
-    const interval = setInterval(fetchInvites, 10000);
+    // Polling régulier de secours toutes les 4 secondes pour une réactivité instantanée
+    const interval = setInterval(fetchInvites, 4000);
 
     return () => {
       clearInterval(interval);
-      channels.forEach((c) => {
-        try {
-          pusher.unsubscribe(c);
-        } catch {}
-      });
+      if (pusher) {
+        channels.forEach((c) => {
+          try {
+            pusher.unsubscribe(c);
+          } catch {}
+        });
+      }
     };
   }, [myId, myRiot, fetchInvites]);
 

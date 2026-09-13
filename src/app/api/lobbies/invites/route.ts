@@ -42,14 +42,26 @@ export async function GET(request: NextRequest) {
     }
 
     const myId = currentUser.id;
-    const myRiot = currentUser.riotGameName || "";
+    const myRiot = (currentUser.riotGameName || "").trim();
+    const myName = (currentUser.name || "").trim();
 
     const invites = await (prisma as any).lobbyInvite.findMany({
       where: {
         status: "pending",
         OR: [
           { targetUserId: myId },
-          ...(myRiot ? [{ targetRiotId: { equals: myRiot, mode: "insensitive" } }] : []),
+          ...(myRiot
+            ? [
+                { targetRiotId: { equals: myRiot, mode: "insensitive" } },
+                { targetRiotId: { startsWith: myRiot.split("#")[0], mode: "insensitive" } },
+              ]
+            : []),
+          ...(myName
+            ? [
+                { targetRiotId: { equals: myName, mode: "insensitive" } },
+                { targetRiotId: { startsWith: myName.split("#")[0], mode: "insensitive" } },
+              ]
+            : []),
         ],
       },
       include: {
@@ -147,9 +159,16 @@ export async function POST(request: NextRequest) {
       let targetUser = null;
       if (targetUserId) {
         targetUser = await (prisma.user as any).findUnique({ where: { id: targetUserId } });
-      } else if (targetRiotId) {
+      }
+      if (!targetUser && targetRiotId) {
         targetUser = await (prisma.user as any).findFirst({
-          where: { riotGameName: { equals: targetRiotId, mode: "insensitive" } },
+          where: {
+            OR: [
+              { riotGameName: { equals: targetRiotId.trim(), mode: "insensitive" } },
+              { name: { equals: targetRiotId.trim(), mode: "insensitive" } },
+              { riotGameName: { startsWith: targetRiotId.trim().split("#")[0], mode: "insensitive" } },
+            ],
+          },
         });
       }
 
@@ -172,7 +191,7 @@ export async function POST(request: NextRequest) {
          lobby.leaderTag.toLowerCase() === (cleanTargetRiot.split("#")[1] || "").toLowerCase()) ||
         lobby.members.some((m) => {
           const mRiot = `${m.gameName}#${m.tagLine}`.toLowerCase();
-          return mRiot === cleanTargetRiot.toLowerCase();
+          return mRiot === cleanTargetRiot.toLowerCase() || m.gameName.toLowerCase() === cleanTargetRiot.split("#")[0].toLowerCase();
         });
 
       if (isAlreadyInLobby) {
@@ -216,7 +235,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Notification en temps réel via Pusher
+      // Notification en temps réel via Pusher sur plusieurs canaux cibles
       const invitePayload = {
         id: createdInvite.id,
         lobbyId: lobby.id,
@@ -235,6 +254,10 @@ export async function POST(request: NextRequest) {
       if (cleanTargetRiot) {
         const cleanChannel = `user-riot-${cleanTargetRiot.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
         await triggerPusherEvent(cleanChannel, "lobby-invite", invitePayload);
+        const nameOnly = cleanTargetRiot.split("#")[0].toLowerCase().replace(/[^a-z0-9]/g, "-");
+        if (`user-riot-${nameOnly}` !== cleanChannel) {
+          await triggerPusherEvent(`user-riot-${nameOnly}`, "lobby-invite", invitePayload);
+        }
       }
 
       return NextResponse.json({

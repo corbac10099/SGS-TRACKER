@@ -50,6 +50,9 @@ interface LobbiesViewProps {
   voiceVolumeLevel?: number;
   setVoiceVolumeLevel?: (vol: number) => void;
   voiceManagerRef?: React.MutableRefObject<VoiceManager | null>;
+  lobbyInvites?: any[];
+  onAcceptLobbyInvite?: (id: string) => void;
+  onDeclineLobbyInvite?: (id: string) => void;
 }
 
 export const RANDOM_VALORANT_AVATARS = [
@@ -162,6 +165,9 @@ export default function LobbiesView({
   voiceVolumeLevel: propVoiceVolumeLevel,
   setVoiceVolumeLevel: propSetVoiceVolumeLevel,
   voiceManagerRef: propVoiceManagerRef,
+  lobbyInvites = [],
+  onAcceptLobbyInvite,
+  onDeclineLobbyInvite,
 }: LobbiesViewProps) {
   // Navigation states: 'landing' | 'create' | 'join' | 'salon'
   const [currentView, setCurrentView] = useState<"landing" | "create" | "join" | "salon">(() => {
@@ -172,6 +178,13 @@ export default function LobbiesView({
   const [localActiveLobby, setLocalActiveLobby] = useState<LobbyItem | null>(null);
   const activeLobby = propActiveLobby !== undefined ? propActiveLobby : localActiveLobby;
   const setActiveLobby = propSetActiveLobby || setLocalActiveLobby;
+
+  // Rediriger directement sur la vue salon quand un salon devient actif (ex: invitation acceptée)
+  useEffect(() => {
+    if (propActiveLobby) {
+      setCurrentView("salon");
+    }
+  }, [propActiveLobby]);
 
   const [localIsInVoice, setLocalIsInVoice] = useState<boolean>(false);
   const isInVoice = propIsInVoice !== undefined ? propIsInVoice : localIsInVoice;
@@ -219,7 +232,7 @@ export default function LobbiesView({
   const [inviteFriendError, setInviteFriendError] = useState<string | null>(null);
 
   const [createLeaderRoles, setCreateLeaderRoles] = useState<string[]>(["Duelliste"]);
-  const [createTeammates, setCreateTeammates] = useState<LobbyMember[]>([]);
+  const [selectedFriendsToInvite, setSelectedFriendsToInvite] = useState<FriendItem[]>([]);
   const [createMode, setCreateMode] = useState<string>("Compétitif");
   const [createRolesNeeded, setCreateRolesNeeded] = useState<string[]>(["Initiateur", "Contrôleur"]);
   const [createMic, setCreateMic] = useState<"yes" | "no" | "optional">("yes");
@@ -733,55 +746,52 @@ export default function LobbiesView({
 
   // Calculate live lobby estimated level during creation
   const calculateEstimatedLevel = () => {
-    const allMembers = [
-      { rankTier: myRankTier, isPrivateRank: false },
-      ...createTeammates,
-    ];
-    const known = allMembers.filter((m) => !m.isPrivateRank && m.rankTier && m.rankTier > 0).map((m) => m.rankTier!);
-    const avg = known.length > 0 ? Math.round(known.reduce((a, b) => a + b, 0) / known.length) : myRankTier;
+    const friendTiers = selectedFriendsToInvite.map((friend) => {
+      const fStat = friendsStats.find(
+        (fs) => fs.riotId?.toLowerCase() === (friend.riotId || "").toLowerCase()
+      );
+      const r = (fStat?.rank || "").toLowerCase();
+      if (r.includes("radiant")) return 27;
+      if (r.includes("immortel") || r.includes("immortal")) return 25;
+      if (r.includes("ascendant")) return 22;
+      if (r.includes("diamant") || r.includes("diamond")) return 19;
+      if (r.includes("platine") || r.includes("platinum")) return 16;
+      if (r.includes("or") || r.includes("gold")) return 13;
+      if (r.includes("argent") || r.includes("silver")) return 10;
+      if (r.includes("bronze")) return 7;
+      if (r.includes("fer") || r.includes("iron")) return 4;
+      return 12;
+    });
+    const allTiers = [myRankTier, ...friendTiers].filter((t) => t && t > 0);
+    const avg = allTiers.length > 0 ? Math.round(allTiers.reduce((a, b) => a + b, 0) / allTiers.length) : myRankTier;
     return getTierName(avg);
   };
 
-  // Toggle teammate from friends list
+  // Toggle friend to invite from friends list
   const handleToggleAddFriendTeammate = (friend: FriendItem) => {
-    const rId = friend.riotId || "";
-    const hashIndex = rId.lastIndexOf("#");
-    const gName = hashIndex !== -1 ? rId.substring(0, hashIndex) : friend.name || "Ami";
-    const tLine = hashIndex !== -1 ? rId.substring(hashIndex + 1) : "EUW";
-
-    const alreadyAdded = createTeammates.some(
-      (m) => m.gameName.toLowerCase() === gName.toLowerCase() && m.tagLine.toLowerCase() === tLine.toLowerCase()
+    const rId = (friend.riotId || "").toLowerCase();
+    const alreadyAdded = selectedFriendsToInvite.some(
+      (f) =>
+        (f.friendId && friend.friendId && f.friendId === friend.friendId) ||
+        (f.riotId && f.riotId.toLowerCase() === rId)
     );
 
     if (alreadyAdded) {
       sounds.playCancel();
-      setCreateTeammates((prev) =>
+      setSelectedFriendsToInvite((prev) =>
         prev.filter(
-          (m) => !(m.gameName.toLowerCase() === gName.toLowerCase() && m.tagLine.toLowerCase() === tLine.toLowerCase())
+          (f) =>
+            !(
+              (f.friendId && friend.friendId && f.friendId === friend.friendId) ||
+              (f.riotId && f.riotId.toLowerCase() === rId)
+            )
         )
       );
       return;
     }
 
     sounds.playLockIn();
-    const friendStat = friendsStats.find(
-      (fs) => fs.riotId?.toLowerCase() === rId.toLowerCase()
-    );
-
-    const mate: LobbyMember = {
-      id: `mate_${Date.now()}_${friend.friendshipId || Math.random().toString(36).substring(2, 6)}`,
-      gameName: gName,
-      tagLine: tLine,
-      rank: friendStat?.rank || "Non-classé",
-      rankUrl: friendStat?.rankUrl || "",
-      rankTier: 12,
-      isPrivateRank: false,
-      roles: ["Tous Rôles"],
-      isLeader: false,
-      avatarUrl: friend.avatarUrl || friendStat?.avatarUrl || getPlayerAvatar(gName),
-    };
-
-    setCreateTeammates((prev) => [...prev, mate]);
+    setSelectedFriendsToInvite((prev) => [...prev, friend]);
   };
 
   // Send real-time lobby invitation to a friend from active salon
@@ -837,11 +847,11 @@ export default function LobbiesView({
         isLeaderPrivate: false,
         leaderAvatar: myAvatar,
         leaderRoles: createLeaderRoles,
-        members: createTeammates,
+        members: [], // Seul le créateur est membre au démarrage du salon !
         mode: createMode,
         roleNeeded: createRolesNeeded,
         micRequired: createMic,
-        maxSlots: 1 + createTeammates.length + createSlotsNeeded,
+        maxSlots: 1 + selectedFriendsToInvite.length + createSlotsNeeded,
         note: createNote,
         region: createRegion,
       };
@@ -857,6 +867,25 @@ export default function LobbiesView({
         setActiveLobby(data.lobby);
         setCurrentView("salon");
         fetchLobbies();
+
+        // Envoi en temps réel des invitations à tous les amis sélectionnés
+        if (selectedFriendsToInvite.length > 0) {
+          for (const friend of selectedFriendsToInvite) {
+            try {
+              await fetch("/api/lobbies/invites", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "send",
+                  lobbyId: data.lobby.id,
+                  targetRiotId: friend.riotId,
+                  targetUserId: friend.friendId || undefined,
+                }),
+              });
+            } catch {}
+          }
+        }
+        setSelectedFriendsToInvite([]);
       } else {
         setCreateError(data.error || "Erreur lors de la création du salon.");
       }
@@ -1027,6 +1056,67 @@ export default function LobbiesView({
       {/* ========================================================================= */}
       {currentView === "landing" && (
         <div className="space-y-8">
+          {/* Bannière Invitations de salon en attente si reçues */}
+          {lobbyInvites.length > 0 && (
+            <div className="p-4 sm:p-5 rounded-3xl bg-[var(--color-val-red)]/10 border border-[var(--color-val-red)]/40 shadow-[0_0_30px_rgba(255,70,85,0.15)] space-y-3 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-val-red)] animate-ping" />
+                  <span className="text-xs font-black uppercase tracking-wider text-white">
+                    Vous avez {lobbyInvites.length} invitation{lobbyInvites.length > 1 ? "s" : ""} de salon en attente !
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {lobbyInvites.map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="p-3.5 rounded-2xl bg-black/60 border border-white/10 hover:border-[var(--color-val-red)]/60 transition-all flex items-center justify-between gap-3 shadow-lg"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={inv.senderAvatar || getPlayerAvatar(inv.senderName)}
+                        alt={inv.senderName}
+                        className="w-11 h-11 rounded-xl object-cover border border-white/20 flex-shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-xs font-black text-white truncate">
+                          {inv.senderName}#{inv.senderTag}
+                        </div>
+                        <div className="text-[11px] text-[var(--color-text-secondary)] truncate">
+                          Mode : <strong className="text-white">{inv.lobby?.mode || "Compétitif"}</strong> • {inv.lobby?.lobbyLevel || "Niveau"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sounds.playLockIn();
+                          onAcceptLobbyInvite?.(inv.id);
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-accent-sm"
+                      >
+                        Rejoindre
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sounds.playCancel();
+                          onDeclineLobbyInvite?.(inv.id);
+                        }}
+                        className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white flex items-center justify-center text-xs cursor-pointer"
+                        title="Refuser"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Header Banner */}
           <div className="glass-panel rounded-3xl p-6 sm:p-10 border border-[var(--color-border)] relative overflow-hidden text-center space-y-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--color-val-red)]/15 border border-[var(--color-val-red)]/30 text-[var(--color-val-red)] text-xs font-black uppercase tracking-wider">
@@ -1248,14 +1338,14 @@ export default function LobbiesView({
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="text-xs font-black uppercase text-[var(--color-text-secondary)] tracking-wider">
-                      2. Coéquipiers déjà dans votre groupe Valorant
+                      2. Inviter des amis au salon
                     </label>
                     <p className="text-[11px] text-[var(--color-text-secondary)]">
-                      Ajoutez les Riot ID de vos amis déjà présents dans votre lobby Valorant.
+                      Sélectionnez les amis à inviter. Ils recevront une notification en direct dès la création du salon !
                     </p>
                   </div>
                   <span className="text-xs font-bold text-[var(--color-val-red)]">
-                    {createTeammates.length} ami(s) ajouté(s)
+                    {selectedFriendsToInvite.length} ami(s) sélectionné(s)
                   </span>
                 </div>
 
@@ -1294,8 +1384,10 @@ export default function LobbiesView({
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto custom-scrollbar p-0.5">
                           {friends.map((friend) => {
-                            const isSelected = createTeammates.some(
-                              (m) => `${m.gameName}#${m.tagLine}`.toLowerCase() === (friend.riotId || "").toLowerCase()
+                            const isSelected = selectedFriendsToInvite.some(
+                              (f) =>
+                                (f.friendId && friend.friendId && f.friendId === friend.friendId) ||
+                                (f.riotId && f.riotId.toLowerCase() === (friend.riotId || "").toLowerCase())
                             );
                             const fStat = friendsStats.find(
                               (fs) => fs.riotId?.toLowerCase() === (friend.riotId || "").toLowerCase()
@@ -1344,78 +1436,59 @@ export default function LobbiesView({
                 </div>
 
 
-                {/* Teammates List */}
-                {createTeammates.length > 0 && (
+                {/* Selected Friends To Invite List */}
+                {selectedFriendsToInvite.length > 0 && (
                   <div className="space-y-2">
-                    {createTeammates.map((mate, idx) => (
-                      <div
-                        key={mate.id}
-                        className="p-3 rounded-xl bg-[var(--color-background)]/60 border border-[var(--color-border)] flex items-center justify-between gap-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-[var(--color-surface)] border border-white/10 flex items-center justify-center text-xs font-black text-white">
-                            {idx + 2}
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-white">
-                              {mate.gameName}#{mate.tagLine}
-                            </div>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              {mate.isPrivateRank ? (
-                                <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 flex items-center gap-1">
-                                  <IconLock size={11} />
-                                  <span>Rang Privé</span>
-                                </span>
-                              ) : (
-                                <>
-                                  {mate.rankUrl && <img src={mate.rankUrl} alt={mate.rank} className="w-3.5 h-3.5 object-contain" />}
-                                  <span className="text-[10px] font-bold text-[var(--color-val-light)] uppercase">{mate.rank}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                    <span className="text-[10px] font-black uppercase text-[var(--color-text-secondary)] tracking-wider">
+                      Amis sélectionnés pour être invités ({selectedFriendsToInvite.length}) :
+                    </span>
+                    {selectedFriendsToInvite.map((friend) => {
+                      const fStat = friendsStats.find(
+                        (fs) => fs.riotId?.toLowerCase() === (friend.riotId || "").toLowerCase()
+                      );
 
-                        <div className="flex items-center gap-2">
-                          <div className="hidden sm:flex items-center gap-1">
-                            {ROLES_LIST.slice(0, 4).map((role) => {
-                              const isSelected = mate.roles.includes(role.id);
-                              return (
-                                <button
-                                  type="button"
-                                  key={role.id}
-                                  onClick={() => {
-                                    const updated = createTeammates.map((m) => {
-                                      if (m.id !== mate.id) return m;
-                                      const nextRoles = isSelected
-                                        ? m.roles.filter((r) => r !== role.id)
-                                        : [...m.roles.filter((r) => r !== "Tous Rôles"), role.id];
-                                      return { ...m, roles: nextRoles.length ? nextRoles : ["Tous Rôles"] };
-                                    });
-                                    setCreateTeammates(updated);
-                                  }}
-                                  className={`px-2 py-0.5 rounded text-[9px] font-bold border ${
-                                    isSelected
-                                      ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
-                                      : "bg-black/20 text-gray-400 border-white/5"
-                                  }`}
-                                >
-                                  {renderRoleIcon(role.id, 12)}
-                                </button>
-                              );
-                            })}
+                      return (
+                        <div
+                          key={friend.friendshipId || friend.riotId}
+                          className="p-3 rounded-xl bg-[var(--color-background)]/60 border border-[var(--color-border)] flex items-center justify-between gap-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={friend.avatarUrl || getPlayerAvatar(friend.name)}
+                              alt={friend.name}
+                              className="w-8 h-8 rounded-lg object-cover border border-white/10 flex-shrink-0"
+                            />
+                            <div>
+                              <div className="text-xs font-bold text-white">
+                                {friend.riotId || friend.name}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {fStat?.rank && (
+                                  <span className="text-[10px] font-bold text-[var(--color-val-light)] uppercase">
+                                    {fStat.rank}
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                  <span>Recevra une invitation dès la création</span>
+                                </span>
+                              </div>
+                            </div>
                           </div>
 
                           <button
                             type="button"
-                            onClick={() => { sounds.playCancel(); setCreateTeammates((prev) => prev.filter((m) => m.id !== mate.id)); }}
-                            className="text-red-400 hover:text-red-300 text-xs px-2 py-1 rounded bg-red-500/10 border border-red-500/20 cursor-pointer"
+                            onClick={() => {
+                              sounds.playCancel();
+                              handleToggleAddFriendTeammate(friend);
+                            }}
+                            className="text-red-400 hover:text-red-300 text-xs px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 cursor-pointer"
                           >
-                            ✕
+                            ✕ Retirer
                           </button>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1553,7 +1626,7 @@ export default function LobbiesView({
                 <div className="text-right">
                   <span className="text-xs font-bold text-white/80 flex items-center gap-1">
                     <IconUsers size={14} className="text-sky-400 inline" />
-                    <span>{1 + createTeammates.length}/{1 + createTeammates.length + createSlotsNeeded}</span>
+                    <span>{1 + selectedFriendsToInvite.length}/{1 + selectedFriendsToInvite.length + createSlotsNeeded}</span>
                   </span>
                 </div>
               </div>
@@ -1950,6 +2023,29 @@ export default function LobbiesView({
                     </div>
                   );
                 })}
+
+                {/* Emplacements libres / En attente de joueurs */}
+                {Array.from({
+                  length: Math.max(0, (activeLobby.maxSlots || 5) - (activeLobby.members?.length || 0)),
+                }).map((_, idx) => (
+                  <div
+                    key={`empty-slot-${idx}`}
+                    className="p-2.5 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] flex items-center justify-between gap-2 text-[var(--color-text-secondary)]"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full border border-dashed border-white/20 flex items-center justify-center text-xs text-gray-500 font-bold">
+                        {(activeLobby.members?.length || 0) + idx + 1}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-gray-400">Emplacement Libre</div>
+                        <div className="text-[10px] text-gray-500">En recherche de coéquipier...</div>
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-bold text-gray-500 uppercase px-2 py-0.5 rounded bg-white/5">
+                      Libre
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 

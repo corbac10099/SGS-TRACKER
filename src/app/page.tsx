@@ -654,6 +654,10 @@ export function HomeContent({
           onOpenAchievements={() => setShowAchievementsModal(true)}
           onOpenFriends={() => setShowFriendsModal(true)}
           pendingFriendsCount={friendsManager.pendingIncomingCount}
+          lobbyInvites={lobbyInvites.invites}
+          onAcceptLobbyInvite={lobbyInvites.acceptInvite}
+          onDeclineLobbyInvite={lobbyInvites.declineInvite}
+          lobbyActionLoading={lobbyInvites.actionLoading}
         />
 
         {/* Floating Real-time Incoming Lobby Invite Banner */}
@@ -812,6 +816,9 @@ export function HomeContent({
                 nav.setLobbiesView(false);
                 player.searchPlayer(id);
               }}
+              lobbyInvites={lobbyInvites.invites}
+              onAcceptLobbyInvite={lobbyInvites.acceptInvite}
+              onDeclineLobbyInvite={lobbyInvites.declineInvite}
             />
           </div>
         ) : nav.newsView && !nav.agentsView ? (
