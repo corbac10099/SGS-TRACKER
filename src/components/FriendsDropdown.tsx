@@ -339,7 +339,7 @@ export default function FriendsDropdown({
                         disabled={actionLoading}
                         onClick={() => {
                           sounds.playCancel();
-                          declineRequest(req.id);
+                          declineRequest(req.friendshipId);
                         }}
                         className="w-6 h-6 rounded-lg bg-white/5 hover:bg-red-500/20 text-neutral-400 hover:text-red-400 flex items-center justify-center text-xs transition-colors cursor-pointer"
                         title="Refuser"
