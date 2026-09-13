@@ -237,12 +237,9 @@ export default function FriendsDropdown({
                             {friend.name}
                           </div>
                           <div className="text-[10px] text-neutral-400 flex items-center gap-1.5">
-                            <span className="truncate">{friend.rank || "Non-classé"}</span>
-                            {friend.spiScore !== undefined && (
-                              <span className="text-amber-400/90 font-mono">
-                                • {friend.spiScore} SPI
-                              </span>
-                            )}
+                            <span className="truncate">{friend.badge || "Non-classé"}</span>
+                            <span className="text-neutral-500">•</span>
+                            <span className="text-[9px] text-sky-300/80 uppercase tracking-wider">SGS</span>
                           </div>
                         </div>
                       </button>
