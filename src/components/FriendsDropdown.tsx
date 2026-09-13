@@ -207,7 +207,7 @@ export default function FriendsDropdown({
                 ) : (
                   filteredFriends.map((friend) => (
                     <div
-                      key={friend.id}
+                      key={friend.friendshipId}
                       className="group flex items-center justify-between p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 hover:border-sky-500/30 transition-all"
                     >
                       {/* Left: Avatar & Info */}
@@ -254,7 +254,9 @@ export default function FriendsDropdown({
                           type="button"
                           onClick={() => {
                             sounds.playClick();
-                            updatePermission(friend.id, !friend.canViewStats);
+                            if (friend.friendId) {
+                              updatePermission(friend.friendId, !friend.canViewStats);
+                            }
                           }}
                           className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                             friend.canViewStats
@@ -276,7 +278,9 @@ export default function FriendsDropdown({
                           disabled={actionLoading}
                           onClick={() => {
                             sounds.playCancel();
-                            removeFriend(friend.id);
+                            if (friend.friendId) {
+                              removeFriend(friend.friendId);
+                            }
                           }}
                           className="w-7 h-7 rounded-lg bg-white/5 hover:bg-red-500/20 text-neutral-500 hover:text-red-400 flex items-center justify-center transition-colors cursor-pointer"
                           title="Supprimer de mes amis"
@@ -301,21 +305,21 @@ export default function FriendsDropdown({
               ) : (
                 incoming.map((req) => (
                   <div
-                    key={req.id}
+                    key={req.friendshipId}
                     className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.04] border border-white/5 gap-2"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <img
-                        src={req.senderAvatar || "https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png"}
-                        alt={req.senderName}
+                        src={req.avatarUrl || "https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png"}
+                        alt={req.name}
                         className="w-8 h-8 rounded-lg object-cover border border-white/10 flex-shrink-0"
                       />
                       <div className="min-w-0">
                         <div className="text-xs font-bold text-white truncate">
-                          {req.senderName}
+                          {req.name}
                         </div>
                         <div className="text-[10px] text-neutral-400 truncate">
-                          #{req.senderTag}
+                          #{req.riotId}
                         </div>
                       </div>
                     </div>
@@ -326,7 +330,7 @@ export default function FriendsDropdown({
                         disabled={actionLoading}
                         onClick={() => {
                           sounds.playLockIn();
-                          acceptRequest(req.id);
+                          acceptRequest(req.friendshipId);
                         }}
                         className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-white text-[10px] font-bold uppercase transition-all flex items-center gap-1 cursor-pointer"
                       >
