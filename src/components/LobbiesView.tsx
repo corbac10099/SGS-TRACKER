@@ -6,6 +6,7 @@ import { LobbyItem, LobbyMember, VoiceMember, ChatMessage, getTierName } from "@
 import { VoiceManager, AudioDeviceInfo } from "@/lib/voiceManager";
 import { getPusherClient } from "@/lib/pusherClient";
 import { filterToxicText } from "@/lib/moderation";
+import { useFriends, FriendItem } from "@/hooks/useFriends";
 import {
   IconPhone,
   IconPhoneOff,
@@ -211,10 +212,14 @@ export default function LobbiesView({
     "https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png";
 
   // ==================== CREATE FORM STATE ====================
+  const { friends, friendsStats } = useFriends();
+  const [showInviteFriendsModal, setShowInviteFriendsModal] = useState<boolean>(false);
+  const [invitingFriendId, setInvitingFriendId] = useState<string | null>(null);
+  const [inviteFriendSuccess, setInviteFriendSuccess] = useState<string | null>(null);
+  const [inviteFriendError, setInviteFriendError] = useState<string | null>(null);
+
   const [createLeaderRoles, setCreateLeaderRoles] = useState<string[]>(["Duelliste"]);
   const [createTeammates, setCreateTeammates] = useState<LobbyMember[]>([]);
-  const [newMateRiotId, setNewMateRiotId] = useState<string>("");
-  const [checkingMate, setCheckingMate] = useState<boolean>(false);
   const [createMode, setCreateMode] = useState<string>("Compétitif");
   const [createRolesNeeded, setCreateRolesNeeded] = useState<string[]>(["Initiateur", "Contrôleur"]);
   const [createMic, setCreateMic] = useState<"yes" | "no" | "optional">("yes");
@@ -737,78 +742,82 @@ export default function LobbiesView({
     return getTierName(avg);
   };
 
-  // Add teammate with Riot ID lookup
-  const handleAddTeammate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMateRiotId.trim()) return;
+  // Toggle teammate from friends list
+  const handleToggleAddFriendTeammate = (friend: FriendItem) => {
+    const rId = friend.riotId || "";
+    const hashIndex = rId.lastIndexOf("#");
+    const gName = hashIndex !== -1 ? rId.substring(0, hashIndex) : friend.name || "Ami";
+    const tLine = hashIndex !== -1 ? rId.substring(hashIndex + 1) : "EUW";
 
-    setCheckingMate(true);
-    setCreateError("");
+    const alreadyAdded = createTeammates.some(
+      (m) => m.gameName.toLowerCase() === gName.toLowerCase() && m.tagLine.toLowerCase() === tLine.toLowerCase()
+    );
+
+    if (alreadyAdded) {
+      sounds.playCancel();
+      setCreateTeammates((prev) =>
+        prev.filter(
+          (m) => !(m.gameName.toLowerCase() === gName.toLowerCase() && m.tagLine.toLowerCase() === tLine.toLowerCase())
+        )
+      );
+      return;
+    }
+
+    sounds.playLockIn();
+    const friendStat = friendsStats.find(
+      (fs) => fs.riotId?.toLowerCase() === rId.toLowerCase()
+    );
+
+    const mate: LobbyMember = {
+      id: `mate_${Date.now()}_${friend.friendshipId || Math.random().toString(36).substring(2, 6)}`,
+      gameName: gName,
+      tagLine: tLine,
+      rank: friendStat?.rank || "Non-classé",
+      rankUrl: friendStat?.rankUrl || "",
+      rankTier: 12,
+      isPrivateRank: false,
+      roles: ["Tous Rôles"],
+      isLeader: false,
+      avatarUrl: friend.avatarUrl || friendStat?.avatarUrl || getPlayerAvatar(gName),
+    };
+
+    setCreateTeammates((prev) => [...prev, mate]);
+  };
+
+  // Send real-time lobby invitation to a friend from active salon
+  const handleSendInviteToFriend = async (friend: FriendItem) => {
+    if (!activeLobby) return;
+    sounds.playClick();
+    setInvitingFriendId(friend.riotId);
+    setInviteFriendError(null);
+    setInviteFriendSuccess(null);
     try {
-      sounds.playTyping();
-      const res = await fetch("/api/valorant/player", {
+      const res = await fetch("/api/lobbies/invites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ riotId: newMateRiotId.trim() }),
+        body: JSON.stringify({
+          action: "send",
+          lobbyId: activeLobby.id,
+          targetRiotId: friend.riotId,
+          targetUserId: friend.friendId || undefined,
+        }),
       });
       const data = await res.json();
-
-      const hashIndex = newMateRiotId.lastIndexOf("#");
-      const gName = hashIndex !== -1 ? newMateRiotId.substring(0, hashIndex) : newMateRiotId;
-      const tLine = hashIndex !== -1 ? newMateRiotId.substring(hashIndex + 1) : "EUW";
-
-      if (res.ok && data && (data.rank || data.player?.rank)) {
-        const rName = data.rank || data.player?.rank || "Non-classé";
-        const rUrl = data.rankUrl || data.player?.rankUrl || "";
-        const rTier = data.rankTier ?? data.player?.rankTier ?? 12;
-
-        const mate: LobbyMember = {
-          id: `mate_${Date.now()}`,
-          gameName: data.gameName || data.player?.gameName || gName,
-          tagLine: data.tagLine || data.player?.tagLine || tLine,
-          rank: rName,
-          rankUrl: rUrl,
-          rankTier: rTier,
-          isPrivateRank: false,
-          roles: ["Tous Rôles"],
-          isLeader: false,
-          avatarUrl: data.cardUrl || data.player?.cardUrl || data.player?.cardSmall,
-        };
-        setCreateTeammates((prev) => [...prev, mate]);
+      if (!res.ok) {
+        setInviteFriendError(data.error || "Impossible d'envoyer l'invitation.");
+        setTimeout(() => setInviteFriendError(null), 4000);
       } else {
-        const privateMate: LobbyMember = {
-          id: `mate_${Date.now()}`,
-          gameName: gName,
-          tagLine: tLine,
-          rank: "Privé",
-          rankTier: 12,
-          isPrivateRank: true,
-          roles: ["Tous Rôles"],
-          isLeader: false,
-        };
-        setCreateTeammates((prev) => [...prev, privateMate]);
+        setInviteFriendSuccess(`Invitation envoyée à ${friend.riotId} !`);
+        setTimeout(() => setInviteFriendSuccess(null), 3500);
       }
-      setNewMateRiotId("");
-    } catch {
-      const hashIndex = newMateRiotId.lastIndexOf("#");
-      const gName = hashIndex !== -1 ? newMateRiotId.substring(0, hashIndex) : newMateRiotId;
-      const tLine = hashIndex !== -1 ? newMateRiotId.substring(hashIndex + 1) : "EUW";
-      const privateMate: LobbyMember = {
-        id: `mate_${Date.now()}`,
-        gameName: gName,
-        tagLine: tLine,
-        rank: "Privé",
-        rankTier: 12,
-        isPrivateRank: true,
-        roles: ["Tous Rôles"],
-        isLeader: false,
-      };
-      setCreateTeammates((prev) => [...prev, privateMate]);
-      setNewMateRiotId("");
+    } catch (err: any) {
+      setInviteFriendError(err.message || "Erreur réseau.");
+      setTimeout(() => setInviteFriendError(null), 4000);
     } finally {
-      setCheckingMate(false);
+      setInvitingFriendId(null);
     }
   };
+
 
   // Submit Create Lobby
   const handleCreateSubmit = async () => {
@@ -980,13 +989,36 @@ export default function LobbiesView({
     return true;
   });
 
-  // Sort lobbies by proximity to user's rank MMR first, then by newest
+  // Helper to check if a lobby contains any SGS friend
+  const lobbyHasFriend = useCallback(
+    (lobby: LobbyItem) => {
+      if (!friends || friends.length === 0) return false;
+      return friends.some((f) => {
+        const fRiot = (f.riotId || "").toLowerCase();
+        if (!fRiot) return false;
+        const leaderRiot = `${lobby.leaderName}#${lobby.leaderTag}`.toLowerCase();
+        if (leaderRiot === fRiot) return true;
+        return lobby.members?.some(
+          (m) => `${m.gameName}#${m.tagLine}`.toLowerCase() === fRiot
+        );
+      });
+    },
+    [friends]
+  );
+
+  // Sort lobbies: Friends first, then proximity to user's rank MMR, then newest
   const sortedLobbies = [...filteredLobbies].sort((a, b) => {
+    const aHasFriend = lobbyHasFriend(a);
+    const bHasFriend = lobbyHasFriend(b);
+    if (aHasFriend && !bHasFriend) return -1;
+    if (!aHasFriend && bHasFriend) return 1;
+
     const diffA = Math.abs((a.lobbyLevelTier ?? 12) - (myRankTier ?? 12));
     const diffB = Math.abs((b.lobbyLevelTier ?? 12) - (myRankTier ?? 12));
     if (diffA !== diffB) return diffA - diffB;
     return b.createdAt - a.createdAt;
   });
+
 
   return (
     <div className="w-full space-y-6 animate-in fade-in duration-500">
@@ -1227,24 +1259,90 @@ export default function LobbiesView({
                   </span>
                 </div>
 
-                {/* Input Add Mate */}
-                <form onSubmit={handleAddTeammate} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newMateRiotId}
-                    onChange={(e) => setNewMateRiotId(e.target.value)}
-                    placeholder="Ex: Shroud#0001"
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[var(--color-val-red)] font-mono"
-                  />
-                  <button
-                    type="submit"
-                    disabled={checkingMate || !newMateRiotId.trim()}
-                    className="px-4 py-2.5 rounded-xl bg-[var(--color-surface-hover)] hover:bg-[var(--color-val-red)] text-white text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer border border-[var(--color-border)] flex items-center gap-1"
-                  >
-                    <IconPlus size={14} />
-                    <span>{checkingMate ? "Vérification..." : "Ajouter"}</span>
-                  </button>
-                </form>
+                {/* Friends Selector Section */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sounds.playClick();
+                        setShowInviteFriendsModal(!showInviteFriendsModal);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-accent-sm flex items-center gap-2"
+                    >
+                      <IconUsers size={15} />
+                      <span>Inviter des amis ({friends.length} amis)</span>
+                      <IconChevronDown size={14} className={`transition-transform duration-200 ${showInviteFriendsModal ? "rotate-180" : ""}`} />
+                    </button>
+                  </div>
+
+                  {/* Friends Selector List */}
+                  {showInviteFriendsModal && (
+                    <div className="p-3 rounded-2xl bg-[var(--color-surface)]/80 border border-[var(--color-border)] space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="flex items-center justify-between text-xs font-bold text-[var(--color-text-secondary)]">
+                        <span>Sélectionnez vos amis à ajouter :</span>
+                        <span>{friends.length} ami(s) disponible(s)</span>
+                      </div>
+
+                      {friends.length === 0 ? (
+                        <div className="p-4 rounded-xl bg-[var(--color-background)]/60 border border-[var(--color-border)] text-center space-y-1">
+                          <p className="text-xs font-bold text-white">Aucun ami SGS Tracker pour le moment</p>
+                          <p className="text-[11px] text-[var(--color-text-secondary)]">
+                            Ajoutez des joueurs en amis via l&apos;icône Amis du menu pour pouvoir les inviter en un clic !
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto custom-scrollbar p-0.5">
+                          {friends.map((friend) => {
+                            const isSelected = createTeammates.some(
+                              (m) => `${m.gameName}#${m.tagLine}`.toLowerCase() === (friend.riotId || "").toLowerCase()
+                            );
+                            const fStat = friendsStats.find(
+                              (fs) => fs.riotId?.toLowerCase() === (friend.riotId || "").toLowerCase()
+                            );
+
+                            return (
+                              <div
+                                key={friend.friendshipId || friend.riotId}
+                                onClick={() => handleToggleAddFriendTeammate(friend)}
+                                className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
+                                  isSelected
+                                    ? "bg-emerald-500/15 border-emerald-500/40 text-white shadow-sm"
+                                    : "bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] border-[var(--color-border)] text-white/90"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <img
+                                    src={friend.avatarUrl || getPlayerAvatar(friend.name)}
+                                    alt={friend.name}
+                                    className="w-8 h-8 rounded-lg object-cover border border-white/10 flex-shrink-0"
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-bold truncate text-white">{friend.riotId || friend.name}</div>
+                                    <div className="text-[10px] text-[var(--color-text-secondary)] truncate">
+                                      {fStat?.rank ? fStat.rank : "Ami SGS"}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex-shrink-0 ${
+                                    isSelected
+                                      ? "bg-emerald-500 text-black shadow-sm"
+                                      : "bg-white/10 hover:bg-[var(--color-val-red)] text-white"
+                                  }`}
+                                >
+                                  {isSelected ? "Ajouté ✓" : "+ Ajouter"}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
 
                 {/* Teammates List */}
                 {createTeammates.length > 0 && (
@@ -1653,6 +1751,12 @@ export default function LobbiesView({
 
                     {/* Mode & Badges */}
                     <div className="flex flex-wrap gap-1.5">
+                      {lobbyHasFriend(lobby) && (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-black uppercase flex items-center gap-1 shadow-sm">
+                          <IconUsers size={11} />
+                          <span>Ami(s) dans le salon</span>
+                        </span>
+                      )}
                       <span className="px-2 py-0.5 rounded-md bg-[var(--color-val-red)] text-[var(--color-accent-contrast,#ffffff)] shadow-accent-sm text-[10px] font-black uppercase">
                         {lobby.mode}
                       </span>
@@ -1849,14 +1953,138 @@ export default function LobbiesView({
               </div>
             </div>
 
-            {/* Bottom: Quitter le salon */}
-            <button
-              onClick={() => { sounds.playCancel(); handleLeaveSalon(); }}
-              className="w-full py-2.5 rounded-2xl bg-red-500/10 hover:bg-red-500 border border-red-500/20 hover:border-red-500 text-red-300 hover:text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
-            >
-              Quitter le salon ✕
-            </button>
+            {/* Action Inviter des amis au salon actif */}
+            <div className="space-y-2 pt-2 border-t border-white/10">
+              {inviteFriendSuccess && (
+                <div className="p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold text-center">
+                  {inviteFriendSuccess}
+                </div>
+              )}
+              {inviteFriendError && (
+                <div className="p-2 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-bold text-center">
+                  {inviteFriendError}
+                </div>
+              )}
+              {activeLobby.members.length < activeLobby.maxSlots && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    sounds.playClick();
+                    setShowInviteFriendsModal(true);
+                  }}
+                  className="w-full py-2.5 rounded-2xl bg-[var(--color-val-red)] hover:brightness-110 text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-accent-sm flex items-center justify-center gap-2"
+                >
+                  <IconUsers size={14} />
+                  <span>Inviter des amis</span>
+                </button>
+              )}
+
+              {/* Bottom: Quitter le salon */}
+              <button
+                onClick={() => { sounds.playCancel(); handleLeaveSalon(); }}
+                className="w-full py-2.5 rounded-2xl bg-red-500/10 hover:bg-red-500 border border-red-500/20 hover:border-red-500 text-red-300 hover:text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+              >
+                Quitter le salon ✕
+              </button>
+            </div>
           </div>
+
+          {/* Modal Inviter des amis dans le salon actif */}
+          {showInviteFriendsModal && currentView === "salon" && activeLobby && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="w-full max-w-md glass-panel rounded-3xl p-6 border border-[var(--color-border)] shadow-2xl space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-[var(--color-border)]">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-[var(--color-val-red)]/20 border border-[var(--color-val-red)]/40 flex items-center justify-center text-[var(--color-val-red)]">
+                      <IconUsers size={16} />
+                    </div>
+                    <h3 className="font-black text-sm uppercase text-white tracking-wider">
+                      Inviter des amis au salon
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowInviteFriendsModal(false)}
+                    className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center text-sm cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {inviteFriendSuccess && (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold text-center">
+                    {inviteFriendSuccess}
+                  </div>
+                )}
+                {inviteFriendError && (
+                  <div className="p-2.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-bold text-center">
+                    {inviteFriendError}
+                  </div>
+                )}
+
+                {friends.length === 0 ? (
+                  <div className="p-6 rounded-2xl bg-white/5 text-center space-y-2">
+                    <p className="text-xs font-bold text-white">Vous n&apos;avez pas encore d&apos;amis</p>
+                    <p className="text-[11px] text-[var(--color-text-secondary)]">
+                      Ajoutez vos coéquipiers en ami pour leur envoyer une invitation directe à rejoindre vos parties !
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                    {friends.map((friend) => {
+                      const isInActiveLobby = activeLobby.members.some(
+                        (m) => `${m.gameName}#${m.tagLine}`.toLowerCase() === (friend.riotId || "").toLowerCase()
+                      );
+                      const isInviting = invitingFriendId === friend.riotId;
+
+                      return (
+                        <div
+                          key={friend.friendshipId || friend.riotId}
+                          className="p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between gap-3"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={friend.avatarUrl || getPlayerAvatar(friend.name)}
+                              alt={friend.name}
+                              className="w-9 h-9 rounded-xl object-cover border border-white/20 flex-shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-white truncate">{friend.riotId || friend.name}</div>
+                              <div className="text-[10px] text-[var(--color-text-secondary)] truncate">
+                                {friend.badge ? friend.badge.toUpperCase() : "Ami SGS"}
+                              </div>
+                            </div>
+                          </div>
+
+                          {isInActiveLobby ? (
+                            <span className="px-3 py-1.5 rounded-xl bg-white/10 text-gray-400 text-[10px] font-black uppercase">
+                              Déjà présent
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isInviting}
+                              onClick={() => handleSendInviteToFriend(friend)}
+                              className="px-3.5 py-1.5 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                            >
+                              {isInviting ? (
+                                <span>Envoi...</span>
+                              ) : (
+                                <>
+                                  <IconSend size={11} />
+                                  <span>Inviter</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
 
           {/* ==================== COLONNE DROITE (VOCAL DISCORD-STYLE + CHAT) ==================== */}
           <div className="flex-1 glass-panel rounded-3xl p-4 sm:p-5 border border-[var(--color-border)] flex flex-col justify-between gap-4 shadow-xl min-h-[calc(100vh-125px)]">

@@ -36,12 +36,17 @@ model User {
   googleConnected Boolean   @default(false)
   googleEmail     String?
   onboardingDone  Boolean   @default(false)
+  dndEnabled      Boolean   @default(false)
+  dndBlockLobbyInvites Boolean @default(false)
+  notificationPreferences String @default("{}")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   accounts        Account[]
   sessions        Session[]
   sentFriendships     Friendship[] @relation("UserFriendships")
   receivedFriendships Friendship[] @relation("FriendOfUser")
+  sentLobbyInvites    LobbyInvite[] @relation("SentLobbyInvites")
+  receivedLobbyInvites LobbyInvite[] @relation("ReceivedLobbyInvites")
 }
 
 model Account {
@@ -173,6 +178,7 @@ model Lobby {
   expiresAt        DateTime               @default(now())
   messages         LobbyMessage[]
   transcripts      LobbyVoiceTranscript[]
+  invites          LobbyInvite[]
 
   @@index([createdAt])
   @@index([expiresAt])
@@ -282,5 +288,32 @@ model Friendship {
   @@index([userId])
   @@index([friendId])
   @@index([targetRiotId])
+  @@index([status])
+}
+
+// ==========================================
+// Système d'Invitations de Salon (Lobby Invites)
+// ==========================================
+
+model LobbyInvite {
+  id           String    @id @default(cuid())
+  lobbyId      String
+  senderId     String
+  senderName   String
+  senderTag    String
+  senderAvatar String?
+  targetUserId String?
+  targetRiotId String
+  status       String    @default("pending") // "pending", "accepted", "declined", "expired"
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  lobby        Lobby     @relation(fields: [lobbyId], references: [id], onDelete: Cascade)
+  sender       User      @relation("SentLobbyInvites", fields: [senderId], references: [id], onDelete: Cascade)
+  targetUser   User?     @relation("ReceivedLobbyInvites", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@index([targetUserId])
+  @@index([targetRiotId])
+  @@index([lobbyId])
   @@index([status])
 }

@@ -14,6 +14,7 @@ import { usePlayerData } from "@/hooks/usePlayerData";
 import { useFilters } from "@/hooks/useFilters";
 import { useVoiceState } from "@/hooks/useVoiceState";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useLobbyInvites } from "@/hooks/useLobbyInvites";
 
 // Utilities
 import { getWarnings } from "@/lib/warnings";
@@ -104,7 +105,18 @@ export function HomeContent({
   const [showAchievementsModal, setShowAchievementsModal] = useState<boolean>(false);
   const [showFriendsModal, setShowFriendsModal] = useState<boolean>(false);
   const friendsManager = useFriends();
+  const lobbyInvites = useLobbyInvites((lobbyId, lobby) => {
+    nav.setSettingsOpen(false);
+    nav.setNewsView(false);
+    nav.setAgentsView(false);
+    nav.setLeaderboardView(false);
+    nav.setLobbiesView(true);
+    if (lobby) {
+      voice.setActiveVoiceLobby(lobby);
+    }
+  });
   const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(null);
+
 
   // ─── Derived values ──────────────────────────────────────
   const canEdit = auth.canEditProfile(player.playerData);
@@ -644,6 +656,82 @@ export function HomeContent({
           pendingFriendsCount={friendsManager.pendingIncomingCount}
         />
 
+        {/* Floating Real-time Incoming Lobby Invite Banner */}
+        {lobbyInvites.activeBannerInvite && (
+          <div className="fixed top-20 right-4 sm:right-6 z-[100] max-w-md w-full animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="p-4 rounded-2xl glass-panel border border-[var(--color-val-red)]/60 bg-[#0d1117]/95 shadow-[0_10px_35px_rgba(255,70,85,0.3)] backdrop-blur-xl flex flex-col gap-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative flex-shrink-0">
+                    <div className="w-11 h-11 rounded-xl bg-[var(--color-surface)] border border-white/20 overflow-hidden">
+                      {lobbyInvites.activeBannerInvite.senderAvatar ? (
+                        <img
+                          src={lobbyInvites.activeBannerInvite.senderAvatar}
+                          alt="Avatar"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-sm font-black text-white bg-[var(--color-val-red)]">
+                          {lobbyInvites.activeBannerInvite.senderName[0]?.toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-[#0d1117] flex items-center justify-center text-[8px] text-black font-bold">
+                      ✓
+                    </span>
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-black text-white truncate">
+                        {lobbyInvites.activeBannerInvite.senderName}#{lobbyInvites.activeBannerInvite.senderTag}
+                      </span>
+                      <span className="px-1.5 py-0.2 rounded bg-[var(--color-val-red)]/20 text-[var(--color-val-red)] text-[9px] font-black uppercase flex-shrink-0">
+                        Salon
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5 line-clamp-1">
+                      Vous invite à rejoindre son escouade{" "}
+                      <strong className="text-white font-bold">
+                        ({lobbyInvites.activeBannerInvite.lobby?.mode || "Compétitif"})
+                      </strong>
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => lobbyInvites.declineInvite(lobbyInvites.activeBannerInvite!.id)}
+                  className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center text-xs cursor-pointer flex-shrink-0"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Buttons: Rejoindre direct & Refuser */}
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={lobbyInvites.actionLoading}
+                  onClick={() => lobbyInvites.acceptInvite(lobbyInvites.activeBannerInvite!.id)}
+                  className="flex-1 py-2 px-3 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white text-xs font-black uppercase tracking-wider transition-all shadow-accent-sm flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <span>Rejoindre le salon</span>
+                  <span>➔</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={lobbyInvites.actionLoading}
+                  onClick={() => lobbyInvites.declineInvite(lobbyInvites.activeBannerInvite!.id)}
+                  className="py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-[var(--color-text-secondary)] hover:text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer border border-white/10"
+                >
+                  Refuser
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Dynamic Views */}
         {nav.settingsOpen ? (
           <div key="settings" className="animate-page-in w-full">
@@ -683,6 +771,12 @@ export function HomeContent({
               setDisableAnimations={settings.setDisableAnimations}
               forceMyTheme={settings.forceMyTheme}
               setForceMyTheme={settings.setForceMyTheme}
+              dndEnabled={settings.dndEnabled}
+              setDndEnabled={settings.setDndEnabled}
+              dndBlockLobbyInvites={settings.dndBlockLobbyInvites}
+              setDndBlockLobbyInvites={settings.setDndBlockLobbyInvites}
+              notificationPreferences={settings.notificationPreferences}
+              setNotificationPreferences={settings.setNotificationPreferences}
             />
           </div>
         ) : nav.leaderboardView ? (

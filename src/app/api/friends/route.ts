@@ -196,6 +196,13 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      if (targetUser && targetUser.dndEnabled) {
+        return NextResponse.json(
+          { error: "Ce joueur a activé le mode 'Ne pas déranger' et n'accepte pas de demandes d'amis pour le moment." },
+          { status: 403 }
+        );
+      }
+
       const targetUserId = targetUser ? targetUser.id : null;
 
       // Vérifier les doublons de relations existantes

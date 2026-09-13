@@ -26,6 +26,8 @@ import {
   IconInfo,
   IconBrain,
   IconUsers,
+  IconBell,
+  IconBellOff,
 } from "./icons/SpyIcons";
 import { BADGES_REGISTRY, parseBadges } from "./UserBadges";
 import { sounds } from "@/lib/soundEffects";
@@ -92,6 +94,12 @@ export interface SettingsViewProps {
   setDisableAnimations?: (val: boolean) => void;
   forceMyTheme?: boolean;
   setForceMyTheme?: (val: boolean) => void;
+  dndEnabled?: boolean;
+  setDndEnabled?: (val: boolean) => void;
+  dndBlockLobbyInvites?: boolean;
+  setDndBlockLobbyInvites?: (val: boolean) => void;
+  notificationPreferences?: Record<string, boolean>;
+  setNotificationPreferences?: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 }
 
 export default function SettingsView({
@@ -130,6 +138,12 @@ export default function SettingsView({
   setDisableAnimations,
   forceMyTheme = false,
   setForceMyTheme,
+  dndEnabled = false,
+  setDndEnabled,
+  dndBlockLobbyInvites = false,
+  setDndBlockLobbyInvites,
+  notificationPreferences = { webPush: true, lobbyInvites: true, friendRequests: true, chatMessages: true, soundEffects: true },
+  setNotificationPreferences,
 }: SettingsViewProps) {
   const { friends: sgsFriends, updatePermission: updateFriendPermission } = useFriends();
   const statOptions = [
@@ -274,8 +288,18 @@ export default function SettingsView({
     }
     return forceMyTheme;
   });
+  const [draftDndEnabled, setDraftDndEnabled] = useState<boolean>(dndEnabled);
+  const [draftDndBlockLobbyInvites, setDraftDndBlockLobbyInvites] = useState<boolean>(dndBlockLobbyInvites);
+  const [draftNotificationPreferences, setDraftNotificationPreferences] = useState<Record<string, boolean>>(notificationPreferences);
+  const [pushPermissionStatus, setPushPermissionStatus] = useState<string>(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      return Notification.permission;
+    }
+    return "default";
+  });
   const [legalModalOpen, setLegalModalOpen] = useState<boolean>(false);
   const [legalModalTab, setLegalModalTab] = useState<"cgu" | "mentions" | "privacy" | "riot">("cgu");
+
 
   useEffect(() => {
     if (locale) setDraftLocale(locale);
@@ -399,6 +423,9 @@ export default function SettingsView({
           enforcePublicStats: draftEnforcePublicStats,
           language: draftLocale,
           showBadge: draftShowBadge,
+          dndEnabled: draftDndEnabled,
+          dndBlockLobbyInvites: draftDndBlockLobbyInvites,
+          notificationPreferences: draftNotificationPreferences,
         }),
       });
       if (res.ok) {
@@ -409,6 +436,9 @@ export default function SettingsView({
         }
         if (setShowBadge) setShowBadge(draftShowBadge);
         if (setHiddenBadges) setHiddenBadges(draftHiddenBadges);
+        if (setDndEnabled) setDndEnabled(draftDndEnabled);
+        if (setDndBlockLobbyInvites) setDndBlockLobbyInvites(draftDndBlockLobbyInvites);
+        if (setNotificationPreferences) setNotificationPreferences(draftNotificationPreferences);
         setSmartRating(draftSmartRating);
         setTheme(draftTheme === "custom" ? `custom:bg=${draftCustomBg},accent=${draftCustomAccent}` : draftTheme);
         setBannerUrl(draftBannerUrl);
@@ -421,6 +451,7 @@ export default function SettingsView({
         await setLanguage(draftLocale);
         onClose();
       }
+
     } catch (e) {
       console.error(e);
     } finally {
@@ -464,6 +495,7 @@ export default function SettingsView({
           {[
             { id: "account", label: "Compte SGS & Connexions" },
             { id: "features", label: "Fonctionnalités" },
+            { id: "notifications", label: "Notifications & DND" },
             { id: "shortcuts", label: "Raccourcis Clavier" },
             { id: "privacy", label: "Confidentialité" },
             { id: "appearance", label: "Apparence & Bannière" },
@@ -888,6 +920,205 @@ export default function SettingsView({
                     </div>
                   );
                 })()}
+              </div>
+            </div>
+          )}
+
+          {/* ==================== TAB : NOTIFICATIONS & NE PAS DÉRANGER ==================== */}
+          {settingsTab === "notifications" && (
+            <div className="glass-panel rounded-2xl p-3.5 sm:p-6 md:p-8 space-y-6">
+              {/* SECTION 1 : MODE NE PAS DÉRANGER */}
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-4 pb-4 border-b border-[var(--color-border)]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-[var(--color-val-red)]/15 border border-[var(--color-val-red)]/40 flex items-center justify-center text-[var(--color-val-red)] flex-shrink-0">
+                      <IconBellOff size={22} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">
+                        Mode &ldquo;Ne pas déranger&rdquo; (DND)
+                      </h3>
+                      <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5">
+                        Gardez le contrôle total sur les sollicitations sociales et les interruptions en jeu.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Master DND Switch */}
+                <div className="p-4 rounded-xl bg-[var(--color-surface)]/60 border border-[var(--color-border)] flex items-center justify-between gap-4">
+                  <div>
+                    <h4 className="font-bold text-sm text-white">Activer le mode Ne pas déranger</h4>
+                    <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                      Bloque automatiquement toutes les demandes d&apos;ami entrantes. Vous pouvez toujours envoyer des demandes d&apos;ami à d&apos;autres joueurs.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sounds.playClick();
+                      setDraftDndEnabled(!draftDndEnabled);
+                    }}
+                    className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 cursor-pointer ${
+                      draftDndEnabled ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                        draftDndEnabled ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                      } shadow-md transition-all duration-300 ${
+                        draftDndEnabled ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Sub DND Switch : Bloquer les invitations de salon */}
+                <div className="p-4 rounded-xl bg-[var(--color-surface)]/40 border border-[var(--color-border)] flex items-center justify-between gap-4 ml-2 sm:ml-6 border-l-4 border-l-amber-500/60">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-sm text-white">Bloquer également les invitations de salon</h4>
+                      <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                        Sous-paramètre
+                      </span>
+                    </div>
+                    <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                      Refuse automatiquement toutes les invitations entrantes pour rejoindre des salons Valorant (LFG). Vous conservez la possibilité d&apos;inviter vos amis.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sounds.playClick();
+                      setDraftDndBlockLobbyInvites(!draftDndBlockLobbyInvites);
+                    }}
+                    className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 cursor-pointer ${
+                      draftDndBlockLobbyInvites ? "bg-amber-500 shadow-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-all duration-300 ${
+                        draftDndBlockLobbyInvites ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* SECTION 2 : NOTIFICATIONS WEB PUSH NAVIGATEUR */}
+              <div className="space-y-4 pt-5 border-t border-[var(--color-border)]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-sky-500/15 border border-sky-500/40 flex items-center justify-center text-sky-400 flex-shrink-0">
+                    <IconBell size={22} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">
+                      Notifications Navigateur (Web Push)
+                    </h3>
+                    <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5">
+                      Recevez des alertes natives sur votre bureau lors de la réception d&apos;une invitation de salon ou d&apos;une demande d&apos;ami.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-[var(--color-surface)]/60 border border-[var(--color-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white">Statut du navigateur :</span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                            pushPermissionStatus === "granted"
+                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                              : pushPermissionStatus === "denied"
+                              ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                              : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                          }`}
+                        >
+                          {pushPermissionStatus === "granted"
+                            ? "Autorisé ✓"
+                            : pushPermissionStatus === "denied"
+                            ? "Bloqué par le navigateur"
+                            : "Non configuré"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+                        {pushPermissionStatus === "granted"
+                          ? "Vous recevrez des notifications natives dès qu'un ami vous invite dans un salon."
+                          : "Cliquez ci-contre pour autoriser l'affichage des alertes sur votre écran."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      sounds.playClick();
+                      const perm = await requestPushPermission();
+                      setPushPermissionStatus(perm);
+                      if (perm === "granted") {
+                        sendLocalNotification(
+                          "SGS Salons Valorant",
+                          "Les notifications Web sont parfaitement configurées sur votre navigateur !"
+                        );
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-md flex items-center justify-center gap-2 flex-shrink-0"
+                  >
+                    <IconBell size={14} />
+                    <span>{pushPermissionStatus === "granted" ? "Tester une alerte" : "Activer les notifications"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* SECTION 3 : PRÉFÉRENCES GRANULAIRES D'ALERTES */}
+              <div className="space-y-3 pt-5 border-t border-[var(--color-border)]">
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-[var(--color-text-primary)]">
+                    Préférences détaillées des alertes
+                  </h3>
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                    Sélectionnez les événements spécifiques qui déclenchent des notifications.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {[
+                    { id: "lobbyInvites", label: "Invitations de salon Valorant", desc: "Notification lors de la réception d'une invitation à rejoindre une escouade" },
+                    { id: "friendRequests", label: "Demandes d'amis SGS", desc: "Alerte lors de la réception d'une nouvelle demande d'ami d'un joueur" },
+                    { id: "chatMessages", label: "Nouveaux messages du chat de salon", desc: "Alerte sonore et visuelle lorsqu'un membre poste dans le salon actif" },
+                    { id: "soundEffects", label: "Effets sonores dans l'application", desc: "Retour audio lors des clics, actions et transitions d'interface" },
+                  ].map((item) => {
+                    const isChecked = (draftNotificationPreferences as any)[item.id] !== false;
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          sounds.playClick();
+                          setDraftNotificationPreferences((prev) => ({
+                            ...prev,
+                            [item.id]: !isChecked,
+                          }));
+                        }}
+                        className="p-3.5 rounded-xl bg-[var(--color-surface)]/60 hover:bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-between gap-3 cursor-pointer transition-all"
+                      >
+                        <div>
+                          <div className="text-xs font-bold text-white">{item.label}</div>
+                          <div className="text-[11px] text-[var(--color-text-secondary)] mt-0.5">{item.desc}</div>
+                        </div>
+                        <div
+                          className={`w-5 h-5 rounded-lg flex items-center justify-center text-xs font-black border transition-all ${
+                            isChecked
+                              ? "bg-[var(--color-val-red)] border-[var(--color-val-red)] text-white shadow-sm"
+                              : "bg-black/30 border-white/20 text-transparent"
+                          }`}
+                        >
+                          ✓
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}

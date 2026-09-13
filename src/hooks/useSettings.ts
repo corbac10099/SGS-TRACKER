@@ -37,6 +37,12 @@ export interface SettingsState {
   setActiveThemeOverride: (v: string | null) => void;
   settingsTab: string;
   setSettingsTab: (v: string) => void;
+  dndEnabled: boolean;
+  setDndEnabled: (v: boolean) => void;
+  dndBlockLobbyInvites: boolean;
+  setDndBlockLobbyInvites: (v: boolean) => void;
+  notificationPreferences: Record<string, boolean>;
+  setNotificationPreferences: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   toggleFullscreen: () => void;
   /** Initialise les settings depuis les données utilisateur de la session */
   syncFromSession: (user: any) => void;
@@ -71,6 +77,16 @@ export function useSettings(): SettingsState {
   const [hiddenStats, setHiddenStats] = useState<string[]>([]);
   const [enforcePublicStats, setEnforcePublicStats] = useState(false);
   const [settingsTab, setSettingsTab] = useState("features");
+
+  const [dndEnabled, setDndEnabled] = useState<boolean>(false);
+  const [dndBlockLobbyInvites, setDndBlockLobbyInvites] = useState<boolean>(false);
+  const [notificationPreferences, setNotificationPreferences] = useState<Record<string, boolean>>({
+    webPush: true,
+    lobbyInvites: true,
+    friendRequests: true,
+    chatMessages: true,
+    soundEffects: true,
+  });
 
   const [streamerMode, setStreamerMode] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -240,6 +256,20 @@ export function useSettings(): SettingsState {
     }
     if (user.enforcePublicStats !== undefined)
       setEnforcePublicStats(user.enforcePublicStats);
+    if (user.dndEnabled !== undefined)
+      setDndEnabled(Boolean(user.dndEnabled));
+    if (user.dndBlockLobbyInvites !== undefined)
+      setDndBlockLobbyInvites(Boolean(user.dndBlockLobbyInvites));
+    if (user.notificationPreferences !== undefined) {
+      try {
+        const parsed = typeof user.notificationPreferences === 'string'
+          ? JSON.parse(user.notificationPreferences)
+          : user.notificationPreferences;
+        if (parsed && typeof parsed === 'object') {
+          setNotificationPreferences((prev) => ({ ...prev, ...parsed }));
+        }
+      } catch {}
+    }
   }, []);
 
   const syncFromGuest = useCallback((user: any) => {
@@ -288,6 +318,12 @@ export function useSettings(): SettingsState {
     setActiveThemeOverride,
     settingsTab,
     setSettingsTab,
+    dndEnabled,
+    setDndEnabled,
+    dndBlockLobbyInvites,
+    setDndBlockLobbyInvites,
+    notificationPreferences,
+    setNotificationPreferences,
     toggleFullscreen,
     syncFromSession,
     syncFromGuest,
