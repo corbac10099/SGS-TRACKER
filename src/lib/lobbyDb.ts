@@ -100,10 +100,23 @@ export async function getLobbiesFromNeon(): Promise<LobbyItem[]> {
       orderBy: { createdAt: 'desc' },
     });
 
-    return records.map((r: any) => formatDbLobby(r, r.messages || [], r.transcripts || []));
+    const formatted = records.map((r: any) => formatDbLobby(r, r.messages || [], r.transcripts || []));
+
+    // Filtrer les salons valides ayant au moins un membre
+    const activeLobbies: LobbyItem[] = [];
+    for (const item of formatted) {
+      if (!item.members || item.members.length === 0) {
+        // Nettoyage en arrière-plan du salon vide
+        deleteLobbyFromNeon(item.id, 'empty').catch(() => {});
+      } else {
+        activeLobbies.push(item);
+      }
+    }
+
+    return activeLobbies;
   } catch (err) {
     console.warn('[NeonDB] Error fetching lobbies from Neon, using memory store fallback:', err);
-    return global._spycam_lobbies || [];
+    return (global._spycam_lobbies || []).filter((l) => l.members && l.members.length > 0);
   }
 }
 

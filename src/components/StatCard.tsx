@@ -23,6 +23,9 @@ export interface StatCardProps {
   onOpenFriendsModal?: () => void;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
+  comparisonValue?: string | number;
+  comparisonLabel?: string;
+  isComparing?: boolean;
 }
 
 /**
@@ -97,6 +100,9 @@ function StatCardComponent({
   onOpenFriendsModal,
   isExpanded: controlledExpanded,
   onToggleExpand,
+  comparisonValue,
+  comparisonLabel = "Moi",
+  isComparing = false,
 }: StatCardProps) {
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExp = controlledExpanded !== undefined ? controlledExpanded : internalExpanded;
@@ -148,6 +154,25 @@ function StatCardComponent({
     const allVals = [myNum, ...rankedFriends.map((f) => f.statVal)];
     return Math.max(...allVals, 1);
   }, [myNum, rankedFriends]);
+
+  const comparisonDelta = useMemo(() => {
+    if (!isComparing || comparisonValue === undefined || comparisonValue === null) return null;
+    const myVal = typeof comparisonValue === "number" ? comparisonValue : parseFloat(String(comparisonValue).replace("%", "").trim());
+    if (isNaN(myVal) || isNaN(myNum)) return null;
+    const diff = myVal - myNum;
+    const isNeutral = Math.abs(diff) < 0.01;
+    const isInverse = metricKey === "deaths";
+    const isPositive = isInverse ? diff < 0 : diff > 0;
+    const formattedDiff =
+      Math.abs(diff) >= 10
+        ? (diff > 0 ? `+${Math.round(diff)}` : `${Math.round(diff)}`)
+        : (diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1));
+    return {
+      text: formattedDiff,
+      positive: isPositive,
+      neutral: isNeutral,
+    };
+  }, [isComparing, comparisonValue, myNum, metricKey]);
 
   return (
     <div
@@ -216,6 +241,34 @@ function StatCardComponent({
       </div>
 
       {sub && <span className="text-[8px] xs:text-[9px] sm:text-[10px] text-[var(--color-text-secondary)] font-medium mt-0.5 truncate">{sub}</span>}
+
+      {/* Ligne de comparaison directe en mode comparaison */}
+      {isComparing && comparisonValue !== undefined && (
+        <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between gap-1.5 animate-in fade-in-0 slide-in-from-top-1 duration-200">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+              {comparisonLabel}
+            </span>
+            <span className="text-xs font-black text-white truncate font-mono">
+              {comparisonValue}{suffix || ""}
+            </span>
+          </div>
+          {comparisonDelta && (
+            <span
+              className={`text-[9px] font-black font-mono px-1.5 py-0.5 rounded-md shrink-0 ${
+                comparisonDelta.positive
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.2)]"
+                  : comparisonDelta.neutral
+                  ? "bg-white/10 text-neutral-300 border border-white/15"
+                  : "bg-red-500/20 text-red-300 border border-red-500/40"
+              }`}
+              title="Différence par rapport au joueur visité"
+            >
+              {comparisonDelta.text}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* TIROIR DÉPLIABLE : COMPARAISON AMIS SGS */}
       {isExp && (

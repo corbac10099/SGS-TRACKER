@@ -21,6 +21,8 @@ export interface PerformanceChartsProps {
   isDetached?: boolean;
   isEditing?: boolean;
   spiDynamicColors?: boolean;
+  comparisonMatchHistory?: any[];
+  comparisonLabel?: string;
 }
 
 function getCubicBezierPath(points: { x: number; y: number }[]): string {
@@ -61,6 +63,8 @@ function PerformanceChartsComponent({
   isDetached = false,
   isEditing = false,
   spiDynamicColors,
+  comparisonMatchHistory,
+  comparisonLabel = "Moi",
 }: PerformanceChartsProps) {
   // Garantit que si ce graphique est unique, SPI est toujours présent dans la liste autorisée
   const validAllowedMetrics = useMemo(() => {
@@ -283,6 +287,38 @@ function PerformanceChartsComponent({
     });
   }, [matchHistory, matchLimit]);
 
+  // Données comparatives pour notre propre profil (si actif)
+  const comparisonChartData = useMemo(() => {
+    if (!comparisonMatchHistory || comparisonMatchHistory.length === 0) return [];
+    const sliceCount = matchLimit === "all" ? comparisonMatchHistory.length : matchLimit;
+    const reversed = [...comparisonMatchHistory].slice(0, sliceCount).reverse();
+
+    return reversed.map((m, idx) => {
+      const kd = m.deaths > 0 ? Number((m.kills / m.deaths).toFixed(2)) : m.kills;
+      const hs =
+        m.headshots && m.kills
+          ? Math.round((m.headshots / (m.kills + m.assists || 1)) * 100)
+          : m.headshotPct || 20;
+      const matchSpi = calculateSingleMatchSPI(m, m.role);
+      return {
+        index: idx + 1,
+        matchId: m.matchId,
+        date: m.date ? new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : `M${idx + 1}`,
+        map: m.map || "Map",
+        agent: m.agent || "Agent",
+        agentIcon: m.agentIcon,
+        won: m.won,
+        score: m.score || "",
+        kd,
+        acs: m.acs || 0,
+        hs,
+        spi: matchSpi.score,
+        spiGrade: matchSpi.grade,
+        spiColor: matchSpi.gradeColor,
+      };
+    });
+  }, [comparisonMatchHistory, matchLimit]);
+
   if (chartData.length < 2) {
     return (
       <div className="glass-panel rounded-2xl p-4 w-full h-full flex flex-col items-center justify-center text-center">
@@ -311,29 +347,35 @@ function PerformanceChartsComponent({
   const graphHeight = height - padding.top - padding.bottom;
 
   let values: number[] = [];
+  let comparisonValues: number[] = [];
   let formatVal = (v: number) => String(v);
   let threshold: number | null = null;
 
   if (activeMetric === "kd") {
     values = chartData.map((d) => d.kd);
+    comparisonValues = comparisonChartData.map((d) => d.kd);
     formatVal = (v: number) => v.toFixed(2);
     threshold = 1.0;
   } else if (activeMetric === "acs") {
     values = chartData.map((d) => d.acs);
+    comparisonValues = comparisonChartData.map((d) => d.acs);
     formatVal = (v: number) => `${Math.round(v)}`;
     threshold = 200;
   } else if (activeMetric === "spi") {
     values = chartData.map((d) => d.spi);
+    comparisonValues = comparisonChartData.map((d) => d.spi);
     formatVal = (v: number) => `${Math.round(v)} pts`;
     threshold = 500;
   } else {
     values = chartData.map((d) => d.hs);
+    comparisonValues = comparisonChartData.map((d) => d.hs);
     formatVal = (v: number) => `${Math.round(v)}%`;
     threshold = 20;
   }
 
-  const minVal = Math.max(0, Math.min(...values) * 0.85);
-  const maxVal = Math.max(...values, threshold || 0) * 1.15 || 10;
+  const allValsCombined = [...values, ...comparisonValues];
+  const minVal = Math.max(0, Math.min(...allValsCombined) * 0.85);
+  const maxVal = Math.max(...allValsCombined, threshold || 0) * 1.15 || 10;
   const valRange = maxVal - minVal || 1;
 
   const points = chartData.map((d, i) => {
@@ -350,6 +392,24 @@ function PerformanceChartsComponent({
         1
       )} L ${points[0].x.toFixed(1)} ${(padding.top + graphHeight).toFixed(1)} Z`
     : "";
+
+  // Points & courbe de comparaison pour l'utilisateur visiteur
+  const comparisonPoints = comparisonChartData.map((d, i) => {
+    const x = padding.left + (i / Math.max(1, comparisonChartData.length - 1)) * graphWidth;
+    const val = activeMetric === "kd" ? d.kd : activeMetric === "acs" ? d.acs : activeMetric === "spi" ? d.spi : d.hs;
+    const y = padding.top + graphHeight - ((val - minVal) / valRange) * graphHeight;
+    return { ...d, x: Number.isFinite(x) ? x : 0, y: Number.isFinite(y) ? y : 0, currentVal: val };
+  });
+
+  const comparisonPathD = getCubicBezierPath(comparisonPoints);
+  const comparisonAreaD = comparisonPoints.length > 0
+    ? `${comparisonPathD} L ${comparisonPoints[comparisonPoints.length - 1].x.toFixed(1)} ${(padding.top + graphHeight).toFixed(
+        1
+      )} L ${comparisonPoints[0].x.toFixed(1)} ${(padding.top + graphHeight).toFixed(1)} Z`
+    : "";
+
+  // Couleur contrastée pour notre propre courbe (vert émeraude vibrant)
+  const comparisonColor = "#10b981";
 
   const thresholdY =
     threshold !== null
@@ -551,8 +611,22 @@ function PerformanceChartsComponent({
         </div>
       </div>
 
-      <div className="text-[9px] sm:text-[10px] text-[var(--color-text-secondary)] mb-0.5 flex-shrink-0">
-        Moyenne : <strong className="text-[var(--color-text-primary)]">{formatVal(average)}</strong>
+      <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[var(--color-text-secondary)] mb-0.5 flex-shrink-0">
+        <div>
+          Moyenne : <strong className="text-[var(--color-text-primary)]">{formatVal(average)}</strong>
+        </div>
+        {comparisonPoints.length > 1 && (
+          <div className="flex items-center gap-2.5 font-bold">
+            <span className="flex items-center gap-1 text-[var(--color-text-secondary)]">
+              <span className="w-2 h-2 rounded-full bg-[var(--color-val-red)]" />
+              <span>Joueur visité</span>
+            </span>
+            <span className="flex items-center gap-1 text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
+              <span>{comparisonLabel}</span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Full-width SVG Chart with smooth mouse tracking */}
@@ -583,6 +657,10 @@ function PerformanceChartsComponent({
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
               <stop offset="0%" stopColor={gradientColor} stopOpacity="0.4" />
               <stop offset="100%" stopColor={gradientColor} stopOpacity="0.0" />
+            </linearGradient>
+            <linearGradient id={`cmpGradient-${chartId}`} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor={comparisonColor} stopOpacity="0.3" />
+              <stop offset="100%" stopColor={comparisonColor} stopOpacity="0.0" />
             </linearGradient>
             <filter id={glowId} x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="3" result="blur" />
@@ -649,6 +727,41 @@ function PerformanceChartsComponent({
           {/* Area Fill */}
           <path d={areaD} fill={`url(#${gradientId})`} />
 
+          {/* Courbe comparative pour notre propre profil (en vert émeraude) */}
+          {comparisonPoints.length > 1 && (
+            <g className="animate-in fade-in-0 duration-300">
+              <path d={comparisonAreaD} fill={`url(#cmpGradient-${chartId})`} />
+              <path
+                d={comparisonPathD}
+                fill="none"
+                stroke={comparisonColor}
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity="0.25"
+              />
+              <path
+                d={comparisonPathD}
+                fill="none"
+                stroke={comparisonColor}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {comparisonPoints.map((p, i) => (
+                <circle
+                  key={`cmp-${i}`}
+                  cx={p.x}
+                  cy={p.y}
+                  r="3.5"
+                  fill="#0c1218"
+                  stroke={comparisonColor}
+                  strokeWidth="2"
+                />
+              ))}
+            </g>
+          )}
+
           {/* Subtle Glow underlay */}
           <path
             d={pathD}
@@ -709,39 +822,59 @@ function PerformanceChartsComponent({
               />
 
               {/* Smooth Floating Tooltip Box */}
-              <g transform={`translate(${Math.max(10, Math.min(width - 130, activePoint.x - 60))}, ${Math.max(5, activePoint.y - 45)})`}>
-                <rect
-                  width="120"
-                  height="34"
-                  rx="8"
-                  fill="#121824"
-                  stroke={isSpi ? (spiDynamicEnabled ? (activePoint.spiColor || "#f59e0b") : "var(--color-val-red)") : "var(--color-val-red)"}
-                  strokeWidth="1.5"
-                  className="shadow-2xl"
-                />
-                <text
-                  x="60"
-                  y="14"
-                  textAnchor="middle"
-                  fill="#ffffff"
-                  fontSize="11"
-                  fontWeight="900"
-                  fontFamily="sans-serif"
-                >
-                  {isSpi ? `${activePoint.spi} pts (${activePoint.spiGrade})` : formatVal(activePoint.currentVal)} • {activePoint.won ? "Victoire" : "Défaite"}
-                </text>
-                <text
-                  x="60"
-                  y="27"
-                  textAnchor="middle"
-                  fill="var(--color-text-secondary)"
-                  fontSize="9"
-                  fontWeight="bold"
-                  fontFamily="sans-serif"
-                >
-                  {activePoint.map} ({activePoint.agent})
-                </text>
-              </g>
+              {(() => {
+                const activeCmp = hoveredIdx !== null && comparisonPoints[hoveredIdx] ? comparisonPoints[hoveredIdx] : null;
+                const boxHeight = activeCmp ? 46 : 34;
+                const boxWidth = activeCmp ? 136 : 120;
+                return (
+                  <g transform={`translate(${Math.max(10, Math.min(width - (boxWidth + 10), activePoint.x - boxWidth / 2))}, ${Math.max(5, activePoint.y - (boxHeight + 10))})`}>
+                    <rect
+                      width={boxWidth}
+                      height={boxHeight}
+                      rx="8"
+                      fill="#121824"
+                      stroke={isSpi ? (spiDynamicEnabled ? (activePoint.spiColor || "#f59e0b") : "var(--color-val-red)") : "var(--color-val-red)"}
+                      strokeWidth="1.5"
+                      className="shadow-2xl"
+                    />
+                    <text
+                      x={boxWidth / 2}
+                      y="13"
+                      textAnchor="middle"
+                      fill="#ffffff"
+                      fontSize="10"
+                      fontWeight="900"
+                      fontFamily="sans-serif"
+                    >
+                      {activePoint.map} ({activePoint.agent}) • {activePoint.won ? "Victoire" : "Défaite"}
+                    </text>
+                    <text
+                      x={boxWidth / 2}
+                      y={activeCmp ? "26" : "26"}
+                      textAnchor="middle"
+                      fill="var(--color-text-primary)"
+                      fontSize="10"
+                      fontWeight="bold"
+                      fontFamily="sans-serif"
+                    >
+                      {activeCmp ? `Cible: ${formatVal(activePoint.currentVal)}` : (isSpi ? `${activePoint.spi} pts (${activePoint.spiGrade})` : formatVal(activePoint.currentVal))}
+                    </text>
+                    {activeCmp && (
+                      <text
+                        x={boxWidth / 2}
+                        y="38"
+                        textAnchor="middle"
+                        fill="#10b981"
+                        fontSize="10"
+                        fontWeight="900"
+                        fontFamily="sans-serif"
+                      >
+                        {comparisonLabel}: {formatVal(activeCmp.currentVal)}
+                      </text>
+                    )}
+                  </g>
+                );
+              })()}
             </g>
           )}
 

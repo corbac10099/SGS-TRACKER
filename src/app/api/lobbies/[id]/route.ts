@@ -56,7 +56,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const body = await req.json();
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      try {
+        const text = await req.text();
+        body = text ? JSON.parse(text) : {};
+      } catch {
+        body = {};
+      }
+    }
 
     let lobby = await getLobbyByIdFromNeon(id);
     let memLobby: any = null;
@@ -378,6 +388,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await triggerPusherEvent(`lobby-${id}`, 'member-leave', { gameName, tagLine, lobby: currentLobby });
 
       return NextResponse.json({ success: true, lobby: currentLobby });
+    }
+
+    // ACTION: HEARTBEAT & INACTIVITY CHECK
+    if (body.action === 'heartbeat') {
+      const { gameName, tagLine } = body;
+      const now = Date.now();
+      if (currentLobby.members) {
+        const member = currentLobby.members.find(
+          (m: any) => m.gameName?.toLowerCase() === gameName?.toLowerCase() && m.tagLine?.toLowerCase() === tagLine?.toLowerCase()
+        );
+        if (member) {
+          (member as any).lastSeen = now;
+        }
+      }
+      return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ success: false, error: 'Action non reconnue' }, { status: 400 });

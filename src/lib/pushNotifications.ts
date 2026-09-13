@@ -1,4 +1,4 @@
-﻿// Web Push Notifications Client Helper
+// Web Push Notifications Client Helper
 
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
@@ -38,6 +38,11 @@ export function getPushPermissionStatus(): NotificationPermission {
 
 export async function sendLocalNotification(title: string, body: string, url: string = '/') {
   if (typeof window === 'undefined' || !('Notification' in window)) return;
+
+  // Si l'utilisateur est activement sur la page et que l'onglet a le focus, inutile d'envoyer une notification OS
+  if (typeof document !== 'undefined' && document.visibilityState === 'visible' && document.hasFocus()) {
+    return;
+  }
 
   if (Notification.permission === 'granted') {
     try {

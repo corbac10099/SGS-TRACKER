@@ -14,6 +14,7 @@ export interface PlayerDataState {
   loading: boolean;
   playerData: any;
   setPlayerData: React.Dispatch<React.SetStateAction<any>>;
+  myPlayerData: any;
   error: string;
   setError: (v: string) => void;
   devOverrides: DevStatOverrides | null;
@@ -40,6 +41,7 @@ export function usePlayerData(
   const [myRiotId, setMyRiotId] = useState("");
   const [loading, setLoading] = useState(false);
   const [playerData, setPlayerData] = useState<any>(null);
+  const [myPlayerData, setMyPlayerData] = useState<any>(null);
   const [error, setError] = useState("");
   const [devOverrides, setDevOverrides] = useState<DevStatOverrides | null>(null);
   const [newsItems, setNewsItems] = useState<any[]>([]);
@@ -83,10 +85,30 @@ export function usePlayerData(
         .then((r) => r.json())
         .then((d) => {
           if (d.error) setError(d.error);
-          else setPlayerData(d);
+          else {
+            setPlayerData(d);
+            if (isOwn) setMyPlayerData(d);
+          }
         })
         .catch(() => setError("Serveur inaccessible."))
         .finally(() => setLoading(false));
+
+      // Si consultation d'un profil tiers et que nos propres données ne sont pas encore en mémoire, chargement discret
+      if (!isOwn && myRiotId) {
+        fetch("/api/valorant/player", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getDevKeyHeader(),
+          },
+          body: JSON.stringify({ riotId: myRiotId }),
+        })
+          .then((r) => r.json())
+          .then((md) => {
+            if (!md.error) setMyPlayerData(md);
+          })
+          .catch(() => {});
+      }
     },
     [myRiotId, nav, getDevKeyHeader]
   );
@@ -113,7 +135,10 @@ export function usePlayerData(
         .then((r) => r.json())
         .then((d) => {
           if (d.error) setError(d.error);
-          else setPlayerData(d);
+          else {
+            setPlayerData(d);
+            setMyPlayerData(d);
+          }
         })
         .catch(() => setError("Serveur inaccessible."))
         .finally(() => setLoading(false));
@@ -242,6 +267,7 @@ export function usePlayerData(
         // Parse URL for initial routing
         const pathname = window.location.pathname;
         const segments = pathname.split("/").filter(Boolean);
+        const urlNewsId = new URLSearchParams(window.location.search).get("newsId");
         let urlRiotId: string | null = null;
         let urlTab: string | null = null;
         let urlView:
@@ -305,6 +331,11 @@ export function usePlayerData(
           nav.setSettingsOpen(true);
           if (uSettingsTab) settings.setSettingsTab(uSettingsTab);
         }
+        if (urlView === "news") {
+          nav.setTargetNewsId(urlNewsId || null);
+        } else {
+          nav.setTargetNewsId(null);
+        }
         if (urlTab) nav.setActiveTab(urlTab);
 
         const targetRiotId = urlRiotId || initialRiotId;
@@ -350,12 +381,14 @@ export function usePlayerData(
     const handlePopState = () => {
       const pathname = window.location.pathname;
       const segments = pathname.split("/").filter(Boolean);
+      const urlNewsId = new URLSearchParams(window.location.search).get("newsId");
 
       nav.setNewsView(false);
       nav.setAgentsView(false);
       nav.setSettingsOpen(false);
       nav.setLobbiesView(false);
       nav.setLeaderboardView(false);
+      nav.setTargetNewsId(urlNewsId || null);
 
       if (segments.length === 0) {
         if (myRiotId) searchPlayer(myRiotId);

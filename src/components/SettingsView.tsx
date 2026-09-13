@@ -523,7 +523,7 @@ export default function SettingsView({
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-w-0">
+        <div key={settingsTab} className="flex-1 min-w-0 animate-tab-in">
           {settingsTab === "account" && (
             <SgsAccountSettings />
           )}

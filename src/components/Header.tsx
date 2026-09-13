@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
 import { signOut } from "next-auth/react";
 import NotificationsDropdown from "./NotificationsDropdown";
+import FriendsDropdown from "./FriendsDropdown";
 import LiveClock from "./LiveClock";
 
 import { sounds } from "@/lib/soundEffects";
@@ -476,26 +477,7 @@ export default function Header({
               </button>
             )}
 
-            {onOpenFriends && (
-              <button
-                type="button"
-                onClick={() => {
-                  sounds.playClick();
-                  onOpenFriends();
-                }}
-                onMouseEnter={() => sounds.playHover()}
-                title="Amis SGS & Invitations"
-                className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-neutral-300 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer select-none"
-              >
-                <IconUsers size={14} className="text-sky-400" />
-                <span className="hidden xl:inline">Amis</span>
-                {pendingFriendsCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-[var(--color-val-red)] text-white text-[9px] font-black animate-pulse">
-                    {pendingFriendsCount}
-                  </span>
-                )}
-              </button>
-            )}
+            <FriendsDropdown onSelectPlayer={onSelectFavorite} />
           </div>
 
           {/* ── Capsule 1: LiveClock + Notifications ── */}

@@ -4,7 +4,7 @@ import React from "react";
 import { sounds } from "@/lib/soundEffects";
 import PerformanceScoreCard from "./PerformanceScoreCard";
 import { UserBadges } from "./UserBadges";
-import { IconBrain, IconShare, IconTrophy, IconDownload } from "./icons/SpyIcons";
+import { IconBrain, IconShare, IconTrophy, IconDownload, IconSword } from "./icons/SpyIcons";
 
 export interface ProfileBannerProps {
   player: any;
@@ -23,6 +23,8 @@ export interface ProfileBannerProps {
   onOpenCardModal: () => void;
   onExportCSV?: () => void;
   onOpenAchievements?: () => void;
+  isComparing?: boolean;
+  onToggleCompare?: () => void;
 }
 
 export default function ProfileBanner({
@@ -42,6 +44,8 @@ export default function ProfileBanner({
   onOpenCardModal,
   onExportCSV,
   onOpenAchievements,
+  isComparing = false,
+  onToggleCompare,
 }: ProfileBannerProps) {
   const chosenBanner = canEditProfile
     ? bannerUrl || p.bannerUrl || p.customBannerUrl || p.cardWideUrl
@@ -161,6 +165,29 @@ export default function ProfileBanner({
               />
               <span className="hidden sm:inline">Exporter Carte</span>
             </button>
+
+            {!canEditProfile && onToggleCompare && (
+              <button
+                type="button"
+                onMouseEnter={() => sounds.playHover()}
+                onClick={() => {
+                  sounds.playClick();
+                  onToggleCompare();
+                }}
+                title={isComparing ? "Désactiver le comparateur direct" : "Comparer ce joueur avec mes statistiques"}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-black uppercase tracking-wider cursor-pointer border shadow-lg ${
+                  isComparing
+                    ? "bg-emerald-500/25 border-emerald-500/60 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.35)]"
+                    : "glass-pill bg-white/[0.06] hover:bg-white/[0.12] border-white/20 hover:border-emerald-500/50 text-white"
+                }`}
+              >
+                <IconSword size={14} className={isComparing ? "text-emerald-400" : "text-emerald-400/80"} />
+                <span className="hidden sm:inline">
+                  {isComparing ? "Comparé avec moi ✓" : "Comparer avec moi"}
+                </span>
+                <span className="sm:hidden">{isComparing ? "✓" : "VS"}</span>
+              </button>
+            )}
             {!canEditProfile && (
               <button
                 type="button"

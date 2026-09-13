@@ -983,6 +983,46 @@ export default function LobbiesView({
     fetchLobbies();
   };
 
+  // Déconnexion automatique du salon lors de la fermeture ou du changement de page via navigator.sendBeacon
+  useEffect(() => {
+    if (!activeLobby?.id) return;
+    const lobbyId = activeLobby.id;
+
+    const handlePageExit = () => {
+      try {
+        const payload = JSON.stringify({
+          action: "leave",
+          gameName: myName,
+          tagLine: myTag,
+        });
+        const blob = new Blob([payload], { type: "application/json" });
+        navigator.sendBeacon(`/api/lobbies/${lobbyId}`, blob);
+      } catch (_) {}
+    };
+
+    window.addEventListener("pagehide", handlePageExit);
+    window.addEventListener("beforeunload", handlePageExit);
+
+    // Heartbeat périodique (toutes les 45 secondes) pour maintenir l'activité dans le salon
+    const heartbeatInterval = setInterval(() => {
+      fetch(`/api/lobbies/${lobbyId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "heartbeat",
+          gameName: myName,
+          tagLine: myTag,
+        }),
+      }).catch(() => {});
+    }, 45000);
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageExit);
+      window.removeEventListener("beforeunload", handlePageExit);
+      clearInterval(heartbeatInterval);
+    };
+  }, [activeLobby?.id, myName, myTag]);
+
   const handleCopyRiotId = (id: string) => {
     sounds.playBreeze();
     navigator.clipboard.writeText(id);

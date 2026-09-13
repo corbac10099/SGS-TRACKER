@@ -39,6 +39,11 @@ model User {
   dndEnabled      Boolean   @default(false)
   dndBlockLobbyInvites Boolean @default(false)
   notificationPreferences String @default("{}")
+  xp              Int       @default(0)
+  trackerLevel    Int       @default(1)
+  equippedBannerAnimation String?
+  equippedBannerBorder    String?
+  unlockedCosmetics String   @default("[]")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   accounts        Account[]

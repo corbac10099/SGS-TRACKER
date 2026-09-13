@@ -104,6 +104,7 @@ export function HomeContent({
   const [showCompareModal, setShowCompareModal] = useState<boolean>(false);
   const [showAchievementsModal, setShowAchievementsModal] = useState<boolean>(false);
   const [showFriendsModal, setShowFriendsModal] = useState<boolean>(false);
+  const [isDirectComparing, setIsDirectComparing] = useState<boolean>(false);
   const friendsManager = useFriends();
   const lobbyInvites = useLobbyInvites((lobbyId, lobby) => {
     nav.setSettingsOpen(false);
@@ -348,6 +349,7 @@ export function HomeContent({
       view,
       playerId: player.riotId || player.myRiotId,
       isOwnProfile: !!isOwn,
+      newsId,
     });
   };
 
@@ -441,6 +443,8 @@ export function HomeContent({
             )
           }
           onOpenAchievements={() => setShowAchievementsModal(true)}
+          isComparing={isDirectComparing}
+          onToggleCompare={() => setIsDirectComparing(!isDirectComparing)}
         />
 
         <ProfileTabs
@@ -495,6 +499,10 @@ export function HomeContent({
               isFriendAllowed={isFriendAllowed}
               onSelectPlayer={(id) => player.searchPlayer(id)}
               onOpenFriendsModal={() => setShowFriendsModal(true)}
+              myStats={player.myPlayerData?.player?.stats || player.myPlayerData?.stats}
+              myMatchHistory={player.myPlayerData?.player?.matches || player.myPlayerData?.matches}
+              myPlayerName={player.myRiotId || "Moi"}
+              isComparing={isDirectComparing}
               onSaveGridData={(gridJson) => {
                 player.setPlayerData((prev: any) => {
                   if (!prev) return prev;

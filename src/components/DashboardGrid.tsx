@@ -60,6 +60,10 @@ export interface DashboardGridProps {
   onSelectPlayer?: (riotId: string) => void;
   onOpenFriendsModal?: () => void;
   isFriendAllowed?: boolean;
+  myStats?: any;
+  myMatchHistory?: any[];
+  myPlayerName?: string;
+  isComparing?: boolean;
 }
 
 const DEFAULT_COLS = 29;
@@ -232,6 +236,10 @@ export default function DashboardGrid({
   onSelectPlayer,
   onOpenFriendsModal,
   isFriendAllowed = false,
+  myStats,
+  myMatchHistory,
+  myPlayerName = "Moi",
+  isComparing = false,
 }: DashboardGridProps) {
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
   const storageKey = `spycam_grid_layout_v8_29_${userStorageKey}`;
@@ -1255,6 +1263,8 @@ export default function DashboardGrid({
           availableTargetCharts={otherCharts}
           onAttachMetric={(m, targetId) => handleAttachMetric(id, m, targetId)}
           isEditing={isEditing}
+          comparisonMatchHistory={isComparing ? myMatchHistory : undefined}
+          comparisonLabel={myPlayerName}
         />
       );
     }
@@ -1292,11 +1302,11 @@ export default function DashboardGrid({
       case "weapons":
         return <WeaponHitmap matchHistory={matchHistory} stats={stats} />;
       case "kills":
-        return <StatCard label="Éliminations" value={stats?.kills ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("kills")} metricKey="kills" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "kills"} onToggleExpand={() => setExpandedCardId(expandedCardId === "kills" ? null : "kills")} />;
+        return <StatCard label="Éliminations" value={stats?.kills ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("kills")} metricKey="kills" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "kills"} onToggleExpand={() => setExpandedCardId(expandedCardId === "kills" ? null : "kills")} comparisonValue={myStats?.kills} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       case "deaths":
-        return <StatCard label="Morts" value={stats?.deaths ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("deaths")} metricKey="deaths" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "deaths"} onToggleExpand={() => setExpandedCardId(expandedCardId === "deaths" ? null : "deaths")} />;
+        return <StatCard label="Morts" value={stats?.deaths ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("deaths")} metricKey="deaths" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "deaths"} onToggleExpand={() => setExpandedCardId(expandedCardId === "deaths" ? null : "deaths")} comparisonValue={myStats?.deaths} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       case "assists":
-        return <StatCard label="Passes décisives" value={stats?.assists ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("assists")} metricKey="assists" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "assists"} onToggleExpand={() => setExpandedCardId(expandedCardId === "assists" ? null : "assists")} />;
+        return <StatCard label="Passes décisives" value={stats?.assists ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("assists")} metricKey="assists" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "assists"} onToggleExpand={() => setExpandedCardId(expandedCardId === "assists" ? null : "assists")} comparisonValue={myStats?.assists} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       case "kd":
         return (
           <StatCard
@@ -1312,10 +1322,13 @@ export default function DashboardGrid({
             onOpenFriendsModal={onOpenFriendsModal}
             isExpanded={expandedCardId === "kd"}
             onToggleExpand={() => setExpandedCardId(expandedCardId === "kd" ? null : "kd")}
+            comparisonValue={myStats?.kdRatio !== undefined ? (Number(myStats.kdRatio)).toFixed(2) : undefined}
+            comparisonLabel={myPlayerName}
+            isComparing={isComparing}
           />
         );
       case "adr":
-        return <StatCard label="Dégâts/Tour (ADR)" value={stats?.adr ?? 0} highlight smartRating={smartRating} sessionDelta={getStatDelta("adr")} metricKey="adr" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "adr"} onToggleExpand={() => setExpandedCardId(expandedCardId === "adr" ? null : "adr")} />;
+        return <StatCard label="Dégâts/Tour (ADR)" value={stats?.adr ?? 0} highlight smartRating={smartRating} sessionDelta={getStatDelta("adr")} metricKey="adr" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "adr"} onToggleExpand={() => setExpandedCardId(expandedCardId === "adr" ? null : "adr")} comparisonValue={myStats?.adr !== undefined ? Math.round(Number(myStats.adr)) : undefined} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       case "hs":
         return (
           <StatCard
@@ -1331,6 +1344,9 @@ export default function DashboardGrid({
             onOpenFriendsModal={onOpenFriendsModal}
             isExpanded={expandedCardId === "hs"}
             onToggleExpand={() => setExpandedCardId(expandedCardId === "hs" ? null : "hs")}
+            comparisonValue={myStats?.headshotPct !== undefined ? Math.round(Number(myStats.headshotPct)) : undefined}
+            comparisonLabel={myPlayerName}
+            isComparing={isComparing}
           />
         );
       case "wr":
@@ -1348,6 +1364,9 @@ export default function DashboardGrid({
             onOpenFriendsModal={onOpenFriendsModal}
             isExpanded={expandedCardId === "wr"}
             onToggleExpand={() => setExpandedCardId(expandedCardId === "wr" ? null : "wr")}
+            comparisonValue={myStats?.winRate !== undefined ? Math.round(Number(myStats.winRate)) : undefined}
+            comparisonLabel={myPlayerName}
+            isComparing={isComparing}
           />
         );
       case "acs":
@@ -1365,12 +1384,15 @@ export default function DashboardGrid({
             onOpenFriendsModal={onOpenFriendsModal}
             isExpanded={expandedCardId === "acs"}
             onToggleExpand={() => setExpandedCardId(expandedCardId === "acs" ? null : "acs")}
+            comparisonValue={myStats?.acs !== undefined ? Math.round(Number(myStats.acs)) : undefined}
+            comparisonLabel={myPlayerName}
+            isComparing={isComparing}
           />
         );
       case "fb":
-        return <StatCard label="Premiers sangs" value={stats?.firstBloods ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("fb")} metricKey="firstBloods" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "fb"} onToggleExpand={() => setExpandedCardId(expandedCardId === "fb" ? null : "fb")} />;
+        return <StatCard label="Premiers sangs" value={stats?.firstBloods ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("fb")} metricKey="firstBloods" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "fb"} onToggleExpand={() => setExpandedCardId(expandedCardId === "fb" ? null : "fb")} comparisonValue={myStats?.firstBloods} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       case "ace":
-        return <StatCard label="ACE" value={stats?.aceCount ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("ace")} metricKey="aces" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "ace"} onToggleExpand={() => setExpandedCardId(expandedCardId === "ace" ? null : "ace")} />;
+        return <StatCard label="ACE" value={stats?.aceCount ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("ace")} metricKey="aces" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "ace"} onToggleExpand={() => setExpandedCardId(expandedCardId === "ace" ? null : "ace")} comparisonValue={myStats?.aceCount} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       case "kast":
         return (
           <StatCard
@@ -1380,6 +1402,9 @@ export default function DashboardGrid({
             sub={stats?.kastPercentile}
             warning={warnings?.kast}
             smartRating={smartRating}
+            comparisonValue={myStats?.kast !== undefined ? Math.round(Number(myStats.kast)) : undefined}
+            comparisonLabel={myPlayerName}
+            isComparing={isComparing}
           />
         );
       case "dd":
@@ -1389,6 +1414,9 @@ export default function DashboardGrid({
             value={stats?.ddDelta > 0 ? `+${stats?.ddDelta}` : stats?.ddDelta ?? 0}
             warning={warnings?.dd}
             smartRating={smartRating}
+            comparisonValue={myStats?.ddDelta}
+            comparisonLabel={myPlayerName}
+            isComparing={isComparing}
           />
         );
       case "wins":
@@ -1398,10 +1426,13 @@ export default function DashboardGrid({
             value={Math.round(((stats?.winRate ?? 0) / 100) * (stats?.matchesPlayed ?? 0))}
             smartRating={smartRating}
             sessionDelta={getStatDelta("wins")}
+            comparisonValue={myStats?.winRate !== undefined && myStats?.matchesPlayed !== undefined ? Math.round(((myStats.winRate) / 100) * myStats.matchesPlayed) : undefined}
+            comparisonLabel={myPlayerName}
+            isComparing={isComparing}
           />
         );
       case "matches":
-        return <StatCard label="Parties" value={stats?.matchesPlayed ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("matches")} />;
+        return <StatCard label="Parties" value={stats?.matchesPlayed ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("matches")} comparisonValue={myStats?.matchesPlayed} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       default:
         return null;
     }

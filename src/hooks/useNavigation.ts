@@ -76,6 +76,7 @@ export interface PushUrlOptions {
     | null;
   agentSlug?: string | null;
   settingsTab?: string | null;
+  newsId?: string | null;
 }
 
 export function useNavigation(
@@ -163,6 +164,7 @@ export function useNavigation(
       const view = opts?.view;
       const agentSlug = opts?.agentSlug;
       const sTab = opts?.settingsTab;
+      const newsId = opts?.newsId;
 
       let path = "/";
 
@@ -210,8 +212,16 @@ export function useNavigation(
         }
       }
 
-      if (window.location.pathname !== path) {
-        window.history.pushState(null, "", path);
+      const query = new URLSearchParams();
+      if (view === "news" && newsId) {
+        query.set("newsId", newsId);
+      }
+      const finalPath = query.toString() ? `${path}?${query.toString()}` : path;
+      if (
+        window.location.pathname !== path ||
+        window.location.search !== (query.toString() ? `?${query.toString()}` : "")
+      ) {
+        window.history.pushState(null, "", finalPath);
       }
 
       const pageTitle =

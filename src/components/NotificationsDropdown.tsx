@@ -207,14 +207,20 @@ export default function NotificationsDropdown({
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 sm:w-96 max-h-[500px] bg-[var(--color-surface)]/95 backdrop-blur-xl border border-[var(--color-border)] rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.7)] z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="absolute right-0 mt-3 w-80 sm:w-96 max-h-[520px] bg-[#0c1218]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.85),0_0_25px_rgba(255,70,85,0.08)] z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200">
+          {/* Top Cyber Accent Strip */}
+          <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-[var(--color-val-red)] to-transparent opacity-80" />
+
           {/* Header */}
-          <div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between bg-[var(--color-val-dark)] text-white">
-            <div className="flex items-center gap-2">
-              <span className="font-black text-sm uppercase tracking-wider">Notifications</span>
+          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/40 text-white">
+            <div className="flex items-center gap-2.5">
+              <span className="font-black text-xs uppercase tracking-widest text-white/90 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-val-red)] shadow-[0_0_8px_var(--color-val-red)]" />
+                Notifications
+              </span>
               {unreadCount > 0 && (
-                <span className="text-[10px] font-bold bg-[var(--color-val-red)] px-2 py-0.5 rounded-full">
-                  {unreadCount} nouvelle{unreadCount > 1 ? "s" : ""}
+                <span className="text-[10px] font-black bg-[var(--color-val-red)] text-white px-2 py-0.5 rounded-full shadow-[0_0_10px_rgba(255,70,85,0.5)]">
+                  {unreadCount}
                 </span>
               )}
             </div>
@@ -223,9 +229,9 @@ export default function NotificationsDropdown({
               <button
                 type="button"
                 onClick={markAllAsRead}
-                className="text-[11px] font-bold text-[var(--color-text-secondary)] hover:text-white transition-colors cursor-pointer"
+                className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)] hover:text-white transition-colors cursor-pointer"
               >
-                Tout marquer comme lu
+                Tout marquer lu
               </button>
             )}
           </div>
