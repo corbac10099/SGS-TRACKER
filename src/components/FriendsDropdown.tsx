@@ -228,7 +228,7 @@ export default function FriendsDropdown({
                           />
                           <span
                             className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#0c1218] ${
-                              friend.isOnline ? "bg-emerald-400" : "bg-neutral-600"
+                              friend.isPublic ? "bg-emerald-400" : "bg-neutral-600"
                             }`}
                           />
                         </div>
