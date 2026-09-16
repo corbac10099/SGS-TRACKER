@@ -185,6 +185,31 @@ export function IconBadgeCustom({ size = 16, className = "text-[#ff4655]", ...pr
   );
 }
 
+export function IconBadgeRecrue({ size = 16, className = "text-sky-400", ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} {...props}>
+      <path d="M12 2L4 7v6c0 5.25 3.4 10.15 8 11.5 4.6-1.35 8-6.25 8-11.5V7l-8-5zm0 4.5l5 3.5v4.5c0 3.2-2.1 6.2-5 7.2-2.9-1-5-4-5-7.2V10l5-3.5z" />
+    </svg>
+  );
+}
+
+export function IconBadgeVeteran({ size = 16, className = "text-amber-400", ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} {...props}>
+      <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 6h2v6h-2V7zm0 8h2v2h-2v-2z" />
+      <polygon points="12,3 19,6.5 19,11 12,19 5,11 5,6.5" opacity="0.4" />
+    </svg>
+  );
+}
+
+export function IconBadgeRadiant({ size = 16, className = "text-fuchsia-400", ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} {...props}>
+      <path d="M6 2L2 9l10 13L22 9l-4-7H6zm6 3.2L16.4 8H7.6L12 5.2zM4.6 9h3.7l2.5 8.5L4.6 9zm5.9 8.5L12 12.3l1.5 5.2h-3zm2.9 0l2.5-8.5h3.7l-6.2 8.5z" />
+    </svg>
+  );
+}
+
 export function IconAppGrid({ size = 18, className = "", ...props }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>

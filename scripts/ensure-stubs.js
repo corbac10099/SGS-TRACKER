@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Script execute au postinstall / prebuild sur Vercel et les environnements distants.
  * Si le composant LocalDevStatsPanel.tsx n'est pas present (car exclu par .gitignore),
  * genere un stub TypeScript minimal afin d'assurer un build 0-erreur sans inclure
@@ -29,6 +29,12 @@ export interface DevStatOverrides {
   clutches: number;
   role: "Auto" | AgentRole;
   matchesCount: number;
+  bonusKills?: number;
+  bonusWins?: number;
+  bonusHeadshots?: number;
+  bonusAssists?: number;
+  bonusClutches?: number;
+  bonusFirstBloods?: number;
 }
 
 export default function LocalDevStatsPanel(_props: any) {

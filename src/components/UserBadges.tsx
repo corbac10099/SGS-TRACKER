@@ -10,6 +10,9 @@ import {
   IconBadgeModerator,
   IconBadgeChampion,
   IconBadgeCustom,
+  IconBadgeRecrue,
+  IconBadgeVeteran,
+  IconBadgeRadiant,
 } from "./icons/SpyIcons";
 
 export interface BadgeDefinition {
@@ -94,6 +97,66 @@ export const BADGES_REGISTRY: Record<string, BadgeDefinition> = {
     borderClass: "border-orange-400/30",
     glowClass: "shadow-[0_0_12px_rgba(251,146,60,0.25)]",
   },
+  recrue: {
+    id: "recrue",
+    label: "Recrue Tracker",
+    description: "Badge officiel de bienvenue décerné à tous les agents actifs (Niveau Tracker 1+).",
+    icon: IconBadgeRecrue,
+    colorClass: "text-sky-400",
+    bgClass: "bg-sky-500/10",
+    borderClass: "border-sky-400/30",
+    glowClass: "shadow-[0_0_12px_rgba(56,189,248,0.25)]",
+  },
+  badge_recruit: {
+    id: "badge_recruit",
+    label: "Recrue Tracker",
+    description: "Badge officiel de bienvenue décerné à tous les agents actifs (Niveau Tracker 1+).",
+    icon: IconBadgeRecrue,
+    colorClass: "text-sky-400",
+    bgClass: "bg-sky-500/10",
+    borderClass: "border-sky-400/30",
+    glowClass: "shadow-[0_0_12px_rgba(56,189,248,0.25)]",
+  },
+  veteran: {
+    id: "veteran",
+    label: "Vétéran Spycam",
+    description: "Distinction d'honneur accordée aux agents expérimentés et fidèles (Niveau Tracker 4+).",
+    icon: IconBadgeVeteran,
+    colorClass: "text-amber-400",
+    bgClass: "bg-amber-500/10",
+    borderClass: "border-amber-400/30",
+    glowClass: "shadow-[0_0_12px_rgba(251,191,36,0.25)]",
+  },
+  badge_veteran: {
+    id: "badge_veteran",
+    label: "Vétéran Spycam",
+    description: "Distinction d'honneur accordée aux agents expérimentés et fidèles (Niveau Tracker 4+).",
+    icon: IconBadgeVeteran,
+    colorClass: "text-amber-400",
+    bgClass: "bg-amber-500/10",
+    borderClass: "border-amber-400/30",
+    glowClass: "shadow-[0_0_12px_rgba(251,191,36,0.25)]",
+  },
+  radiant: {
+    id: "radiant",
+    label: "Radiant Master",
+    description: "Badge d'élite suprême accordé aux légendes ultimes du Tracker (Niveau Tracker 15+).",
+    icon: IconBadgeRadiant,
+    colorClass: "text-fuchsia-400",
+    bgClass: "bg-fuchsia-500/10",
+    borderClass: "border-fuchsia-400/30",
+    glowClass: "shadow-[0_0_16px_rgba(217,70,239,0.35)]",
+  },
+  badge_radiant: {
+    id: "badge_radiant",
+    label: "Radiant Master",
+    description: "Badge d'élite suprême accordé aux légendes ultimes du Tracker (Niveau Tracker 15+).",
+    icon: IconBadgeRadiant,
+    colorClass: "text-fuchsia-400",
+    bgClass: "bg-fuchsia-500/10",
+    borderClass: "border-fuchsia-400/30",
+    glowClass: "shadow-[0_0_16px_rgba(217,70,239,0.35)]",
+  },
 };
 
 export function parseBadges(badgeRaw: string | string[] | null | undefined): string[] {
@@ -124,6 +187,7 @@ interface UserBadgesProps {
   size?: number;
   className?: string;
   hiddenBadges?: string[];
+  maxBadges?: number;
 }
 
 export function UserBadges({
@@ -132,12 +196,18 @@ export function UserBadges({
   size = 18,
   className = "",
   hiddenBadges = [],
+  maxBadges = 3,
 }: UserBadgesProps) {
   const [hoveredBadge, setHoveredBadge] = useState<string | null>(null);
 
   if (!showBadge) return null;
 
-  const parsedList = parseBadges(badges).filter((b) => !hiddenBadges.includes(b));
+  const parsedList = parseBadges(badges)
+    .filter((b) => {
+      const bl = b.toLowerCase().trim();
+      return !hiddenBadges.some((hb) => hb.toLowerCase().trim() === bl);
+    })
+    .slice(0, maxBadges);
   if (parsedList.length === 0) return null;
 
   return (

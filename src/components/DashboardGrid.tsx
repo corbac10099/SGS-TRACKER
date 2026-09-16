@@ -1149,47 +1149,87 @@ export default function DashboardGrid({
       totalShots += hs + bs + ls;
     });
 
-    const losses = matchesCount - wins;
-    const kd = deaths > 0 ? kills / deaths : kills;
-    const avgAcs = matchesCount > 0 ? Math.round(totalAcs / matchesCount) : 0;
-    const avgAdr = matchesCount > 0 ? Math.round(totalAdr / matchesCount) : 0;
-    const hsPct = totalShots > 0 ? Math.round((totalHs / totalShots) * 100) : 0;
+    const bonusK = (stats as any)?.bonusKills || 0;
+    const bonusW = (stats as any)?.bonusWins || 0;
+    const bonusA = (stats as any)?.bonusAssists || 0;
+    const bonusH = (stats as any)?.bonusHeadshots || 0;
+    const bonusFb = (stats as any)?.bonusFirstBloods || 0;
+
+    const totalKills = kills + bonusK;
+    const totalWins = wins + bonusW;
+    const totalAssists = assists + bonusA;
+    const totalFb = firstBloods + bonusFb;
+    const totalMatchesCount = matchesCount + (bonusW > 0 ? bonusW : 0);
+
+    const losses = Math.max(0, totalMatchesCount - totalWins);
+    const kd = deaths > 0 ? totalKills / deaths : totalKills;
+    const avgAcs = matchesCount > 0 ? Math.round(totalAcs / matchesCount) : (stats?.acs ?? 0);
+    const avgAdr = matchesCount > 0 ? Math.round(totalAdr / matchesCount) : (stats?.adr ?? 0);
+    const hsPct = totalShots > 0 ? Math.round((totalHs / totalShots) * 100) + bonusH : bonusH;
 
     const overallKd = stats?.kdRatio ?? 1.0;
     const overallAcs = stats?.acs ?? 200;
-    const kdDelta = matchesCount > 0 ? kd - overallKd : 0;
+    const kdDelta = matchesCount > 0
+      ? kd - overallKd
+      : (bonusK !== 0 ? Number((bonusK / Math.max(stats?.deaths || 100, 1)).toFixed(2)) : 0);
     const acsDelta = matchesCount > 0 ? avgAcs - overallAcs : 0;
 
     return {
-      matchesCount,
-      wins,
+      matchesCount: totalMatchesCount,
+      rawMatchesCount: matchesCount,
+      wins: totalWins,
       losses,
-      kills,
+      kills: totalKills,
       deaths,
-      assists,
+      assists: totalAssists,
       kd,
       kdDelta,
       avgAcs,
       acsDelta,
       avgAdr,
       hsPct,
-      firstBloods,
+      firstBloods: totalFb,
       aces,
     };
   }, [liveSessionActive, liveSessionStart, liveSessionInitialMatchIds, matchHistory, stats]);
 
   const getStatDelta = (key: string) => {
     if (!liveSessionActive) return undefined;
-    if (!sessionDeltas || sessionDeltas.matchesCount === 0) {
+    if (!sessionDeltas) {
       return { text: "0", neutral: true };
     }
+
+    const hasActivity =
+      sessionDeltas.matchesCount > 0 ||
+      sessionDeltas.kills !== 0 ||
+      sessionDeltas.wins !== 0 ||
+      sessionDeltas.assists !== 0 ||
+      sessionDeltas.hsPct !== 0 ||
+      sessionDeltas.firstBloods !== 0 ||
+      sessionDeltas.aces !== 0 ||
+      sessionDeltas.deaths !== 0;
+
+    if (!hasActivity) {
+      return { text: "0", neutral: true };
+    }
+
     switch (key) {
       case "kills":
-        return { text: `+${sessionDeltas.kills}`, positive: true };
+        return sessionDeltas.kills > 0
+          ? { text: `+${sessionDeltas.kills}`, positive: true }
+          : sessionDeltas.kills < 0
+          ? { text: `${sessionDeltas.kills}`, negative: true }
+          : { text: "0", neutral: true };
       case "deaths":
-        return { text: `+${sessionDeltas.deaths}`, neutral: true };
+        return sessionDeltas.deaths > 0
+          ? { text: `+${sessionDeltas.deaths}`, neutral: true }
+          : { text: "0", neutral: true };
       case "assists":
-        return { text: `+${sessionDeltas.assists}`, positive: true };
+        return sessionDeltas.assists > 0
+          ? { text: `+${sessionDeltas.assists}`, positive: true }
+          : sessionDeltas.assists < 0
+          ? { text: `${sessionDeltas.assists}`, negative: true }
+          : { text: "0", neutral: true };
       case "kd": {
         const diff = sessionDeltas.kdDelta;
         return {
@@ -1198,33 +1238,49 @@ export default function DashboardGrid({
         };
       }
       case "adr":
-        return {
-          text: `+${sessionDeltas.avgAdr}`,
-          positive: sessionDeltas.avgAdr >= 130,
-        };
+        return sessionDeltas.rawMatchesCount > 0
+          ? {
+              text: `+${sessionDeltas.avgAdr}`,
+              positive: sessionDeltas.avgAdr >= 130,
+            }
+          : { text: "0", neutral: true };
       case "hs":
-        return {
-          text: `${sessionDeltas.hsPct}%`,
-          positive: sessionDeltas.hsPct >= 20,
-        };
+        return sessionDeltas.hsPct !== 0
+          ? {
+              text: `${sessionDeltas.hsPct > 0 ? "+" : ""}${sessionDeltas.hsPct}%`,
+              positive: sessionDeltas.hsPct > 0,
+            }
+          : { text: "0%", neutral: true };
       case "wr":
-        return {
-          text: `${sessionDeltas.wins}V-${sessionDeltas.losses}D`,
-          positive: sessionDeltas.wins >= sessionDeltas.losses,
-        };
+        return sessionDeltas.matchesCount > 0
+          ? {
+              text: `${sessionDeltas.wins}V-${sessionDeltas.losses}D`,
+              positive: sessionDeltas.wins >= sessionDeltas.losses,
+            }
+          : { text: "0V-0D", neutral: true };
       case "acs": {
         const diff = sessionDeltas.acsDelta;
-        return {
-          text: `${diff >= 0 ? "+" : ""}${diff}`,
-          positive: diff >= 0,
-        };
+        return diff !== 0
+          ? {
+              text: `${diff >= 0 ? "+" : ""}${diff}`,
+              positive: diff >= 0,
+            }
+          : { text: "0", neutral: true };
       }
       case "fb":
-        return { text: `+${sessionDeltas.firstBloods}`, positive: true };
+        return sessionDeltas.firstBloods > 0
+          ? { text: `+${sessionDeltas.firstBloods}`, positive: true }
+          : { text: "0", neutral: true };
       case "ace":
-        return { text: `+${sessionDeltas.aces}`, positive: true };
+        return sessionDeltas.aces > 0
+          ? { text: `+${sessionDeltas.aces}`, positive: true }
+          : { text: "0", neutral: true };
       case "wins":
-        return { text: `+${sessionDeltas.wins}`, positive: true };
+        return sessionDeltas.wins > 0
+          ? { text: `+${sessionDeltas.wins}`, positive: true }
+          : sessionDeltas.wins < 0
+          ? { text: `${sessionDeltas.wins}`, negative: true }
+          : { text: "0", neutral: true };
       case "matches":
         return { text: `+${sessionDeltas.matchesCount}`, neutral: true };
       default:

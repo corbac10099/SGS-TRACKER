@@ -44,6 +44,8 @@ export async function PUT(req: Request) {
       dndEnabled,
       dndBlockLobbyInvites,
       notificationPreferences,
+      equippedBannerAnimation,
+      equippedBannerBorder,
     } = body;
     const updateData: any = {};
 
@@ -70,6 +72,8 @@ export async function PUT(req: Request) {
     if (voiceSettings !== undefined) {
       updateData.voiceSettings = typeof voiceSettings === 'string' ? voiceSettings : JSON.stringify(voiceSettings);
     }
+    if (equippedBannerAnimation !== undefined) updateData.equippedBannerAnimation = equippedBannerAnimation;
+    if (equippedBannerBorder !== undefined) updateData.equippedBannerBorder = equippedBannerBorder;
 
     // S'il n'y a rien à mettre à jour
     if (Object.keys(updateData).length === 0) {
@@ -133,6 +137,8 @@ export async function GET(req: Request) {
         dndEnabled: true,
         dndBlockLobbyInvites: true,
         notificationPreferences: true,
+        equippedBannerAnimation: true,
+        equippedBannerBorder: true,
       },
     });
 

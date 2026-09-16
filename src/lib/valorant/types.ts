@@ -22,6 +22,8 @@ export interface ValorantPlayerIdentity {
   agentStats?: any[];
   weapons?: any[];
   matchHistory?: any[];
+  equippedBannerAnimation?: string | null;
+  equippedBannerBorder?: string | boolean | null;
 }
 
 export interface ValorantPlayerStats {

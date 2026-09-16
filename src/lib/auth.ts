@@ -303,6 +303,8 @@ export const authOptions: NextAuthOptions = {
             token.videoLoopDelay = (dbUser as any).videoLoopDelay ?? 500;
             token.hiddenStats = (dbUser as any).hiddenStats ?? "[]";
             token.enforcePublicStats = (dbUser as any).enforcePublicStats ?? false;
+            token.equippedBannerAnimation = (dbUser as any).equippedBannerAnimation || null;
+            token.equippedBannerBorder = (dbUser as any).equippedBannerBorder || null;
 
             // Auto-set riotGameName for known users
             const gameNameMap: Record<string, string> = {
@@ -343,6 +345,8 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).videoLoopDelay = token.videoLoopDelay ?? 500;
         (session.user as any).hiddenStats = token.hiddenStats ?? "[]";
         (session.user as any).enforcePublicStats = token.enforcePublicStats ?? false;
+        (session.user as any).equippedBannerAnimation = token.equippedBannerAnimation || null;
+        (session.user as any).equippedBannerBorder = token.equippedBannerBorder || null;
       }
       return session;
     },

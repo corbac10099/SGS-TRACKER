@@ -40,7 +40,7 @@ export interface HeaderProps {
   onOpenLeaderboard?: () => void;
   leaderboardOpen?: boolean;
   onOpenCompare?: () => void;
-  onOpenAchievements?: () => void;
+  onOpenDailyQuests?: () => void;
   onOpenFriends?: () => void;
   pendingFriendsCount?: number;
   favorites: Array<{ riotId: string; gameName: string; tagLine: string; cardUrl: string; rank?: string }>;
@@ -75,7 +75,7 @@ export default function Header({
   onOpenLeaderboard,
   leaderboardOpen = false,
   onOpenCompare,
-  onOpenAchievements,
+  onOpenDailyQuests,
   onOpenFriends,
   pendingFriendsCount = 0,
   favorites,
@@ -461,19 +461,19 @@ export default function Header({
               </button>
             )}
 
-            {onOpenAchievements && (
+            {onOpenDailyQuests && (
               <button
                 type="button"
                 onClick={() => {
                   sounds.playClick();
-                  onOpenAchievements();
+                  onOpenDailyQuests();
                 }}
                 onMouseEnter={() => sounds.playHover()}
-                title="Succès & Hauts Faits Débloquables"
+                title="Défis Quotidiens & Niveau Tracker"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-neutral-300 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer select-none"
               >
                 <IconTrophy size={14} className="text-amber-400" />
-                <span className="hidden xl:inline">Succès</span>
+                <span className="hidden xl:inline">Défis</span>
               </button>
             )}
 

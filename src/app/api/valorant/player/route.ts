@@ -92,7 +92,7 @@ async function handlePlayerRequest(
         },
       });
       if (registeredUser) {
-        customOwnerSettings = {
+         customOwnerSettings = {
           theme: registeredUser.theme,
           bannerUrl: registeredUser.bannerUrl,
           bannerOffsetY: registeredUser.bannerOffsetY,
@@ -102,6 +102,8 @@ async function handlePlayerRequest(
           badge: registeredUser.badge || null,
           showBadge: registeredUser.showBadge !== false,
           puuid: registeredUser.riotPuuid,
+          equippedBannerAnimation: registeredUser.equippedBannerAnimation || null,
+          equippedBannerBorder: registeredUser.equippedBannerBorder || null,
         };
       }
     } catch (dbErr) {
@@ -143,10 +145,9 @@ async function handlePlayerRequest(
       }
     } catch {}
 
-    // Un profil est public UNIQUEMENT si le joueur est inscrit et a activé "Profil Public" (isPublic === true).
-    // S'il n'a pas été configuré en public (non inscrit ou isPublic === false), il est privé.
-    const isProfilePublic = Boolean(registeredUser && registeredUser.isPublic === true);
-    const isProfilePrivate = !isProfilePublic;
+    // Un profil est privé UNIQUEMENT si le joueur EST inscrit et a laissé isPublic à false.
+    // Les joueurs non-inscrits ne sont pas concernés par la privacy (données Riot publiques).
+    const isProfilePrivate = Boolean(registeredUser && registeredUser.isPublic === false);
 
     // Règle de confidentialité :
     // Si le profil est privé, bloquer l'accès pour les tiers sauf si le visiteur est le propriétaire ou un ami autorisé
@@ -169,7 +170,7 @@ async function handlePlayerRequest(
       }
     }
 
-    if (isProfilePrivate && !isOwner && !isFriendAllowed) {
+    if (isProfilePrivate && !isOwner && !isAdmin && !isFriendAllowed) {
       return NextResponse.json(
         { error: "Ce profil est privé. Ce joueur n'a pas configuré son profil en public sur SGS Tracker. Seul le propriétaire ou ses amis autorisés peuvent y accéder." },
         { status: 403 }
@@ -198,6 +199,8 @@ async function handlePlayerRequest(
             dashboardGrid: customOwnerSettings.dashboardGrid || null,
             badge: customOwnerSettings.badge || cachedProfile.player.badge,
             showBadge: customOwnerSettings.showBadge ?? cachedProfile.player.showBadge,
+            equippedBannerAnimation: customOwnerSettings.equippedBannerAnimation || null,
+            equippedBannerBorder: customOwnerSettings.equippedBannerBorder || null,
           };
           (cachedProfile as any).bannerUrl = customOwnerSettings.bannerUrl || null;
           (cachedProfile as any).bannerOffsetY = customOwnerSettings.bannerOffsetY || 0;
@@ -461,6 +464,8 @@ async function handlePlayerRequest(
         dashboardGrid: customOwnerSettings.dashboardGrid || null,
         badge: customOwnerSettings.badge || profileData.player.badge,
         showBadge: customOwnerSettings.showBadge ?? profileData.player.showBadge,
+        equippedBannerAnimation: customOwnerSettings.equippedBannerAnimation || null,
+        equippedBannerBorder: customOwnerSettings.equippedBannerBorder || null,
       };
       (profileData as any).bannerUrl = customOwnerSettings.bannerUrl || null;
       (profileData as any).bannerOffsetY = customOwnerSettings.bannerOffsetY || 0;

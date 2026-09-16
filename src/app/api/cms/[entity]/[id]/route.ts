@@ -77,6 +77,40 @@ export async function PUT(
           }
         });
         break;
+      case 'quests':
+        data = await (prisma as any).quest.update({
+          where: { id },
+          data: {
+            title: body.title,
+            description: body.description,
+            category: body.category,
+            targetStat: body.targetStat,
+            targetValue: body.targetValue !== undefined ? Number(body.targetValue) : undefined,
+            xpReward: body.xpReward !== undefined ? Number(body.xpReward) : undefined,
+            minRankTier: body.minRankTier !== undefined ? Number(body.minRankTier) : undefined,
+            maxRankTier: body.maxRankTier !== undefined ? Number(body.maxRankTier) : undefined,
+            minSpi: body.minSpi !== undefined ? Number(body.minSpi) : undefined,
+            maxSpi: body.maxSpi !== undefined ? Number(body.maxSpi) : undefined,
+            isActive: body.isActive,
+          }
+        });
+        break;
+      case 'rewards': {
+        data = await (prisma as any).levelReward.update({
+          where: { id },
+          data: {
+            level: body.level !== undefined ? Number(body.level) : undefined,
+            type: body.type,
+            title: body.title,
+            description: body.description,
+            rewardKey: body.rewardKey,
+            icon: body.icon,
+            badgeColor: body.badgeColor,
+            isActive: body.isActive,
+          }
+        });
+        break;
+      }
       default:
         return setCORSHeaders(NextResponse.json({ error: 'Entity not found' }, { status: 404 }));
     }
@@ -105,6 +139,8 @@ export async function DELETE(
       case 'agents': await prisma.agent.delete({ where: { id } }); break;
       case 'maps': await prisma.map.delete({ where: { id } }); break;
       case 'banners': await prisma.banner.delete({ where: { id } }); break;
+      case 'quests': await (prisma as any).quest.delete({ where: { id } }); break;
+      case 'rewards': await (prisma as any).levelReward.delete({ where: { id } }); break;
       default: return setCORSHeaders(NextResponse.json({ error: `Entity not found: ${entity}` }, { status: 404 }));
     }
     return setCORSHeaders(NextResponse.json({ success: true }));

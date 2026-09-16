@@ -522,6 +522,31 @@ class SoundEngine {
       osc.stop(now + 0.085);
     } catch {}
   }
+
+  // 17. Level Up celebratory chime sound
+  public playLevelUp() {
+    if (!this.enabled || this.volume <= 0) return;
+    this.initCtx();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      // Arpeggio: C5, E5, G5, C6 with warm tone
+      const notes = [523.25, 659.25, 783.99, 1046.5];
+      notes.forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(freq, now + idx * 0.09);
+        gain.gain.setValueAtTime(this.volume * 0.5, now + idx * 0.09);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.09 + 0.3);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.09);
+        osc.stop(now + idx * 0.09 + 0.32);
+      });
+    } catch {}
+  }
 }
 
 export const sounds = new SoundEngine();

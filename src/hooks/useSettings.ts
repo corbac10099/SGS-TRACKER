@@ -43,6 +43,10 @@ export interface SettingsState {
   setDndBlockLobbyInvites: (v: boolean) => void;
   notificationPreferences: Record<string, boolean>;
   setNotificationPreferences: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  equippedBannerAnimation: string;
+  setEquippedBannerAnimation: (v: string) => void;
+  equippedBannerBorder: boolean;
+  setEquippedBannerBorder: (v: boolean) => void;
   toggleFullscreen: () => void;
   /** Initialise les settings depuis les données utilisateur de la session */
   syncFromSession: (user: any) => void;
@@ -87,6 +91,9 @@ export function useSettings(): SettingsState {
     chatMessages: true,
     soundEffects: true,
   });
+
+  const [equippedBannerAnimation, setEquippedBannerAnimation] = useState<string>("");
+  const [equippedBannerBorder, setEquippedBannerBorder] = useState<boolean>(false);
 
   const [streamerMode, setStreamerMode] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -270,6 +277,12 @@ export function useSettings(): SettingsState {
         }
       } catch {}
     }
+    if (user.equippedBannerAnimation !== undefined) {
+      setEquippedBannerAnimation(user.equippedBannerAnimation || "");
+    }
+    if (user.equippedBannerBorder !== undefined) {
+      setEquippedBannerBorder(Boolean(user.equippedBannerBorder));
+    }
   }, []);
 
   const syncFromGuest = useCallback((user: any) => {
@@ -281,6 +294,12 @@ export function useSettings(): SettingsState {
     if (user.videoLoop !== undefined) setVideoLoop(user.videoLoop);
     if (user.videoLoopDelay !== undefined)
       setVideoLoopDelay(user.videoLoopDelay);
+    if (user.equippedBannerAnimation !== undefined) {
+      setEquippedBannerAnimation(user.equippedBannerAnimation || "");
+    }
+    if (user.equippedBannerBorder !== undefined) {
+      setEquippedBannerBorder(Boolean(user.equippedBannerBorder));
+    }
   }, []);
 
   return {
@@ -324,6 +343,10 @@ export function useSettings(): SettingsState {
     setDndBlockLobbyInvites,
     notificationPreferences,
     setNotificationPreferences,
+    equippedBannerAnimation,
+    setEquippedBannerAnimation,
+    equippedBannerBorder,
+    setEquippedBannerBorder,
     toggleFullscreen,
     syncFromSession,
     syncFromGuest,

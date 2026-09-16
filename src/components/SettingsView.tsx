@@ -58,6 +58,15 @@ export const SHORTCUT_DEFINITIONS = [
   { id: "leaderboard", label: "Afficher le Classement Régional", defaultKey: "l" },
 ];
 
+export const BANNER_EFFECTS_LIST = [
+  { id: "", name: "Aucun", minLevel: 1, desc: "Pas d'effet d'animation", color: "#6b7280" },
+  { id: "cyber_glow", name: "Cyber Glow", minLevel: 2, desc: "Lueur pulsante interne cybernétique", color: "var(--color-val-red)" },
+  { id: "scanlines", name: "Scanlines CRT", minLevel: 3, desc: "Lignes horizontales tactiques rétro", color: "#a0aec0" },
+  { id: "matrix", name: "Matrix Rain", minLevel: 5, desc: "Pluie de code cybernétique vert vif", color: "#00ff41" },
+  { id: "stardust", name: "Stardust", minLevel: 7, desc: "Poussière d'étoiles scintillante", color: "#e2e8f0" },
+  { id: "neon_pulse", name: "Néon Pulse", minLevel: 8, desc: "Bordure et halo néon pulsant", color: "#ff4655" },
+];
+
 export interface SettingsViewProps {
   onClose: () => void;
   smartRating: boolean;
@@ -100,6 +109,11 @@ export interface SettingsViewProps {
   setDndBlockLobbyInvites?: (val: boolean) => void;
   notificationPreferences?: Record<string, boolean>;
   setNotificationPreferences?: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  equippedBannerAnimation?: string;
+  setEquippedBannerAnimation?: (val: string) => void;
+  equippedBannerBorder?: boolean;
+  setEquippedBannerBorder?: (val: boolean) => void;
+  trackerLevel?: number;
 }
 
 export default function SettingsView({
@@ -144,6 +158,11 @@ export default function SettingsView({
   setDndBlockLobbyInvites,
   notificationPreferences = { webPush: true, lobbyInvites: true, friendRequests: true, chatMessages: true, soundEffects: true },
   setNotificationPreferences,
+  equippedBannerAnimation = "",
+  setEquippedBannerAnimation,
+  equippedBannerBorder = false,
+  setEquippedBannerBorder,
+  trackerLevel = 1,
 }: SettingsViewProps) {
   const { friends: sgsFriends, updatePermission: updateFriendPermission } = useFriends();
   const statOptions = [
@@ -241,7 +260,9 @@ export default function SettingsView({
 
   const [draftHiddenStats, setDraftHiddenStats] = useState<string[]>(hiddenStats || []);
   const [privacyStatsExpanded, setPrivacyStatsExpanded] = useState<boolean>(false);
-  const [badgesExpanded, setBadgesExpanded] = useState<boolean>(false);
+  const [badgesExpanded, setBadgesExpanded] = useState<boolean>(true);
+  const [badgeSlotWarning, setBadgeSlotWarning] = useState<string | null>(null);
+  const [showAllBannersAndFx, setShowAllBannersAndFx] = useState<boolean>(false);
   const [draftEnforcePublicStats, setDraftEnforcePublicStats] = useState(enforcePublicStats || false);
   const [draftTheme, setDraftTheme] = useState(theme?.startsWith("custom:") ? "custom" : theme);
   const [draftCustomBg, setDraftCustomBg] = useState(() => {
@@ -299,6 +320,12 @@ export default function SettingsView({
   });
   const [legalModalOpen, setLegalModalOpen] = useState<boolean>(false);
   const [legalModalTab, setLegalModalTab] = useState<"cgu" | "mentions" | "privacy" | "riot">("cgu");
+  const [draftBannerAnimation, setDraftBannerAnimation] = useState<string>(() => {
+    return equippedBannerAnimation || p?.equippedBannerAnimation || "";
+  });
+  const [draftBannerBorder, setDraftBannerBorder] = useState<boolean>(() => {
+    return Boolean(equippedBannerBorder ?? p?.equippedBannerBorder ?? false);
+  });
 
 
   useEffect(() => {
@@ -426,6 +453,8 @@ export default function SettingsView({
           dndEnabled: draftDndEnabled,
           dndBlockLobbyInvites: draftDndBlockLobbyInvites,
           notificationPreferences: draftNotificationPreferences,
+          equippedBannerAnimation: draftBannerAnimation || null,
+          equippedBannerBorder: draftBannerBorder ? "animated" : null,
         }),
       });
       if (res.ok) {
@@ -439,6 +468,8 @@ export default function SettingsView({
         if (setDndEnabled) setDndEnabled(draftDndEnabled);
         if (setDndBlockLobbyInvites) setDndBlockLobbyInvites(draftDndBlockLobbyInvites);
         if (setNotificationPreferences) setNotificationPreferences(draftNotificationPreferences);
+        if (setEquippedBannerAnimation) setEquippedBannerAnimation(draftBannerAnimation);
+        if (setEquippedBannerBorder) setEquippedBannerBorder(draftBannerBorder);
         setSmartRating(draftSmartRating);
         setTheme(draftTheme === "custom" ? `custom:bg=${draftCustomBg},accent=${draftCustomAccent}` : draftTheme);
         setBannerUrl(draftBannerUrl);
@@ -790,12 +821,46 @@ export default function SettingsView({
                   </button>
                 </div>
 
-                {/* Badges de Profil Section - Only rendered if user actually has badges */}
+                {/* ==================== BADGES DE PROFIL (MAX 3 SUR LA BANNIÈRE) ==================== */}
                 {(() => {
-                  const userBadges = p?.badge ? parseBadges(p.badge).map((b: string) => b.toLowerCase()) : [];
-                  const myOwnedBadges = Object.values(BADGES_REGISTRY).filter((badgeDef) => userBadges.includes(badgeDef.id));
+                  const currentLvl = trackerLevel ?? 1;
+                  const levelBadgeIds: string[] = [];
+                  if (currentLvl >= 1) levelBadgeIds.push("recrue");
+                  if (currentLvl >= 4) levelBadgeIds.push("veteran");
+                  if (currentLvl >= 15) levelBadgeIds.push("radiant");
 
-                  if (myOwnedBadges.length === 0) return null;
+                  const rawBadges = [
+                    ...levelBadgeIds,
+                    ...(p?.badge ? parseBadges(p.badge).map((b: string) => b.toLowerCase().trim()) : []),
+                  ];
+
+                  const canonicalKeys = Array.from(
+                    new Set(
+                      rawBadges.map((b) => {
+                        if (b === "badge_recruit") return "recrue";
+                        if (b === "badge_veteran") return "veteran";
+                        if (b === "badge_radiant") return "radiant";
+                        return b;
+                      })
+                    )
+                  );
+
+                  const ownedBadges = canonicalKeys
+                    .map((id) => BADGES_REGISTRY[id])
+                    .filter(Boolean);
+
+                  // Badges actuellement actifs (non masqués)
+                  const activeBadges = ownedBadges.filter(
+                    (b) => !draftHiddenBadges.some((hb) => hb.toLowerCase().trim() === b.id)
+                  );
+                  const activeCount = Math.min(3, activeBadges.length);
+
+                  // Badges de niveau encore verrouillés pour ce niveau Tracker
+                  const lockedLevelBadges = [
+                    { id: "recrue", minLvl: 1, label: "Recrue Tracker" },
+                    { id: "veteran", minLvl: 4, label: "Vétéran Spycam" },
+                    { id: "radiant", minLvl: 15, label: "Radiant Master" },
+                  ].filter((lb) => currentLvl < lb.minLvl);
 
                   return (
                     <div className="flex flex-col pt-4 sm:pt-6 border-t border-[var(--color-border)]">
@@ -811,14 +876,14 @@ export default function SettingsView({
                             <IconBadgeVerified size={18} className="text-sky-400" />
                           </div>
                           <div className="flex flex-col min-w-0">
-                            <h3 className="font-bold text-sm sm:text-base text-[var(--color-text-primary)] flex items-center gap-2">
+                            <h3 className="font-bold text-sm sm:text-base text-[var(--color-text-primary)] flex items-center gap-2 flex-wrap">
                               <span>Badges &amp; Distinctions de Profil</span>
-                              <span className="px-1.5 py-0.2 rounded-full bg-sky-500/20 text-sky-400 text-[10px] font-black">
-                                {myOwnedBadges.length}
+                              <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 text-[10px] font-black border border-sky-500/30">
+                                {draftShowBadge ? `${activeCount}/3 affichés` : "Masqués"}
                               </span>
                             </h3>
                             <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] truncate">
-                              {badgesExpanded ? "Cliquez pour replier les options" : "Cliquez pour gérer la visibilité de vos badges"}
+                              Sélectionnez jusqu&apos;à 3 badges maximum à afficher sur votre bannière de profil
                             </p>
                           </div>
                         </div>
@@ -855,14 +920,74 @@ export default function SettingsView({
                         </div>
                       </div>
 
-                      {badgesExpanded && draftShowBadge && (
-                        <div className="space-y-2.5 mt-3 pt-3 border-t border-[var(--color-border)]/50 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)] mb-2">
-                            Visibilité de vos badges obtenus :
+                      {/* Corps de gestion des badges */}
+                      {badgesExpanded && (
+                        <div className="space-y-3 mt-3 pt-3 border-t border-[var(--color-border)]/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                          {/* Alert / Warning si l'utilisateur essaie de dépasser 3 badges */}
+                          {badgeSlotWarning && (
+                            <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-2 animate-in fade-in duration-200">
+                              <span className="text-base flex-shrink-0">⚠️</span>
+                              <span>{badgeSlotWarning}</span>
+                            </div>
+                          )}
+
+                          {/* Aperçu des 3 emplacements de la bannière */}
+                          <div className="p-3 rounded-xl bg-black/40 border border-white/5 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
+                                Emplacements sur la bannière (3 max)
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-sky-400">
+                                {draftShowBadge ? `${activeCount} / 3 slots occupés` : "Désactivé"}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              {[0, 1, 2].map((slotIdx) => {
+                                const badge = activeBadges[slotIdx];
+                                if (badge && draftShowBadge) {
+                                  const IconComp = badge.icon;
+                                  return (
+                                    <div
+                                      key={slotIdx}
+                                      className={`p-2.5 rounded-lg border flex items-center gap-2.5 ${badge.bgClass} ${badge.borderClass} ${badge.glowClass}`}
+                                    >
+                                      <IconComp size={16} className={badge.colorClass} />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                                          Slot {slotIdx + 1}
+                                        </div>
+                                        <div className="text-xs font-bold text-white truncate">
+                                          {badge.label}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div
+                                    key={slotIdx}
+                                    className="p-2.5 rounded-lg border border-dashed border-white/10 bg-white/[0.02] flex items-center justify-center gap-1.5 text-[11px] text-[var(--color-text-secondary)]/50 font-bold"
+                                  >
+                                    <span>Slot {slotIdx + 1}</span>
+                                    <span className="text-[9px] uppercase tracking-wider">(Vide)</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
+
+                          {/* Liste de tous les badges possédés */}
+                          <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)] pt-1">
+                            Cliquez sur un badge pour l&apos;afficher ou le masquer :
+                          </div>
+
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                            {myOwnedBadges.map((badgeDef) => {
-                              const isHidden = draftHiddenBadges.includes(badgeDef.id);
+                            {ownedBadges.map((badgeDef) => {
+                              const isHidden = draftHiddenBadges.some(
+                                (hb) => hb.toLowerCase().trim() === badgeDef.id
+                              );
+                              const isActive = !isHidden && draftShowBadge;
+                              const slotNumber = activeBadges.findIndex((b) => b.id === badgeDef.id);
                               const IconComp = badgeDef.icon;
 
                               return (
@@ -870,21 +995,41 @@ export default function SettingsView({
                                   key={badgeDef.id}
                                   onMouseEnter={() => sounds.playHover()}
                                   onClick={() => {
-                                    sounds.playBreeze();
-                                    if (isHidden) {
-                                      setDraftHiddenBadges(draftHiddenBadges.filter((id) => id !== badgeDef.id));
+                                    if (isActive) {
+                                      // Masquer
+                                      sounds.playClick();
+                                      setDraftHiddenBadges((prev) => [
+                                        ...prev.filter((id) => id.toLowerCase().trim() !== badgeDef.id),
+                                        badgeDef.id,
+                                      ]);
+                                      setBadgeSlotWarning(null);
                                     } else {
-                                      setDraftHiddenBadges([...draftHiddenBadges, badgeDef.id]);
+                                      // Afficher (si < 3)
+                                      if (activeCount >= 3) {
+                                        sounds.playClick();
+                                        setBadgeSlotWarning(
+                                          "3 badges maximum peuvent être affichés simultanément sur la bannière. Désactivez un badge pour en sélectionner un autre !"
+                                        );
+                                        setTimeout(() => setBadgeSlotWarning(null), 4000);
+                                        return;
+                                      }
+                                      sounds.playClick();
+                                      setDraftHiddenBadges((prev) =>
+                                        prev.filter((id) => id.toLowerCase().trim() !== badgeDef.id)
+                                      );
+                                      setBadgeSlotWarning(null);
                                     }
                                   }}
                                   className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                                    !isHidden
-                                      ? "bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-text-secondary)]"
-                                      : "bg-red-500/5 border-red-500/25 opacity-60 hover:opacity-100"
+                                    isActive
+                                      ? "bg-[var(--color-surface)] border-sky-400/40 shadow-[0_0_12px_rgba(56,189,248,0.15)]"
+                                      : "bg-white/[0.02] border-white/10 opacity-60 hover:opacity-100"
                                   }`}
                                 >
                                   <div className="flex items-center gap-3 min-w-0">
-                                    <div className={`p-1.5 rounded-lg border flex items-center justify-center ${badgeDef.bgClass} ${badgeDef.borderClass}`}>
+                                    <div
+                                      className={`p-1.5 rounded-lg border flex items-center justify-center ${badgeDef.bgClass} ${badgeDef.borderClass}`}
+                                    >
                                       <IconComp size={16} className={badgeDef.colorClass} />
                                     </div>
                                     <div className="flex flex-col min-w-0">
@@ -892,9 +1037,11 @@ export default function SettingsView({
                                         <span className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)] truncate">
                                           {badgeDef.label}
                                         </span>
-                                        <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                                          Actif
-                                        </span>
+                                        {isActive && slotNumber >= 0 && slotNumber < 3 && (
+                                          <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                            Slot {slotNumber + 1}
+                                          </span>
+                                        )}
                                       </div>
                                       <span className="text-[10px] text-[var(--color-text-secondary)] line-clamp-1">
                                         {badgeDef.description}
@@ -903,23 +1050,286 @@ export default function SettingsView({
                                   </div>
 
                                   <div
-                                    className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex-shrink-0 ${
-                                      !isHidden
-                                        ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
-                                        : "bg-red-500/15 text-red-400 border border-red-500/30"
+                                    className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider flex-shrink-0 transition-all ${
+                                      isActive
+                                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                                        : "bg-white/10 text-gray-400 border border-white/15"
                                     }`}
                                   >
-                                    {!isHidden ? "Affiché" : "Masqué"}
+                                    {isActive ? "Affiché" : "Masqué"}
                                   </div>
                                 </div>
                               );
                             })}
                           </div>
+
+                          {/* Badges de niveau à débloquer */}
+                          {lockedLevelBadges.length > 0 && (
+                            <div className="pt-2">
+                              <div className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]/60 mb-2 flex items-center gap-1.5">
+                                <IconLock size={12} />
+                                <span>Badges à débloquer via le Niveau Tracker :</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 opacity-60">
+                                {lockedLevelBadges.map((lb) => {
+                                  const def = BADGES_REGISTRY[lb.id];
+                                  const IconComp = def ? def.icon : IconTrophy;
+                                  return (
+                                    <div
+                                      key={lb.id}
+                                      className="p-2.5 rounded-xl border border-dashed border-white/15 bg-white/[0.01] flex items-center justify-between gap-2"
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <div className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-500">
+                                          <IconComp size={14} />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <div className="text-xs font-bold text-gray-400 truncate">
+                                            {lb.label}
+                                          </div>
+                                          <div className="text-[10px] text-gray-500">
+                                            Requis : Niveau Tracker {lb.minLvl}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-gray-400 border border-white/10">
+                                        Niv. {lb.minLvl}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
                   );
                 })()}
+
+                {/* ==================== EFFETS & BANNIÈRES OBTENUS (BOUTON VOIR PLUS) ==================== */}
+                <div className="flex flex-col pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                  <div className="flex items-center justify-between gap-3 p-3 sm:p-4 rounded-xl bg-[var(--color-surface)]/60 border border-[var(--color-border)]">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center flex-shrink-0 text-purple-400 font-black text-sm">
+                        ✨
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <h3 className="font-bold text-sm sm:text-base text-[var(--color-text-primary)] flex items-center gap-2 flex-wrap">
+                          <span>Effets &amp; Bannières Obtenus</span>
+                          {draftBannerAnimation ? (
+                            <span className="px-2 py-0.5 rounded-full bg-[var(--color-val-red)]/20 text-[var(--color-val-red)] text-[10px] font-black border border-[var(--color-val-red)]/30">
+                              Effet : {BANNER_EFFECTS_LIST.find((fx) => fx.id === draftBannerAnimation)?.name || "Actif"}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full bg-white/10 text-gray-400 text-[10px] font-black">
+                              Aucun effet
+                            </span>
+                          )}
+                          {draftBannerBorder && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-black border border-emerald-500/30">
+                              Bordure RGB
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] truncate">
+                          Effets visuels animés et bannières débloqués grâce à votre progression de niveau Tracker
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sounds.playClick();
+                        setShowAllBannersAndFx(!showAllBannersAndFx);
+                      }}
+                      onMouseEnter={() => sounds.playHover()}
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-accent-sm flex items-center gap-1.5 flex-shrink-0"
+                    >
+                      <span>{showAllBannersAndFx ? "Voir moins" : "Voir plus"}</span>
+                      <span className="text-xs transition-transform duration-300">
+                        {showAllBannersAndFx ? "▲" : "▼"}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Galerie complète révélée par 'Voir plus' */}
+                  {showAllBannersAndFx && (
+                    <div className="space-y-4 mt-3 pt-3 border-t border-[var(--color-border)]/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                      {/* 1. Effets cosmétiques animés */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-[var(--color-text-primary)] flex items-center gap-2">
+                            <span>Effets de bannière animés</span>
+                            <span className="text-[10px] text-gray-400 font-normal">
+                              (Niveau Tracker {trackerLevel ?? 1})
+                            </span>
+                          </h4>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-3">
+                          {BANNER_EFFECTS_LIST.map((fx) => {
+                            const isUnlocked = (trackerLevel ?? 1) >= fx.minLevel;
+                            const isEquipped = draftBannerAnimation === fx.id;
+
+                            return (
+                              <button
+                                key={fx.id}
+                                type="button"
+                                disabled={!isUnlocked}
+                                onMouseEnter={() => sounds.playHover()}
+                                onClick={() => {
+                                  if (!isUnlocked) return;
+                                  sounds.playClick();
+                                  setDraftBannerAnimation(fx.id);
+                                }}
+                                className={`relative rounded-xl p-2 flex flex-col items-center gap-1.5 border-2 transition-all duration-200 ${
+                                  !isUnlocked
+                                    ? "opacity-40 border-white/5 cursor-not-allowed bg-white/[0.01]"
+                                    : isEquipped
+                                    ? "border-[var(--color-val-red)] shadow-accent-md scale-[1.02] bg-[var(--color-surface)] cursor-pointer"
+                                    : "border-white/10 hover:border-white/30 bg-white/[0.03] cursor-pointer"
+                                }`}
+                              >
+                                <div
+                                  className="w-full aspect-[3/1] rounded-lg overflow-hidden relative"
+                                  style={{ backgroundColor: "#0a0e13" }}
+                                >
+                                  {fx.id && isUnlocked && (
+                                    <div className={`banner-effect-${fx.id}`} style={{ borderRadius: "0.5rem" }} />
+                                  )}
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-center justify-center">
+                                    {!isUnlocked && (
+                                      <div className="p-1 rounded-full bg-black/60 text-gray-400">
+                                        <IconLock size={12} />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="w-full text-center">
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-primary)] block truncate">
+                                    {fx.name}
+                                  </span>
+                                  <span className="text-[8px] text-[var(--color-text-secondary)] block truncate">
+                                    {isUnlocked ? (isEquipped ? "✓ Équipé" : "Niv. " + fx.minLevel) : "🔒 Niv. " + fx.minLevel}
+                                  </span>
+                                </div>
+
+                                {isEquipped && (
+                                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--color-val-red)] rounded-full flex items-center justify-center text-white shadow-accent-sm">
+                                    <IconCheck size={10} />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 2. Bordure animée rotative (Niveau 10) */}
+                      <div className="p-3.5 sm:p-4 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between gap-3">
+                        <div className="space-y-0.5">
+                          <h4 className="font-bold text-xs sm:text-sm text-[var(--color-text-primary)] flex items-center gap-2">
+                            <span>Bordure animée rotative RGB</span>
+                            {(trackerLevel ?? 1) >= 10 ? (
+                              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                Débloqué (Niv. 10)
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-white/10 text-gray-400 border border-white/15 flex items-center gap-1">
+                                <IconLock size={10} />
+                                Requis : Niv. 10
+                              </span>
+                            )}
+                          </h4>
+                          <p className="text-[10px] sm:text-[11px] text-[var(--color-text-secondary)]">
+                            Contour lumineux rotatif à gradient conique autour de votre bannière de profil
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={(trackerLevel ?? 1) < 10}
+                          onClick={() => {
+                            if ((trackerLevel ?? 1) < 10) return;
+                            sounds.playClick();
+                            setDraftBannerBorder(!draftBannerBorder);
+                          }}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 flex-shrink-0 ${
+                            (trackerLevel ?? 1) < 10
+                              ? "opacity-30 cursor-not-allowed bg-gray-600"
+                              : draftBannerBorder
+                              ? "bg-[var(--color-val-red)] shadow-accent-sm cursor-pointer"
+                              : "bg-gray-400 dark:bg-white/10 cursor-pointer"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-all duration-300 ${
+                              draftBannerBorder && (trackerLevel ?? 1) >= 10 ? "translate-x-6" : "translate-x-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* 3. Bannières obtenues & Catalogue */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-[var(--color-text-primary)]">
+                            Bannières de profil &amp; Splash Arts
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              sounds.playClick();
+                              setCatalogOpen(true);
+                            }}
+                            onMouseEnter={() => sounds.playHover()}
+                            className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/15 rounded-lg text-[10px] font-black uppercase tracking-wider text-white transition-all cursor-pointer flex items-center gap-1.5"
+                          >
+                            <span>Catalogue complet (+100)</span>
+                            <span>→</span>
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {banners.map((b, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onMouseEnter={() => sounds.playHover()}
+                              onClick={() => {
+                                sounds.playClick();
+                                setDraftBannerUrl(b.url);
+                              }}
+                              className={`relative aspect-[3/1] rounded-xl overflow-hidden border-2 transition-all cursor-pointer bg-[#0a0e13] ${
+                                draftBannerUrl === b.url
+                                  ? "border-[var(--color-val-red)] shadow-[0_0_15px_rgba(255,70,85,0.3)] scale-[1.02]"
+                                  : "border-[var(--color-border)] hover:border-[var(--color-text-secondary)]"
+                              }`}
+                            >
+                              {b.url ? (
+                                <img
+                                  referrerPolicy="no-referrer"
+                                  src={b.url}
+                                  alt={b.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-[var(--color-surface)] text-[9px] font-bold text-[var(--color-text-secondary)]">
+                                  Par défaut
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-black/40 flex items-end p-1.5">
+                                <span className="text-[9px] font-bold text-white uppercase">{b.name}</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -1721,6 +2131,121 @@ export default function SettingsView({
                 </div>
 
                 <BannerCatalogModal isOpen={catalogOpen} onClose={() => setCatalogOpen(false)} onSelect={(url) => setDraftBannerUrl(url)} />
+              </div>
+
+              <hr className="border-[var(--color-border)]" />
+
+              {/* Effets Cosmétiques de Bannière */}
+              <div className="space-y-4 sm:space-y-6">
+                <div>
+                  <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Effets de bannière</h3>
+                  <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                    Appliquez un effet visuel animé sur votre bannière de profil. Débloqués via le niveau Tracker.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-3">
+                  {BANNER_EFFECTS_LIST.map((fx) => {
+                    const isUnlocked = (trackerLevel ?? 1) >= fx.minLevel;
+                    const isEquipped = draftBannerAnimation === fx.id;
+
+                    return (
+                      <button
+                        key={fx.id}
+                        type="button"
+                        disabled={!isUnlocked}
+                        onMouseEnter={() => sounds.playHover()}
+                        onClick={() => {
+                          if (!isUnlocked) return;
+                          sounds.playClick();
+                          setDraftBannerAnimation(fx.id);
+                        }}
+                        className={`relative rounded-xl p-2 sm:p-3 flex flex-col items-center gap-1.5 border-2 transition-all duration-300 ${
+                          !isUnlocked
+                            ? "opacity-40 border-white/5 cursor-not-allowed bg-white/[0.01]"
+                            : isEquipped
+                            ? "border-[var(--color-val-red)] shadow-accent-md scale-105 bg-[var(--color-surface)] cursor-pointer"
+                            : "border-[var(--color-border)] hover:border-[var(--color-text-secondary)] cursor-pointer"
+                        }`}
+                      >
+                        <div
+                          className="w-full aspect-[3/1] rounded-lg overflow-hidden relative"
+                          style={{ backgroundColor: "#0a0e13" }}
+                        >
+                          {fx.id && isUnlocked && (
+                            <div className={`banner-effect-${fx.id}`} style={{ borderRadius: "0.5rem" }} />
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-center justify-center">
+                            {!isUnlocked && (
+                              <div className="p-1 rounded-full bg-black/60 text-gray-400">
+                                <IconLock size={12} />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="w-full text-center">
+                          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-[var(--color-text-primary)] block truncate">
+                            {fx.name}
+                          </span>
+                          <span className="text-[8px] text-[var(--color-text-secondary)] block truncate">
+                            {isUnlocked ? (isEquipped ? "✓ Équipé" : "Niv. " + fx.minLevel) : "🔒 Niv. " + fx.minLevel}
+                          </span>
+                        </div>
+
+                        {isEquipped && (
+                          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-[var(--color-val-red)] rounded-full flex items-center justify-center text-[var(--color-accent-contrast)] shadow-accent-sm">
+                            <IconCheck size={10} />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Toggle bordure animée */}
+                <div className="bg-[var(--color-background)] p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-[var(--color-border)] flex items-center justify-between gap-3 sm:gap-4">
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-xs sm:text-sm text-[var(--color-text-primary)] flex items-center gap-2">
+                      <span>Bordure animée rotative</span>
+                      {(trackerLevel ?? 1) >= 10 ? (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          Niv. 10
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-white/10 text-gray-400 border border-white/15 flex items-center gap-1">
+                          <IconLock size={10} />
+                          Requis : Niv. 10
+                        </span>
+                      )}
+                    </h4>
+                    <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] max-w-xl">
+                      Ajoute un contour lumineux rotatif autour de votre bannière de profil, utilisant votre couleur d&apos;accent.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={(trackerLevel ?? 1) < 10}
+                    onClick={() => {
+                      if ((trackerLevel ?? 1) < 10) return;
+                      sounds.playClick();
+                      setDraftBannerBorder(!draftBannerBorder);
+                    }}
+                    className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 ${
+                      (trackerLevel ?? 1) < 10
+                        ? "opacity-30 cursor-not-allowed bg-gray-600"
+                        : draftBannerBorder
+                        ? "bg-[var(--color-val-red)] shadow-accent-sm cursor-pointer"
+                        : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)] cursor-pointer"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                        draftBannerBorder && (trackerLevel ?? 1) >= 10 ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                      }`}
+                    ></span>
+                  </button>
+                </div>
               </div>
             </div>
           )}

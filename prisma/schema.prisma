@@ -322,3 +322,67 @@ model LobbyInvite {
   @@index([lobbyId])
   @@index([status])
 }
+
+// ==========================================
+// Système de Défis Quotidiens & XP
+// ==========================================
+
+model Quest {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  title        String
+  description  String
+  category     String   @default("combat") // "combat", "precision", "tactical", "social", "agent"
+  targetStat   String   // clé interne de la stat à suivre (ex: "kills", "headshots", "wins")
+  targetValue  Int      // valeur à atteindre
+  xpReward     Int      @default(100)
+  minRankTier  Int      @default(0)  // 0 = tous, 3 = fer min, 6 = bronze min, etc.
+  maxRankTier  Int      @default(99) // 99 = illimité
+  minSpi       Int      @default(0)  // SPI minimum pour proposer ce défi
+  maxSpi       Int      @default(1000)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  userQuests   UserDailyQuest[]
+}
+
+model UserDailyQuest {
+  id          String   @id @default(cuid())
+  userId      String
+  questId     String
+  dateKey     String   // format YYYY-MM-DD pour rotation journalière
+  progress    Int      @default(0)
+  targetValue Int
+  completed   Boolean  @default(false)
+  claimed     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quest       Quest    @relation(fields: [questId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questId, dateKey])
+  @@index([userId])
+  @@index([dateKey])
+}
+
+// ==========================================
+// Système de Récompenses de Niveau Tracker
+// ==========================================
+
+model LevelReward {
+  id          String   @id @default(cuid())
+  level       Int      @default(1)
+  type        String   @default("badge") // "banner_effect", "banner_border", "title", "badge", "theme", "xp_boost"
+  title       String
+  description String   @default("")
+  rewardKey   String   // identifiant système de l'effet ou de la récompense (ex: "matrix", "title_recrue")
+  icon        String   @default("🏆")
+  badgeColor  String   @default("#ff4655")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([level])
+}
+

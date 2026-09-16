@@ -70,6 +70,17 @@ export async function GET(
       case 'banners':
         data = await prisma.banner.findMany({ where: includeDrafts ? undefined : { isDraft: false } });
         break;
+      case 'quests':
+        data = await (prisma as any).quest.findMany({
+          orderBy: { createdAt: 'desc' },
+        });
+        break;
+      case 'rewards': {
+        data = await (prisma as any).levelReward.findMany({
+          orderBy: { level: 'asc' },
+        });
+        break;
+      }
       default:
         return setCORSHeaders(NextResponse.json({ error: 'Entity not found' }, { status: 404 }));
     }
@@ -140,6 +151,44 @@ export async function POST(
           }
         });
         break;
+      case 'quests': {
+        const slug = (body.slug || body.title || `quest_${Date.now()}`)
+          .toLowerCase()
+          .replace(/[^a-z0-9_]/g, '_')
+          .slice(0, 40);
+        data = await (prisma as any).quest.create({
+          data: {
+            slug,
+            title: body.title,
+            description: body.description,
+            category: body.category || 'combat',
+            targetStat: body.targetStat || 'kills',
+            targetValue: Number(body.targetValue) || 1,
+            xpReward: Number(body.xpReward) || 100,
+            minRankTier: Number(body.minRankTier) || 0,
+            maxRankTier: Number(body.maxRankTier) || 99,
+            minSpi: Number(body.minSpi) || 0,
+            maxSpi: Number(body.maxSpi) || 1000,
+            isActive: body.isActive ?? true,
+          }
+        });
+        break;
+      }
+      case 'rewards': {
+        data = await (prisma as any).levelReward.create({
+          data: {
+            level: Number(body.level) || 1,
+            type: body.type || 'badge',
+            title: body.title,
+            description: body.description || '',
+            rewardKey: body.rewardKey || '',
+            icon: body.icon || '🏆',
+            badgeColor: body.badgeColor || '#ff4655',
+            isActive: body.isActive ?? true,
+          }
+        });
+        break;
+      }
       default:
         return setCORSHeaders(NextResponse.json({ error: 'Entity not found' }, { status: 404 }));
     }

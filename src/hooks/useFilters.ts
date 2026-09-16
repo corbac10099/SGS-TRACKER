@@ -235,7 +235,7 @@ export function useFilters(
       myRiotId &&
       riotId.toLowerCase() !== myRiotId.toLowerCase()
   );
-  const activeDevOverrides = isSearchingOther ? null : devOverrides;
+  const activeDevOverrides = devOverrides?.enabled ? devOverrides : null;
 
   const dominantRole = useMemo(() => {
     if (
@@ -251,20 +251,59 @@ export function useFilters(
   const effectiveStats = useMemo(() => {
     const s = filteredStats || rawStats;
     if (activeDevOverrides && activeDevOverrides.enabled) {
-      const deaths = s?.deaths || 100;
+      const baseDeaths = typeof s?.deaths === "number" && s.deaths > 0 ? s.deaths : 100;
+      const bonusK = activeDevOverrides.bonusKills || 0;
+      const baseKills = typeof s?.kills === "number"
+        ? Math.max(0, s.kills + bonusK)
+        : Math.max(0, Math.round(activeDevOverrides.kd * baseDeaths) + bonusK);
+      const adjustedKd = Number((baseKills / Math.max(baseDeaths, 1)).toFixed(2));
+
+      const bonusA = activeDevOverrides.bonusAssists || 0;
+      const baseAssists = typeof s?.assists === "number" ? s.assists : 40;
+      const adjustedAssists = Math.max(0, baseAssists + bonusA);
+
+      const bonusH = activeDevOverrides.bonusHeadshots || 0;
+      const baseHs = typeof s?.headshotPct === "number" ? s.headshotPct : activeDevOverrides.hs;
+      const adjustedHs = Math.min(100, Math.max(0, Number((baseHs + bonusH).toFixed(1))));
+
+      const bonusW = activeDevOverrides.bonusWins || 0;
+      const baseWinRate = typeof s?.winRate === "number" ? s.winRate : activeDevOverrides.winRate;
+      const adjustedWinRate = Math.min(100, Math.max(0, Number((baseWinRate + bonusW).toFixed(1))));
+      const baseMatches = (typeof s?.matchesPlayed === "number" ? s.matchesPlayed : activeDevOverrides.matchesCount) + (bonusW > 0 ? bonusW : 0);
+      const adjustedWins = typeof s?.wins === "number"
+        ? s.wins + bonusW
+        : Math.max(0, Math.round((adjustedWinRate / 100) * baseMatches));
+
+      const bonusFb = activeDevOverrides.bonusFirstBloods || 0;
+      const baseFb = typeof s?.firstBloods === "number" ? s.firstBloods : activeDevOverrides.firstBloods;
+      const adjustedFb = Math.max(0, Number((baseFb + bonusFb).toFixed(1)));
+
+      const bonusC = activeDevOverrides.bonusClutches || 0;
+      const baseClutches = typeof s?.clutches === "number" ? s.clutches : activeDevOverrides.clutches;
+      const adjustedClutches = Math.max(0, baseClutches + bonusC);
+
       return {
         ...(s || {}),
-        kdRatio: activeDevOverrides.kd,
-        kills: Math.round(activeDevOverrides.kd * deaths),
-        deaths,
-        assists: s?.assists || 40,
-        acs: activeDevOverrides.acs,
-        headshotPct: activeDevOverrides.hs,
-        winRate: activeDevOverrides.winRate,
-        kast: activeDevOverrides.kast,
-        adr: activeDevOverrides.adr,
-        ddDelta: activeDevOverrides.dd,
-        matchesPlayed: activeDevOverrides.matchesCount,
+        kdRatio: adjustedKd,
+        kills: baseKills,
+        deaths: baseDeaths,
+        assists: adjustedAssists,
+        acs: activeDevOverrides.acs ?? s?.acs ?? 250,
+        headshotPct: adjustedHs,
+        winRate: adjustedWinRate,
+        wins: adjustedWins,
+        kast: activeDevOverrides.kast ?? s?.kast ?? 70,
+        adr: activeDevOverrides.adr ?? s?.adr ?? 140,
+        ddDelta: activeDevOverrides.dd ?? s?.ddDelta ?? 10,
+        matchesPlayed: baseMatches,
+        firstBloods: adjustedFb,
+        clutches: adjustedClutches,
+        bonusKills: bonusK,
+        bonusWins: bonusW,
+        bonusAssists: bonusA,
+        bonusHeadshots: bonusH,
+        bonusFirstBloods: bonusFb,
+        bonusClutches: bonusC,
       };
     }
     return s;
@@ -272,6 +311,9 @@ export function useFilters(
 
   const effectiveMatches = useMemo(() => {
     if (activeDevOverrides && activeDevOverrides.enabled) {
+      if (filteredMatches && filteredMatches.length > 0) {
+        return filteredMatches;
+      }
       return Array.from({
         length: activeDevOverrides.matchesCount,
       }).map((_, i) => ({

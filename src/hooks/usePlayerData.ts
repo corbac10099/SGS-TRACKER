@@ -495,6 +495,7 @@ export function usePlayerData(
     loading,
     playerData,
     setPlayerData,
+    myPlayerData,
     error,
     setError,
     devOverrides,
