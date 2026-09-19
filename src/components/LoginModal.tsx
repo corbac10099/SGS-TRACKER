@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import { sounds } from "@/lib/soundEffects";
 
+import { isTauriEnvironment, openInExternalBrowser } from "@/lib/desktop";
+
 export interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -34,6 +36,24 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [externalAuthUrl, setExternalAuthUrl] = useState<string | null>(null);
+
+  const pollIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Nettoyage de l'intervalle au démontage ou fermeture
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen && pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
+  }, [isOpen]);
 
   // Récupération du compte utilisateur sauvegardé en local si existant
   useEffect(() => {
@@ -133,6 +153,75 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
     sounds.playClick();
     setGoogleLoading(true);
     setError(null);
+    setExternalAuthUrl(null);
+
+    // Si on est dans l'application de bureau (Tauri) : ouvrir dans le navigateur externe
+    if (isTauriEnvironment()) {
+      try {
+        setSuccess("Ouverture de Google dans votre navigateur par défaut...");
+        const res = await fetch("/api/auth/desktop/session", { method: "POST" });
+        const data = await res.json();
+
+        if (!data.success || !data.ticket || !data.authUrl) {
+          throw new Error(data.error || "Impossible d'initialiser la session de connexion externe.");
+        }
+
+        setExternalAuthUrl(data.authUrl);
+
+        // Ouvrir dans le navigateur par défaut du système
+        await openInExternalBrowser(data.authUrl);
+        setSuccess("Page de connexion ouverte dans votre navigateur. Connectez-vous pour continuer.");
+
+        // Polling pour détecter la connexion réussie
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+        let attempts = 0;
+        pollIntervalRef.current = setInterval(async () => {
+          attempts++;
+          if (attempts > 120) {
+            // 3 minutes max
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            setGoogleLoading(false);
+            setError("Délai de connexion dépassé. Veuillez réessayer.");
+            return;
+          }
+
+          try {
+            const checkRes = await fetch(`/api/auth/desktop/check?ticket=${data.ticket}`);
+            const checkData = await checkRes.json();
+
+            if (checkData.status === "authenticated" && checkData.email && checkData.ssoToken) {
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              setSuccess("Connexion confirmée ! Synchronisation de votre session...");
+
+              // Connexion directe dans l'application via le token SSO sécurisé
+              const loginRes = await signIn("credentials", {
+                email: checkData.email,
+                ssoToken: checkData.ssoToken,
+                redirect: false,
+              });
+
+              if (loginRes?.ok) {
+                handlePostAuthSuccess("Connexion réussie !");
+              } else {
+                setError("Échec de synchronisation de la session.");
+                setGoogleLoading(false);
+              }
+            } else if (checkData.status === "expired") {
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              setGoogleLoading(false);
+              setError("La session a expiré. Veuillez relancer la connexion.");
+            }
+          } catch {}
+        }, 1500);
+      } catch (err: any) {
+        setError(err?.message || "Erreur lors du lancement de la connexion externe.");
+        setGoogleLoading(false);
+      }
+      return;
+    }
+
+    // Mode Web standard
     try {
       await signIn("google", { callbackUrl: "/" });
     } catch (err: any) {
@@ -290,7 +379,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           type="button"
           onClick={handleGoogleSignIn}
           disabled={loading || googleLoading}
-          className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-2xl bg-white text-black hover:bg-neutral-100 font-bold text-xs uppercase tracking-wider transition-all duration-200 shadow-md hover:shadow-lg cursor-pointer active:scale-98 disabled:opacity-50 mb-4"
+          className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-2xl bg-white text-black hover:bg-neutral-100 font-bold text-xs uppercase tracking-wider transition-all duration-200 shadow-md hover:shadow-lg cursor-pointer active:scale-98 disabled:opacity-50 mb-2"
         >
           {googleLoading ? (
             <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
@@ -314,8 +403,27 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
               />
             </svg>
           )}
-          <span>{googleLoading ? "Connexion Google..." : "Continuer avec Google"}</span>
+          <span>
+            {googleLoading
+              ? isTauriEnvironment()
+                ? "En attente du navigateur..."
+                : "Connexion Google..."
+              : "Continuer avec Google"}
+          </span>
         </button>
+
+        {/* Aide si la page externe ne s'est pas ouverte */}
+        {externalAuthUrl && googleLoading && (
+          <div className="text-center mb-3">
+            <button
+              type="button"
+              onClick={() => openInExternalBrowser(externalAuthUrl)}
+              className="text-[11px] text-[var(--color-val-red)] hover:underline cursor-pointer font-semibold"
+            >
+              La page ne s&apos;est pas ouverte ? Cliquez ici pour réouvrir
+            </button>
+          </div>
+        )}
 
         {/* Separator */}
         <div className="relative flex items-center justify-center my-4">

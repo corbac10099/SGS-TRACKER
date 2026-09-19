@@ -19,7 +19,9 @@ export interface BadgeDefinition {
   id: string;
   label: string;
   description: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon?: React.ComponentType<{ size?: number; className?: string }>;
+  iconType?: "svg" | "image";
+  imageUrl?: string | null;
   colorClass: string;
   bgClass: string;
   borderClass: string;
@@ -227,7 +229,8 @@ export function UserBadges({
           glowClass: "shadow-[0_0_12px_rgba(255,70,85,0.25)]",
         };
 
-        const IconComponent = def.icon;
+        const isImage = def.iconType === "image" || Boolean(def.imageUrl);
+        const IconComponent = def.icon || IconBadgeCustom;
         const isHovered = hoveredBadge === `${badgeId}-${idx}`;
 
         return (
@@ -240,7 +243,16 @@ export function UserBadges({
             <div
               className={`p-1 rounded-full border flex items-center justify-center transition-all duration-200 hover:scale-115 ${def.bgClass} ${def.borderClass} ${def.glowClass}`}
             >
-              <IconComponent size={size} className={def.colorClass} />
+              {isImage && def.imageUrl ? (
+                <img
+                  src={def.imageUrl.startsWith("r2://") ? `/api/media/stream?key=${encodeURIComponent(def.imageUrl.replace("r2://", ""))}` : def.imageUrl}
+                  alt={def.label}
+                  className="rounded-full object-cover"
+                  style={{ width: size, height: size }}
+                />
+              ) : (
+                <IconComponent size={size} className={def.colorClass} />
+              )}
             </div>
 
             {/* Crisp Glassmorphism Tooltip on Hover */}
@@ -249,8 +261,16 @@ export function UserBadges({
                 className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 z-50 w-64 max-w-[85vw] p-3 rounded-xl bg-[#0d1117]/95 border border-[var(--color-border)] backdrop-blur-xl shadow-[0_12px_32px_rgba(0,0,0,0.8)] pointer-events-none animate-in fade-in zoom-in-95 duration-150"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <div className={`p-1 rounded border ${def.bgClass} ${def.borderClass}`}>
-                    <IconComponent size={14} className={def.colorClass} />
+                  <div className={`p-1 rounded border flex items-center justify-center ${def.bgClass} ${def.borderClass}`}>
+                    {isImage && def.imageUrl ? (
+                      <img
+                        src={def.imageUrl.startsWith("r2://") ? `/api/media/stream?key=${encodeURIComponent(def.imageUrl.replace("r2://", ""))}` : def.imageUrl}
+                        alt={def.label}
+                        className="rounded-full object-cover w-3.5 h-3.5"
+                      />
+                    ) : (
+                      <IconComponent size={14} className={def.colorClass} />
+                    )}
                   </div>
                   <span className="font-bold text-xs text-white uppercase tracking-wider">
                     {def.label}

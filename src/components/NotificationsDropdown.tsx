@@ -207,7 +207,7 @@ export default function NotificationsDropdown({
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 sm:w-96 max-h-[520px] bg-[#0c1218]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.85),0_0_25px_rgba(255,70,85,0.08)] z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200">
+        <div className="absolute right-0 mt-3 w-80 sm:w-96 max-h-[520px] bg-[#0c1218]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.85),0_0_25px_rgba(255,70,85,0.08)] z-50 flex flex-col overflow-hidden animate-dropdown-spring">
           {/* Top Cyber Accent Strip */}
           <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-[var(--color-val-red)] to-transparent opacity-80" />
 

@@ -12,7 +12,7 @@ import {
   detectDominantRole,
   type AgentRole,
 } from "@/lib/valorant/performanceScore";
-import type { DevStatOverrides } from "@/components/LocalDevStatsPanel";
+import type { DevStatOverrides } from "@/lib/devStatsTypes";
 
 export interface FiltersState {
   gameMode: string;

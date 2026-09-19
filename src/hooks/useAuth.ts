@@ -133,6 +133,17 @@ export function useAuth(searchParams: any): AuthState {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // Si on est dans l'application Tauri (desktop), isLocalhost est TOUJOURS false
+      // pour empêcher le panel admin et les outils de dev d'apparaître
+      const isTauriDesktop = Boolean(
+        (window as any).__TAURI__ ||
+        (window as any).__TAURI_INTERNALS__ ||
+        (window as any).__TAURI_METADATA__
+      );
+      if (isTauriDesktop) {
+        setIsLocalhost(false);
+        return;
+      }
       setIsLocalhost(
         window.location.hostname === "localhost" ||
           window.location.hostname === "127.0.0.1" ||

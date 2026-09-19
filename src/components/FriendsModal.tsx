@@ -74,7 +74,7 @@ export default function FriendsModal({
   );
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 animate-in fade-in-0 duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 animate-drawer-backdrop">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity"
@@ -86,7 +86,7 @@ export default function FriendsModal({
 
       {/* Modal Dialog */}
       <div
-        className="glass-panel relative w-full max-w-2xl max-h-[85vh] rounded-3xl border border-[var(--color-border)] shadow-2xl flex flex-col z-10 overflow-hidden animate-in zoom-in-95 duration-200"
+        className="glass-panel relative w-full max-w-2xl max-h-[85vh] rounded-3xl border border-[var(--color-border)] shadow-2xl flex flex-col z-10 overflow-hidden animate-player-card-modal"
         style={{
           background: "linear-gradient(135deg, rgba(14, 18, 25, 0.95) 0%, rgba(8, 10, 15, 0.98) 100%)",
         }}

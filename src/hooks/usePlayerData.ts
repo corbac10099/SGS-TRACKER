@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import type { NavigationState } from "./useNavigation";
 import type { AuthState } from "./useAuth";
 import type { SettingsState } from "./useSettings";
-import type { DevStatOverrides } from "@/components/LocalDevStatsPanel";
+import type { DevStatOverrides } from "@/lib/devStatsTypes";
 
 export interface PlayerDataState {
   riotId: string;

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Hors-ligne — SGS-Tracker</title>
+  <style>
+    :root {
+      --bg: #0a0e13;
+      --surface: #121820;
+      --border: rgba(255, 255, 255, 0.08);
+      --red: #ff4655;
+      --text: #f0f2f5;
+      --text-muted: #8b97a8;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 28px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 14px;
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 24px rgba(255, 70, 85, 0.2);
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(255, 70, 85, 0.12);
+      color: var(--red);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--red);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+    }
+    p {
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+    .retry-btn {
+      background: var(--red);
+      color: #fff;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: all 0.2s ease;
+      width: 100%;
+    }
+    .retry-btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+    .retry-btn:active {
+      transform: scale(0.98);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="/spycam-icon.png" alt="SGS-Tracker" class="logo" onerror="this.src='/favicon.ico'">
+    <div class="status-badge">
+      <span class="pulse-dot"></span>
+      Mode Hors-ligne
+    </div>
+    <h1>Connexion Perdue</h1>
+    <p>Vous êtes actuellement hors-ligne. Reconnectez-vous à Internet pour synchroniser vos statistiques et matchs Valorant.</p>
+    <button class="retry-btn" onclick="window.location.reload()">Réessayer la connexion</button>
+  </div>
+</body>
+</html>

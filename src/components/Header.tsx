@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from
 import { signOut } from "next-auth/react";
 import NotificationsDropdown from "./NotificationsDropdown";
 import FriendsDropdown from "./FriendsDropdown";
+import DailyQuestsDropdown from "./quests/DailyQuestsDropdown";
+import { DailyQuest } from "./quests/types";
 import LiveClock from "./LiveClock";
 
 import { sounds } from "@/lib/soundEffects";
@@ -41,6 +43,10 @@ export interface HeaderProps {
   leaderboardOpen?: boolean;
   onOpenCompare?: () => void;
   onOpenDailyQuests?: () => void;
+  dailyQuests?: DailyQuest[];
+  trackerXp?: number;
+  trackerLevel?: number;
+  onClaimQuest?: (questId: string) => void;
   onOpenFriends?: () => void;
   pendingFriendsCount?: number;
   favorites: Array<{ riotId: string; gameName: string; tagLine: string; cardUrl: string; rank?: string }>;
@@ -76,6 +82,10 @@ export default function Header({
   leaderboardOpen = false,
   onOpenCompare,
   onOpenDailyQuests,
+  dailyQuests = [],
+  trackerXp = 0,
+  trackerLevel = 1,
+  onClaimQuest = () => {},
   onOpenFriends,
   pendingFriendsCount = 0,
   favorites,
@@ -443,39 +453,14 @@ export default function Header({
         {/* ═══ RIGHT: Clean Glass Capsules ═══ */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-none md:flex-1 justify-end">
 
-          {/* ── Capsule Outils : Comparateur & Succès ── */}
+          {/* ── Capsule Outils : Défis & Amis ── */}
           <div className="hidden md:flex items-center gap-1 p-1 rounded-2xl bg-black/30 border border-white/10 backdrop-blur-md">
-            {onOpenCompare && (
-              <button
-                type="button"
-                onClick={() => {
-                  sounds.playClick();
-                  onOpenCompare();
-                }}
-                onMouseEnter={() => sounds.playHover()}
-                title="Comparer avec un autre joueur"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-neutral-300 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer select-none"
-              >
-                <IconSword size={14} className="text-[var(--color-val-red)]" />
-                <span className="hidden xl:inline">Comparer</span>
-              </button>
-            )}
-
-            {onOpenDailyQuests && (
-              <button
-                type="button"
-                onClick={() => {
-                  sounds.playClick();
-                  onOpenDailyQuests();
-                }}
-                onMouseEnter={() => sounds.playHover()}
-                title="Défis Quotidiens & Niveau Tracker"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-neutral-300 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer select-none"
-              >
-                <IconTrophy size={14} className="text-amber-400" />
-                <span className="hidden xl:inline">Défis</span>
-              </button>
-            )}
+            <DailyQuestsDropdown
+              xp={trackerXp}
+              trackerLevel={trackerLevel}
+              quests={dailyQuests}
+              onClaimQuest={onClaimQuest}
+            />
 
             <FriendsDropdown onSelectPlayer={onSelectFavorite} />
           </div>
@@ -532,8 +517,15 @@ export default function Header({
             </button>
           </div>
 
-          {/* ── Mobile fallback: Friends + notification bell ── */}
+          {/* ── Mobile fallback: Quests + Friends + notification bell ── */}
           <div className="flex md:hidden items-center gap-1 flex-shrink-0">
+            <DailyQuestsDropdown
+              xp={trackerXp}
+              trackerLevel={trackerLevel}
+              quests={dailyQuests}
+              onClaimQuest={onClaimQuest}
+              compact={true}
+            />
             {onOpenFriends && (
               <button
                 type="button"

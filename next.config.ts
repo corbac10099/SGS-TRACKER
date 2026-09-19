@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   async rewrites() {
@@ -51,10 +52,49 @@ const nextConfig: NextConfig = {
       },
       // /:riotId seul (sans tab) → racine, si pas réservé
       {
-        source: '/:riotId((?!api|login|register|onboarding|_next|favicon).*)',
+        source: '/:riotId((?!api|auth|login|register|onboarding|_next|favicon).*)',
         destination: '/',
       },
     ];
+  },
+  async headers() {
+    return [
+      {
+        source: '/sw.js',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+          {
+            key: 'Service-Worker-Allowed',
+            value: '/',
+          },
+        ],
+      },
+    ];
+  },
+  turbopack: {
+    resolveAlias:
+      process.env.NODE_ENV === "production"
+        ? {
+            "@/components/LocalDevStatsPanel": "./src/components/EmptyDevPanel.tsx",
+          }
+        : {},
+  },
+  webpack(config, { dev }) {
+    if (!dev) {
+      // En production : exclut totalement le panel admin en le substituant par un composant vide (0 octet)
+      config.resolve = config.resolve || {};
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        "@/components/LocalDevStatsPanel": path.resolve(
+          process.cwd(),
+          "src/components/EmptyDevPanel.tsx"
+        ),
+      };
+    }
+    return config;
   },
 };
 

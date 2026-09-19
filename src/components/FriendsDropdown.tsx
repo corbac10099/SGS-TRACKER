@@ -112,7 +112,7 @@ export default function FriendsDropdown({
 
       {/* Unfolding Dropdown Panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 sm:w-96 max-h-[540px] bg-[#0c1218]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.85),0_0_25px_rgba(56,189,248,0.08)] z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200">
+        <div className="absolute right-0 mt-3 w-80 sm:w-96 max-h-[540px] bg-[#0c1218]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.85),0_0_25px_rgba(56,189,248,0.08)] z-50 flex flex-col overflow-hidden animate-dropdown-spring">
           {/* Sky Cyber Strip */}
           <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-sky-400 to-transparent opacity-80" />
 
@@ -180,7 +180,7 @@ export default function FriendsDropdown({
 
           {/* TAB 1: FRIENDS LIST */}
           {activeTab === "friends" && (
-            <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex flex-col flex-1 min-h-0 animate-panel-in">
               {/* Search Bar */}
               <div className="p-2.5 border-b border-white/5 bg-white/[0.02]">
                 <div className="relative">
@@ -294,7 +294,7 @@ export default function FriendsDropdown({
 
           {/* TAB 2: INCOMING REQUESTS */}
           {activeTab === "incoming" && (
-            <div className="p-3 overflow-y-auto max-h-[360px] custom-scrollbar space-y-2">
+            <div className="p-3 overflow-y-auto max-h-[360px] custom-scrollbar space-y-2 animate-panel-in">
               {incoming.length === 0 ? (
                 <div className="py-10 text-center text-neutral-500 text-xs">
                   Aucune demande d'ami reçue.
@@ -355,7 +355,7 @@ export default function FriendsDropdown({
 
           {/* TAB 3: ADD FRIEND */}
           {activeTab === "add" && (
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-3 animate-panel-in">
               <form onSubmit={handleSendRequest} className="space-y-3">
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-wider text-neutral-400 mb-1.5">

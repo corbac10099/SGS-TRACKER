@@ -19,12 +19,14 @@
 }
 
 :root {
+  --accent-color: var(--custom-accent, var(--color-val-red, #ff4655));
+  --color-accent: var(--accent-color);
   --color-accent-contrast: #ffffff;
-  --accent-glow-subtle: color-mix(in srgb, var(--color-val-red, #ff4655) 15%, transparent);
-  --accent-glow-md: color-mix(in srgb, var(--color-val-red, #ff4655) 35%, transparent);
-  --accent-glow-strong: color-mix(in srgb, var(--color-val-red, #ff4655) 65%, transparent);
-  --accent-bg-subtle: color-mix(in srgb, var(--color-val-red, #ff4655) 12%, transparent);
-  --accent-border-subtle: color-mix(in srgb, var(--color-val-red, #ff4655) 30%, transparent);
+  --accent-glow-subtle: color-mix(in srgb, var(--accent-color) 15%, transparent);
+  --accent-glow-md: color-mix(in srgb, var(--accent-color) 35%, transparent);
+  --accent-glow-strong: color-mix(in srgb, var(--accent-color) 65%, transparent);
+  --accent-bg-subtle: color-mix(in srgb, var(--accent-color) 12%, transparent);
+  --accent-border-subtle: color-mix(in srgb, var(--accent-color) 30%, transparent);
 }
 
 /* ===== Mode Sans Animations ===== */
@@ -476,6 +478,41 @@ html.disable-animations *::after {
   animation: spinSlow 3s linear infinite;
 }
 
+/* ==================== SMOOTH DROPDOWN SPRING POP-IN (Friends, Quests, Notifications) ==================== */
+@keyframes dropdownSpringIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.008);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-dropdown-spring {
+  animation: dropdownSpringIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top right;
+}
+
+/* ==================== SMOOTH PANEL / TAB FADE-SLIDE IN ==================== */
+@keyframes panelFadeSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-panel-in {
+  animation: panelFadeSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* ==================== SMOOTH SEARCH DROPDOWN SPRING POP-IN ==================== */
 @keyframes searchDropdownSpring {
   0% {
@@ -812,3 +849,62 @@ html.disable-animations *::after {
   z-index: 6;
   filter: drop-shadow(0 0 6px var(--accent-glow-md));
 }
+
+.banner-border-neon_pulse {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  border-radius: inherit;
+  border: 2px solid color-mix(in srgb, var(--color-val-red) 60%, transparent);
+  animation: bannerNeonPulse 3s ease-in-out infinite;
+}
+
+/* Base container layers for dynamic cosmetic banners */
+.banner-effect-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.banner-border-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  border-radius: inherit;
+}
+
+/* Teinte dynamique des cosmétiques : libre par défaut, ou alignée sur l'accent du joueur */
+:root {
+  --cosmetic-accent: initial;
+}
+
+[data-cosmetic-accent="true"],
+.cosmetic-custom-accent {
+  --cosmetic-accent: var(--accent-color, var(--color-val-red, #ff4655));
+}
+
+/* === PWA & Mobile Standalone Styles === */
+@media (display-mode: standalone) {
+  body {
+    /* Évite le pull-to-refresh natif accidentel en application installée */
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* Support des encoches (notch iPhone & barres d'état Android) */
+  header {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  nav[data-mobile-nav="true"],
+  .fixed.bottom-0 {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+

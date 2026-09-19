@@ -28,13 +28,16 @@ import {
   IconUsers,
   IconBell,
   IconBellOff,
+  IconPencil,
 } from "./icons/SpyIcons";
 import { BADGES_REGISTRY, parseBadges } from "./UserBadges";
+import { BANNER_INTERIOR_EFFECTS, BANNER_BORDER_EFFECTS } from "./quests/types";
 import { sounds } from "@/lib/soundEffects";
 import { useFriends } from "@/hooks/useFriends";
 import { requestPushPermission, sendLocalNotification } from "@/lib/pushNotifications";
 import SgsAccountSettings from "./SgsAccountSettings";
 import SgsLegalModal from "./SgsLegalModal";
+import { useDesktopApp } from "@/hooks/useDesktopApp";
 
 export const DEFAULT_SHORTCUTS: Record<string, string> = {
   search: "/",
@@ -56,15 +59,6 @@ export const SHORTCUT_DEFINITIONS = [
   { id: "settings", label: "Ouvrir ou fermer les Paramètres", defaultKey: "s" },
   { id: "eco", label: "Basculer le Mode Éco (Basse consommation)", defaultKey: "e" },
   { id: "leaderboard", label: "Afficher le Classement Régional", defaultKey: "l" },
-];
-
-export const BANNER_EFFECTS_LIST = [
-  { id: "", name: "Aucun", minLevel: 1, desc: "Pas d'effet d'animation", color: "#6b7280" },
-  { id: "cyber_glow", name: "Cyber Glow", minLevel: 2, desc: "Lueur pulsante interne cybernétique", color: "var(--color-val-red)" },
-  { id: "scanlines", name: "Scanlines CRT", minLevel: 3, desc: "Lignes horizontales tactiques rétro", color: "#a0aec0" },
-  { id: "matrix", name: "Matrix Rain", minLevel: 5, desc: "Pluie de code cybernétique vert vif", color: "#00ff41" },
-  { id: "stardust", name: "Stardust", minLevel: 7, desc: "Poussière d'étoiles scintillante", color: "#e2e8f0" },
-  { id: "neon_pulse", name: "Néon Pulse", minLevel: 8, desc: "Bordure et halo néon pulsant", color: "#ff4655" },
 ];
 
 export interface SettingsViewProps {
@@ -111,8 +105,8 @@ export interface SettingsViewProps {
   setNotificationPreferences?: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   equippedBannerAnimation?: string;
   setEquippedBannerAnimation?: (val: string) => void;
-  equippedBannerBorder?: boolean;
-  setEquippedBannerBorder?: (val: boolean) => void;
+  equippedBannerBorder?: string | boolean;
+  setEquippedBannerBorder?: (val: string) => void;
   trackerLevel?: number;
 }
 
@@ -160,11 +154,12 @@ export default function SettingsView({
   setNotificationPreferences,
   equippedBannerAnimation = "",
   setEquippedBannerAnimation,
-  equippedBannerBorder = false,
+  equippedBannerBorder = "",
   setEquippedBannerBorder,
   trackerLevel = 1,
 }: SettingsViewProps) {
   const { friends: sgsFriends, updatePermission: updateFriendPermission } = useFriends();
+  const desktop = useDesktopApp();
   const statOptions = [
     { id: "performanceScore", label: "Score de Performance (SPI)", icon: <IconTrophy size={16} />, desc: "Score intelligent sur 1000 points (Grades C à SSS)" },
     { id: "coach", label: "Coach Tactique SGS", icon: <IconBrain size={16} />, desc: "Débriefing et diagnostic télémétrique (Privé par défaut)" },
@@ -323,10 +318,68 @@ export default function SettingsView({
   const [draftBannerAnimation, setDraftBannerAnimation] = useState<string>(() => {
     return equippedBannerAnimation || p?.equippedBannerAnimation || "";
   });
-  const [draftBannerBorder, setDraftBannerBorder] = useState<boolean>(() => {
-    return Boolean(equippedBannerBorder ?? p?.equippedBannerBorder ?? false);
+  const [draftBannerBorder, setDraftBannerBorder] = useState<string>(() => {
+    const raw = equippedBannerBorder ?? p?.equippedBannerBorder;
+    if (typeof raw === "string") return raw;
+    if (raw === true) return "rgb_conic";
+    return "";
   });
+  const [draftCosmeticAccent, setDraftCosmeticAccent] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("spycam_cosmetic_accent") === "true";
+    }
+    return false;
+  });
+  const [editingCosmeticType, setEditingCosmeticType] = useState<"none" | "banner" | "border">("none");
+  const [interiorEffectsList, setInteriorEffectsList] = useState(BANNER_INTERIOR_EFFECTS);
+  const [borderEffectsList, setBorderEffectsList] = useState(BANNER_BORDER_EFFECTS);
+  const [customBadgesList, setCustomBadgesList] = useState<any[]>([]);
 
+  // Synchronisation dynamique du mode d'accent pour la prévisualisation immédiate
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      document.documentElement.setAttribute("data-cosmetic-accent", String(draftCosmeticAccent));
+    }
+  }, [draftCosmeticAccent]);
+
+  // Chargement dynamique des cosmétiques et badges depuis Neon / R2
+  useEffect(() => {
+    fetch("/api/cms/cosmetics")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.interiors && Array.isArray(data.interiors)) {
+          setInteriorEffectsList(data.interiors);
+        }
+        if (data.borders && Array.isArray(data.borders)) {
+          setBorderEffectsList(data.borders);
+        }
+        if (data.all && Array.isArray(data.all)) {
+          const cssRules = data.all
+            .map((item: any) => item.cssRules)
+            .filter(Boolean)
+            .join("\n");
+          if (cssRules) {
+            let styleTag = document.getElementById("spycam-dynamic-cosmetics");
+            if (!styleTag) {
+              styleTag = document.createElement("style");
+              styleTag.id = "spycam-dynamic-cosmetics";
+              document.head.appendChild(styleTag);
+            }
+            styleTag.textContent = cssRules;
+          }
+        }
+      })
+      .catch(() => {});
+
+    fetch("/api/cms/badges")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.badges && Array.isArray(data.badges)) {
+          setCustomBadgesList(data.badges);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (locale) setDraftLocale(locale);
@@ -454,7 +507,7 @@ export default function SettingsView({
           dndBlockLobbyInvites: draftDndBlockLobbyInvites,
           notificationPreferences: draftNotificationPreferences,
           equippedBannerAnimation: draftBannerAnimation || null,
-          equippedBannerBorder: draftBannerBorder ? "animated" : null,
+          equippedBannerBorder: draftBannerBorder || null,
         }),
       });
       if (res.ok) {
@@ -462,6 +515,8 @@ export default function SettingsView({
         if (typeof window !== "undefined") {
           localStorage.setItem("spycam_show_badge", String(draftShowBadge));
           localStorage.setItem("spycam_hidden_badges", JSON.stringify(draftHiddenBadges));
+          localStorage.setItem("spycam_banner_border", draftBannerBorder);
+          localStorage.setItem("spycam_cosmetic_accent", String(draftCosmeticAccent));
         }
         if (setShowBadge) setShowBadge(draftShowBadge);
         if (setHiddenBadges) setHiddenBadges(draftHiddenBadges);
@@ -819,516 +874,6 @@ export default function SettingsView({
                       }`}
                     ></span>
                   </button>
-                </div>
-
-                {/* ==================== BADGES DE PROFIL (MAX 3 SUR LA BANNIÈRE) ==================== */}
-                {(() => {
-                  const currentLvl = trackerLevel ?? 1;
-                  const levelBadgeIds: string[] = [];
-                  if (currentLvl >= 1) levelBadgeIds.push("recrue");
-                  if (currentLvl >= 4) levelBadgeIds.push("veteran");
-                  if (currentLvl >= 15) levelBadgeIds.push("radiant");
-
-                  const rawBadges = [
-                    ...levelBadgeIds,
-                    ...(p?.badge ? parseBadges(p.badge).map((b: string) => b.toLowerCase().trim()) : []),
-                  ];
-
-                  const canonicalKeys = Array.from(
-                    new Set(
-                      rawBadges.map((b) => {
-                        if (b === "badge_recruit") return "recrue";
-                        if (b === "badge_veteran") return "veteran";
-                        if (b === "badge_radiant") return "radiant";
-                        return b;
-                      })
-                    )
-                  );
-
-                  const ownedBadges = canonicalKeys
-                    .map((id) => BADGES_REGISTRY[id])
-                    .filter(Boolean);
-
-                  // Badges actuellement actifs (non masqués)
-                  const activeBadges = ownedBadges.filter(
-                    (b) => !draftHiddenBadges.some((hb) => hb.toLowerCase().trim() === b.id)
-                  );
-                  const activeCount = Math.min(3, activeBadges.length);
-
-                  // Badges de niveau encore verrouillés pour ce niveau Tracker
-                  const lockedLevelBadges = [
-                    { id: "recrue", minLvl: 1, label: "Recrue Tracker" },
-                    { id: "veteran", minLvl: 4, label: "Vétéran Spycam" },
-                    { id: "radiant", minLvl: 15, label: "Radiant Master" },
-                  ].filter((lb) => currentLvl < lb.minLvl);
-
-                  return (
-                    <div className="flex flex-col pt-4 sm:pt-6 border-t border-[var(--color-border)]">
-                      <div
-                        onClick={() => {
-                          sounds.playClick();
-                          setBadgesExpanded(!badgesExpanded);
-                        }}
-                        className="flex items-center justify-between p-3 sm:p-4 rounded-xl bg-[var(--color-surface)]/60 hover:bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-val-red)]/40 transition-all cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <div className="w-9 h-9 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center flex-shrink-0">
-                            <IconBadgeVerified size={18} className="text-sky-400" />
-                          </div>
-                          <div className="flex flex-col min-w-0">
-                            <h3 className="font-bold text-sm sm:text-base text-[var(--color-text-primary)] flex items-center gap-2 flex-wrap">
-                              <span>Badges &amp; Distinctions de Profil</span>
-                              <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 text-[10px] font-black border border-sky-500/30">
-                                {draftShowBadge ? `${activeCount}/3 affichés` : "Masqués"}
-                              </span>
-                            </h3>
-                            <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] truncate">
-                              Sélectionnez jusqu&apos;à 3 badges maximum à afficher sur votre bannière de profil
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              sounds.playClick();
-                              setDraftShowBadge(!draftShowBadge);
-                            }}
-                            title={draftShowBadge ? "Afficher les badges" : "Masquer les badges"}
-                            className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 cursor-pointer ${
-                              draftShowBadge ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
-                            }`}
-                          >
-                            <span
-                              className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
-                                draftShowBadge ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
-                              } shadow-md transition-all duration-300 ${
-                                draftShowBadge ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
-                              }`}
-                            ></span>
-                          </button>
-
-                          <span
-                            className={`text-sm sm:text-base font-black transition-transform duration-300 text-[var(--color-text-secondary)] group-hover:text-[var(--color-val-red)] ${
-                              badgesExpanded ? "rotate-90 text-[var(--color-val-red)]" : "rotate-0"
-                            }`}
-                          >
-                            →
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Corps de gestion des badges */}
-                      {badgesExpanded && (
-                        <div className="space-y-3 mt-3 pt-3 border-t border-[var(--color-border)]/50 animate-in fade-in slide-in-from-top-2 duration-300">
-                          {/* Alert / Warning si l'utilisateur essaie de dépasser 3 badges */}
-                          {badgeSlotWarning && (
-                            <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-2 animate-in fade-in duration-200">
-                              <span className="text-base flex-shrink-0">⚠️</span>
-                              <span>{badgeSlotWarning}</span>
-                            </div>
-                          )}
-
-                          {/* Aperçu des 3 emplacements de la bannière */}
-                          <div className="p-3 rounded-xl bg-black/40 border border-white/5 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
-                                Emplacements sur la bannière (3 max)
-                              </span>
-                              <span className="text-[10px] font-mono font-bold text-sky-400">
-                                {draftShowBadge ? `${activeCount} / 3 slots occupés` : "Désactivé"}
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                              {[0, 1, 2].map((slotIdx) => {
-                                const badge = activeBadges[slotIdx];
-                                if (badge && draftShowBadge) {
-                                  const IconComp = badge.icon;
-                                  return (
-                                    <div
-                                      key={slotIdx}
-                                      className={`p-2.5 rounded-lg border flex items-center gap-2.5 ${badge.bgClass} ${badge.borderClass} ${badge.glowClass}`}
-                                    >
-                                      <IconComp size={16} className={badge.colorClass} />
-                                      <div className="min-w-0 flex-1">
-                                        <div className="text-[9px] font-black uppercase tracking-wider text-white/60">
-                                          Slot {slotIdx + 1}
-                                        </div>
-                                        <div className="text-xs font-bold text-white truncate">
-                                          {badge.label}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                                return (
-                                  <div
-                                    key={slotIdx}
-                                    className="p-2.5 rounded-lg border border-dashed border-white/10 bg-white/[0.02] flex items-center justify-center gap-1.5 text-[11px] text-[var(--color-text-secondary)]/50 font-bold"
-                                  >
-                                    <span>Slot {slotIdx + 1}</span>
-                                    <span className="text-[9px] uppercase tracking-wider">(Vide)</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Liste de tous les badges possédés */}
-                          <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)] pt-1">
-                            Cliquez sur un badge pour l&apos;afficher ou le masquer :
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                            {ownedBadges.map((badgeDef) => {
-                              const isHidden = draftHiddenBadges.some(
-                                (hb) => hb.toLowerCase().trim() === badgeDef.id
-                              );
-                              const isActive = !isHidden && draftShowBadge;
-                              const slotNumber = activeBadges.findIndex((b) => b.id === badgeDef.id);
-                              const IconComp = badgeDef.icon;
-
-                              return (
-                                <div
-                                  key={badgeDef.id}
-                                  onMouseEnter={() => sounds.playHover()}
-                                  onClick={() => {
-                                    if (isActive) {
-                                      // Masquer
-                                      sounds.playClick();
-                                      setDraftHiddenBadges((prev) => [
-                                        ...prev.filter((id) => id.toLowerCase().trim() !== badgeDef.id),
-                                        badgeDef.id,
-                                      ]);
-                                      setBadgeSlotWarning(null);
-                                    } else {
-                                      // Afficher (si < 3)
-                                      if (activeCount >= 3) {
-                                        sounds.playClick();
-                                        setBadgeSlotWarning(
-                                          "3 badges maximum peuvent être affichés simultanément sur la bannière. Désactivez un badge pour en sélectionner un autre !"
-                                        );
-                                        setTimeout(() => setBadgeSlotWarning(null), 4000);
-                                        return;
-                                      }
-                                      sounds.playClick();
-                                      setDraftHiddenBadges((prev) =>
-                                        prev.filter((id) => id.toLowerCase().trim() !== badgeDef.id)
-                                      );
-                                      setBadgeSlotWarning(null);
-                                    }
-                                  }}
-                                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                                    isActive
-                                      ? "bg-[var(--color-surface)] border-sky-400/40 shadow-[0_0_12px_rgba(56,189,248,0.15)]"
-                                      : "bg-white/[0.02] border-white/10 opacity-60 hover:opacity-100"
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3 min-w-0">
-                                    <div
-                                      className={`p-1.5 rounded-lg border flex items-center justify-center ${badgeDef.bgClass} ${badgeDef.borderClass}`}
-                                    >
-                                      <IconComp size={16} className={badgeDef.colorClass} />
-                                    </div>
-                                    <div className="flex flex-col min-w-0">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)] truncate">
-                                          {badgeDef.label}
-                                        </span>
-                                        {isActive && slotNumber >= 0 && slotNumber < 3 && (
-                                          <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                                            Slot {slotNumber + 1}
-                                          </span>
-                                        )}
-                                      </div>
-                                      <span className="text-[10px] text-[var(--color-text-secondary)] line-clamp-1">
-                                        {badgeDef.description}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <div
-                                    className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider flex-shrink-0 transition-all ${
-                                      isActive
-                                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                                        : "bg-white/10 text-gray-400 border border-white/15"
-                                    }`}
-                                  >
-                                    {isActive ? "Affiché" : "Masqué"}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                          {/* Badges de niveau à débloquer */}
-                          {lockedLevelBadges.length > 0 && (
-                            <div className="pt-2">
-                              <div className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]/60 mb-2 flex items-center gap-1.5">
-                                <IconLock size={12} />
-                                <span>Badges à débloquer via le Niveau Tracker :</span>
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 opacity-60">
-                                {lockedLevelBadges.map((lb) => {
-                                  const def = BADGES_REGISTRY[lb.id];
-                                  const IconComp = def ? def.icon : IconTrophy;
-                                  return (
-                                    <div
-                                      key={lb.id}
-                                      className="p-2.5 rounded-xl border border-dashed border-white/15 bg-white/[0.01] flex items-center justify-between gap-2"
-                                    >
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        <div className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-500">
-                                          <IconComp size={14} />
-                                        </div>
-                                        <div className="min-w-0">
-                                          <div className="text-xs font-bold text-gray-400 truncate">
-                                            {lb.label}
-                                          </div>
-                                          <div className="text-[10px] text-gray-500">
-                                            Requis : Niveau Tracker {lb.minLvl}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-gray-400 border border-white/10">
-                                        Niv. {lb.minLvl}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* ==================== EFFETS & BANNIÈRES OBTENUS (BOUTON VOIR PLUS) ==================== */}
-                <div className="flex flex-col pt-4 sm:pt-6 border-t border-[var(--color-border)]">
-                  <div className="flex items-center justify-between gap-3 p-3 sm:p-4 rounded-xl bg-[var(--color-surface)]/60 border border-[var(--color-border)]">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center flex-shrink-0 text-purple-400 font-black text-sm">
-                        ✨
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <h3 className="font-bold text-sm sm:text-base text-[var(--color-text-primary)] flex items-center gap-2 flex-wrap">
-                          <span>Effets &amp; Bannières Obtenus</span>
-                          {draftBannerAnimation ? (
-                            <span className="px-2 py-0.5 rounded-full bg-[var(--color-val-red)]/20 text-[var(--color-val-red)] text-[10px] font-black border border-[var(--color-val-red)]/30">
-                              Effet : {BANNER_EFFECTS_LIST.find((fx) => fx.id === draftBannerAnimation)?.name || "Actif"}
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full bg-white/10 text-gray-400 text-[10px] font-black">
-                              Aucun effet
-                            </span>
-                          )}
-                          {draftBannerBorder && (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-black border border-emerald-500/30">
-                              Bordure RGB
-                            </span>
-                          )}
-                        </h3>
-                        <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] truncate">
-                          Effets visuels animés et bannières débloqués grâce à votre progression de niveau Tracker
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        sounds.playClick();
-                        setShowAllBannersAndFx(!showAllBannersAndFx);
-                      }}
-                      onMouseEnter={() => sounds.playHover()}
-                      className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-accent-sm flex items-center gap-1.5 flex-shrink-0"
-                    >
-                      <span>{showAllBannersAndFx ? "Voir moins" : "Voir plus"}</span>
-                      <span className="text-xs transition-transform duration-300">
-                        {showAllBannersAndFx ? "▲" : "▼"}
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* Galerie complète révélée par 'Voir plus' */}
-                  {showAllBannersAndFx && (
-                    <div className="space-y-4 mt-3 pt-3 border-t border-[var(--color-border)]/50 animate-in fade-in slide-in-from-top-2 duration-300">
-                      {/* 1. Effets cosmétiques animés */}
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-[var(--color-text-primary)] flex items-center gap-2">
-                            <span>Effets de bannière animés</span>
-                            <span className="text-[10px] text-gray-400 font-normal">
-                              (Niveau Tracker {trackerLevel ?? 1})
-                            </span>
-                          </h4>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-3">
-                          {BANNER_EFFECTS_LIST.map((fx) => {
-                            const isUnlocked = (trackerLevel ?? 1) >= fx.minLevel;
-                            const isEquipped = draftBannerAnimation === fx.id;
-
-                            return (
-                              <button
-                                key={fx.id}
-                                type="button"
-                                disabled={!isUnlocked}
-                                onMouseEnter={() => sounds.playHover()}
-                                onClick={() => {
-                                  if (!isUnlocked) return;
-                                  sounds.playClick();
-                                  setDraftBannerAnimation(fx.id);
-                                }}
-                                className={`relative rounded-xl p-2 flex flex-col items-center gap-1.5 border-2 transition-all duration-200 ${
-                                  !isUnlocked
-                                    ? "opacity-40 border-white/5 cursor-not-allowed bg-white/[0.01]"
-                                    : isEquipped
-                                    ? "border-[var(--color-val-red)] shadow-accent-md scale-[1.02] bg-[var(--color-surface)] cursor-pointer"
-                                    : "border-white/10 hover:border-white/30 bg-white/[0.03] cursor-pointer"
-                                }`}
-                              >
-                                <div
-                                  className="w-full aspect-[3/1] rounded-lg overflow-hidden relative"
-                                  style={{ backgroundColor: "#0a0e13" }}
-                                >
-                                  {fx.id && isUnlocked && (
-                                    <div className={`banner-effect-${fx.id}`} style={{ borderRadius: "0.5rem" }} />
-                                  )}
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-center justify-center">
-                                    {!isUnlocked && (
-                                      <div className="p-1 rounded-full bg-black/60 text-gray-400">
-                                        <IconLock size={12} />
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="w-full text-center">
-                                  <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-primary)] block truncate">
-                                    {fx.name}
-                                  </span>
-                                  <span className="text-[8px] text-[var(--color-text-secondary)] block truncate">
-                                    {isUnlocked ? (isEquipped ? "✓ Équipé" : "Niv. " + fx.minLevel) : "🔒 Niv. " + fx.minLevel}
-                                  </span>
-                                </div>
-
-                                {isEquipped && (
-                                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--color-val-red)] rounded-full flex items-center justify-center text-white shadow-accent-sm">
-                                    <IconCheck size={10} />
-                                  </div>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* 2. Bordure animée rotative (Niveau 10) */}
-                      <div className="p-3.5 sm:p-4 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between gap-3">
-                        <div className="space-y-0.5">
-                          <h4 className="font-bold text-xs sm:text-sm text-[var(--color-text-primary)] flex items-center gap-2">
-                            <span>Bordure animée rotative RGB</span>
-                            {(trackerLevel ?? 1) >= 10 ? (
-                              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                                Débloqué (Niv. 10)
-                              </span>
-                            ) : (
-                              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-white/10 text-gray-400 border border-white/15 flex items-center gap-1">
-                                <IconLock size={10} />
-                                Requis : Niv. 10
-                              </span>
-                            )}
-                          </h4>
-                          <p className="text-[10px] sm:text-[11px] text-[var(--color-text-secondary)]">
-                            Contour lumineux rotatif à gradient conique autour de votre bannière de profil
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          disabled={(trackerLevel ?? 1) < 10}
-                          onClick={() => {
-                            if ((trackerLevel ?? 1) < 10) return;
-                            sounds.playClick();
-                            setDraftBannerBorder(!draftBannerBorder);
-                          }}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 flex-shrink-0 ${
-                            (trackerLevel ?? 1) < 10
-                              ? "opacity-30 cursor-not-allowed bg-gray-600"
-                              : draftBannerBorder
-                              ? "bg-[var(--color-val-red)] shadow-accent-sm cursor-pointer"
-                              : "bg-gray-400 dark:bg-white/10 cursor-pointer"
-                          }`}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-all duration-300 ${
-                              draftBannerBorder && (trackerLevel ?? 1) >= 10 ? "translate-x-6" : "translate-x-1"
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      {/* 3. Bannières obtenues & Catalogue */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-[var(--color-text-primary)]">
-                            Bannières de profil &amp; Splash Arts
-                          </h4>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              sounds.playClick();
-                              setCatalogOpen(true);
-                            }}
-                            onMouseEnter={() => sounds.playHover()}
-                            className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/15 rounded-lg text-[10px] font-black uppercase tracking-wider text-white transition-all cursor-pointer flex items-center gap-1.5"
-                          >
-                            <span>Catalogue complet (+100)</span>
-                            <span>→</span>
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                          {banners.map((b, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              onMouseEnter={() => sounds.playHover()}
-                              onClick={() => {
-                                sounds.playClick();
-                                setDraftBannerUrl(b.url);
-                              }}
-                              className={`relative aspect-[3/1] rounded-xl overflow-hidden border-2 transition-all cursor-pointer bg-[#0a0e13] ${
-                                draftBannerUrl === b.url
-                                  ? "border-[var(--color-val-red)] shadow-[0_0_15px_rgba(255,70,85,0.3)] scale-[1.02]"
-                                  : "border-[var(--color-border)] hover:border-[var(--color-text-secondary)]"
-                              }`}
-                            >
-                              {b.url ? (
-                                <img
-                                  referrerPolicy="no-referrer"
-                                  src={b.url}
-                                  alt={b.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-[var(--color-surface)] text-[9px] font-bold text-[var(--color-text-secondary)]">
-                                  Par défaut
-                                </div>
-                              )}
-                              <div className="absolute inset-0 bg-black/40 flex items-end p-1.5">
-                                <span className="text-[9px] font-bold text-white uppercase">{b.name}</span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -2135,117 +1680,763 @@ export default function SettingsView({
 
               <hr className="border-[var(--color-border)]" />
 
-              {/* Effets Cosmétiques de Bannière */}
-              <div className="space-y-4 sm:space-y-6">
+              {/* ==================== BADGES DE PROFIL (MAX 3 SUR LA BANNIÈRE) ==================== */}
+              {(() => {
+                const currentLvl = trackerLevel ?? 1;
+                const levelBadgeIds: string[] = [];
+                if (currentLvl >= 1) levelBadgeIds.push("recrue");
+                if (currentLvl >= 4) levelBadgeIds.push("veteran");
+                if (currentLvl >= 15) levelBadgeIds.push("radiant");
+
+                const rawBadges = [
+                  ...levelBadgeIds,
+                  ...(p?.badge ? parseBadges(p.badge).map((b: string) => b.toLowerCase().trim()) : []),
+                ];
+
+                const canonicalKeys = Array.from(
+                  new Set(
+                    rawBadges.map((b) => {
+                      if (b === "badge_recruit") return "recrue";
+                      if (b === "badge_veteran") return "veteran";
+                      if (b === "badge_radiant") return "radiant";
+                      return b;
+                    })
+                  )
+                );
+
+                const combinedRegistry: Record<string, any> = { ...BADGES_REGISTRY };
+                if (Array.isArray(customBadgesList)) {
+                  for (const cb of customBadgesList) {
+                    if (cb.id) {
+                      combinedRegistry[cb.id.toLowerCase().trim()] = cb;
+                    }
+                  }
+                }
+
+                const ownedBadges = canonicalKeys
+                  .map((id) => combinedRegistry[id])
+                  .filter(Boolean);
+
+                // Badges actuellement actifs (non masqués) - strictement plafonnés à 3
+                const nonHiddenBadges = ownedBadges.filter(
+                  (b) => !draftHiddenBadges.some((hb) => hb.toLowerCase().trim() === b.id)
+                );
+                const activeBadges = nonHiddenBadges.slice(0, 3);
+                const activeCount = draftShowBadge ? activeBadges.length : 0;
+
+                // Badges de niveau encore verrouillés pour ce niveau Tracker
+                const lockedLevelBadges = [
+                  { id: "recrue", minLvl: 1, label: "Recrue Tracker" },
+                  { id: "veteran", minLvl: 4, label: "Vétéran Spycam" },
+                  { id: "radiant", minLvl: 15, label: "Radiant Master" },
+                ].filter((lb) => currentLvl < lb.minLvl);
+
+                return (
+                  <div className="flex flex-col space-y-4">
+                    <div
+                      onClick={() => {
+                        sounds.playClick();
+                        setBadgesExpanded(!badgesExpanded);
+                      }}
+                      className="flex items-center justify-between p-3.5 sm:p-5 rounded-2xl bg-[var(--color-surface)]/60 hover:bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-val-red)]/40 transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                        <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center flex-shrink-0">
+                          <IconBadgeVerified size={20} className="text-sky-400" />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <h3 className="font-bold text-sm sm:text-base text-[var(--color-text-primary)] flex items-center gap-2 flex-wrap">
+                            <span>Badges &amp; Distinctions de Profil</span>
+                            <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 text-[10px] font-black border border-sky-500/30">
+                              {draftShowBadge ? `${activeCount}/3 affichés` : "Masqués"}
+                            </span>
+                          </h3>
+                          <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] truncate">
+                            Sélectionnez jusqu&apos;à 3 badges maximum à afficher sur votre bannière de profil
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            sounds.playClick();
+                            setDraftShowBadge(!draftShowBadge);
+                          }}
+                          title={draftShowBadge ? "Afficher les badges" : "Masquer les badges"}
+                          className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 cursor-pointer ${
+                            draftShowBadge ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                              draftShowBadge ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                            } shadow-md transition-all duration-300 ${
+                              draftShowBadge ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                            }`}
+                          ></span>
+                        </button>
+
+                        <span
+                          className={`text-sm sm:text-base font-black transition-transform duration-300 text-[var(--color-text-secondary)] group-hover:text-[var(--color-val-red)] ${
+                            badgesExpanded ? "rotate-90 text-[var(--color-val-red)]" : "rotate-0"
+                          }`}
+                        >
+                          →
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Corps de gestion des badges */}
+                    {badgesExpanded && (
+                      <div className="space-y-3 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                        {/* Alerte si tentative d'équiper > 3 badges */}
+                        {badgeSlotWarning && (
+                          <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-2 animate-in fade-in duration-200">
+                            <span className="text-base flex-shrink-0">⚠️</span>
+                            <span>{badgeSlotWarning}</span>
+                          </div>
+                        )}
+
+                        {/* Aperçu des 3 emplacements de la bannière */}
+                        <div className="p-3.5 rounded-xl bg-black/40 border border-white/5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
+                              Emplacements sur la bannière (3 max)
+                            </span>
+                            <span className="text-[10px] font-mono font-bold text-sky-400">
+                              {draftShowBadge ? `${activeCount} / 3 slots occupés` : "Désactivé"}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            {[0, 1, 2].map((slotIdx) => {
+                              const badge = activeBadges[slotIdx];
+                              if (badge && draftShowBadge) {
+                                const isImage = badge.iconType === "image" || Boolean(badge.imageUrl);
+                                const IconComp = badge.icon || IconBadgeVerified;
+                                return (
+                                  <div
+                                    key={slotIdx}
+                                    className={`p-2.5 rounded-lg border flex items-center gap-2.5 ${badge.bgClass} ${badge.borderClass} ${badge.glowClass}`}
+                                  >
+                                    {isImage && badge.imageUrl ? (
+                                      <img
+                                        src={badge.imageUrl.startsWith("r2://") ? `/api/media/stream?key=${encodeURIComponent(badge.imageUrl.replace("r2://", ""))}` : badge.imageUrl}
+                                        alt={badge.label}
+                                        className="w-4 h-4 rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <IconComp size={16} className={badge.colorClass} />
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                                        Slot {slotIdx + 1}
+                                      </div>
+                                      <div className="text-xs font-bold text-white truncate">
+                                        {badge.label}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div
+                                  key={slotIdx}
+                                  className="p-2.5 rounded-lg border border-dashed border-white/10 bg-white/[0.02] flex items-center justify-center gap-1.5 text-[11px] text-[var(--color-text-secondary)]/50 font-bold"
+                                >
+                                  <span>Slot {slotIdx + 1}</span>
+                                  <span className="text-[9px] uppercase tracking-wider">(Vide)</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Liste de tous les badges possédés */}
+                        <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)] pt-1">
+                          Cliquez sur un badge pour l&apos;activer ou le désactiver :
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {ownedBadges.map((badgeDef) => {
+                            const isSlotActive = activeBadges.some((b) => b.id === badgeDef.id) && draftShowBadge;
+                            const slotNumber = activeBadges.findIndex((b) => b.id === badgeDef.id);
+                            const isImage = badgeDef.iconType === "image" || Boolean(badgeDef.imageUrl);
+                            const IconComp = badgeDef.icon || IconBadgeVerified;
+
+                            return (
+                              <div
+                                key={badgeDef.id}
+                                onMouseEnter={() => sounds.playHover()}
+                                onClick={() => {
+                                  if (isSlotActive) {
+                                    // Désactiver / Masquer
+                                    sounds.playClick();
+                                    setDraftHiddenBadges((prev) => [
+                                      ...prev.filter((id) => id.toLowerCase().trim() !== badgeDef.id),
+                                      badgeDef.id,
+                                    ]);
+                                    setBadgeSlotWarning(null);
+                                  } else {
+                                    // Activer (si slot disponible parmi les 3)
+                                    if (activeBadges.length >= 3) {
+                                      sounds.playClick();
+                                      setBadgeSlotWarning(
+                                        "3 badges maximum peuvent être affichés simultanément sur la bannière. Désactivez un badge pour en sélectionner un autre !"
+                                      );
+                                      setTimeout(() => setBadgeSlotWarning(null), 4000);
+                                      return;
+                                    }
+                                    sounds.playClick();
+                                    setDraftHiddenBadges((prev) =>
+                                      prev.filter((id) => id.toLowerCase().trim() !== badgeDef.id)
+                                    );
+                                    setBadgeSlotWarning(null);
+                                  }
+                                }}
+                                className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                                  isSlotActive
+                                    ? "bg-[var(--color-surface)] border-sky-400/40 shadow-[0_0_12px_rgba(56,189,248,0.15)]"
+                                    : "bg-white/[0.02] border-white/10 opacity-60 hover:opacity-100"
+                                }`}
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div
+                                    className={`p-1.5 rounded-lg border flex items-center justify-center ${badgeDef.bgClass} ${badgeDef.borderClass}`}
+                                  >
+                                    {isImage && badgeDef.imageUrl ? (
+                                      <img
+                                        src={badgeDef.imageUrl.startsWith("r2://") ? `/api/media/stream?key=${encodeURIComponent(badgeDef.imageUrl.replace("r2://", ""))}` : badgeDef.imageUrl}
+                                        alt={badgeDef.label}
+                                        className="w-4 h-4 rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <IconComp size={16} className={badgeDef.colorClass} />
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)] truncate">
+                                        {badgeDef.label}
+                                      </span>
+                                      {isSlotActive && slotNumber >= 0 && slotNumber < 3 && (
+                                        <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                          Slot {slotNumber + 1}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-[var(--color-text-secondary)] line-clamp-1">
+                                      {badgeDef.description}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <span
+                                    className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                                      isSlotActive
+                                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                        : "bg-white/5 text-gray-400 border border-white/10"
+                                    }`}
+                                  >
+                                    {isSlotActive ? "Affiché" : "Masqué"}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Badges de niveau encore verrouillés */}
+                        {lockedLevelBadges.length > 0 && (
+                          <div className="space-y-2 pt-2">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]/70 flex items-center gap-1.5">
+                              <IconLock size={12} />
+                              <span>Badges à débloquer via la progression Tracker :</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {lockedLevelBadges.map((lb) => {
+                                const def = BADGES_REGISTRY[lb.id];
+                                const IconComp = def?.icon || IconLock;
+                                return (
+                                  <div
+                                    key={lb.id}
+                                    className="p-2.5 rounded-xl border border-white/5 bg-white/[0.01] opacity-50 flex items-center justify-between gap-2"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <div className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-500">
+                                        <IconComp size={14} />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="text-xs font-bold text-gray-400 truncate">
+                                          {lb.label}
+                                        </div>
+                                        <div className="text-[10px] text-gray-500">
+                                          Requis : Niveau Tracker {lb.minLvl}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-gray-400 border border-white/10">
+                                      Niv. {lb.minLvl}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <hr className="border-[var(--color-border)]" />
+
+              {/* ==================== COSMÉTIQUES DE BANNIÈRE (EFFET INTÉRIEUR & BORDURE) ==================== */}
+              <div className="space-y-5">
                 <div>
-                  <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Effets de bannière</h3>
+                  <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">
+                    Cosmétiques de Bannière &amp; Bordure
+                  </h3>
                   <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
-                    Appliquez un effet visuel animé sur votre bannière de profil. Débloqués via le niveau Tracker.
+                    Personnalisez séparément les effets intérieurs animés et la bordure lumineuse extérieure de votre bannière.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-3">
-                  {BANNER_EFFECTS_LIST.map((fx) => {
-                    const isUnlocked = (trackerLevel ?? 1) >= fx.minLevel;
-                    const isEquipped = draftBannerAnimation === fx.id;
+                {/* Sélecteur de teinte : Couleur d'origine vs Accent personnalisé du joueur */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-xl bg-white/[0.03] border border-[var(--color-border)]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-[var(--color-val-red)]/15 border border-[var(--color-val-red)]/30 flex items-center justify-center text-[var(--color-val-red)] flex-shrink-0 text-base">
+                      🎨
+                    </div>
+                    <div>
+                      <div className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                        <span>Teinte des Effets Cosmétiques</span>
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-[var(--color-val-red)]/20 text-[var(--color-val-red)] border border-[var(--color-val-red)]/30">
+                          Option
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5">
+                        Laissez les couleurs d&apos;origine signatures ou harmonisez tous les effets avec votre accent Tracker.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center bg-black/40 p-1 rounded-xl border border-white/10 w-full sm:w-auto self-stretch sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sounds.playClick();
+                        setDraftCosmeticAccent(false);
+                      }}
+                      className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        !draftCosmeticAccent
+                          ? "bg-[var(--color-surface-hover)] text-white shadow-sm border border-white/10"
+                          : "text-[var(--color-text-secondary)] hover:text-white"
+                      }`}
+                    >
+                      🌈 D&apos;origine
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sounds.playClick();
+                        setDraftCosmeticAccent(true);
+                      }}
+                      className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        draftCosmeticAccent
+                          ? "bg-[var(--color-val-red)] text-white shadow-accent-sm"
+                          : "text-[var(--color-text-secondary)] hover:text-white"
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                      <span>Mon Accent</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Deux cartes interactives : Effet de Bannière et Effet de Bordure */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* CARTE 1 : EFFET DE BANNIÈRE (INTÉRIEUR) */}
+                  {(() => {
+                    const currentEffect =
+                      interiorEffectsList.find((e) => e.id === draftBannerAnimation) ||
+                      interiorEffectsList[0] ||
+                      BANNER_INTERIOR_EFFECTS[0];
+                    const isSelected = editingCosmeticType === "banner";
 
                     return (
-                      <button
-                        key={fx.id}
-                        type="button"
-                        disabled={!isUnlocked}
-                        onMouseEnter={() => sounds.playHover()}
+                      <div
                         onClick={() => {
-                          if (!isUnlocked) return;
                           sounds.playClick();
-                          setDraftBannerAnimation(fx.id);
+                          setEditingCosmeticType(isSelected ? "none" : "banner");
                         }}
-                        className={`relative rounded-xl p-2 sm:p-3 flex flex-col items-center gap-1.5 border-2 transition-all duration-300 ${
-                          !isUnlocked
-                            ? "opacity-40 border-white/5 cursor-not-allowed bg-white/[0.01]"
-                            : isEquipped
-                            ? "border-[var(--color-val-red)] shadow-accent-md scale-105 bg-[var(--color-surface)] cursor-pointer"
-                            : "border-[var(--color-border)] hover:border-[var(--color-text-secondary)] cursor-pointer"
+                        onMouseEnter={() => sounds.playHover()}
+                        className={`group relative rounded-2xl p-4 sm:p-5 border-2 transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden ${
+                          isSelected
+                            ? "border-[var(--color-val-red)] bg-[var(--color-surface)] shadow-accent-md scale-[1.01]"
+                            : "border-[var(--color-border)] bg-[var(--color-background)] hover:border-[var(--color-val-red)]/50 hover:bg-[var(--color-surface)]/40"
                         }`}
                       >
-                        <div
-                          className="w-full aspect-[3/1] rounded-lg overflow-hidden relative"
-                          style={{ backgroundColor: "#0a0e13" }}
-                        >
-                          {fx.id && isUnlocked && (
-                            <div className={`banner-effect-${fx.id}`} style={{ borderRadius: "0.5rem" }} />
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-center justify-center">
-                            {!isUnlocked && (
-                              <div className="p-1 rounded-full bg-black/60 text-gray-400">
-                                <IconLock size={12} />
-                              </div>
+                        {/* Indicateur de survol / Bouton modifier avec stylo */}
+                        <div className="absolute top-3.5 right-3.5 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[var(--color-val-red)] text-white text-[10px] font-black uppercase tracking-wider shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-1 group-hover:translate-y-0">
+                          <IconPencil size={12} />
+                          <span>Modifier</span>
+                        </div>
+
+                        <div className="space-y-2 mb-3">
+                          <div className="flex items-center justify-between gap-2 pr-20">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
+                              Effet de Bannière (Intérieur)
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-sm sm:text-base text-[var(--color-text-primary)] flex items-center gap-2">
+                            <span>{currentEffect.name}</span>
+                            {draftBannerAnimation ? (
+                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                Actif
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-gray-400 border border-white/10">
+                                Aucun
+                              </span>
                             )}
+                          </h4>
+                          <p className="text-[11px] text-[var(--color-text-secondary)] line-clamp-2">
+                            {currentEffect.desc}
+                          </p>
+                        </div>
+
+                        {/* Aperçu visuel miniature de la bannière avec effet intérieur */}
+                        <div className="relative w-full aspect-[3.5/1] rounded-xl overflow-hidden border border-white/10 bg-[#0a0e13]">
+                          <img
+                            referrerPolicy="no-referrer"
+                            src={draftBannerUrl || p?.cardWideUrl || "https://media.valorant-api.com/maps/7eaecc1b-4337-bbf6-6ab9-04b8f06b3319/splash.png"}
+                            alt="Aperçu Bannière"
+                            style={{ objectPosition: `center ${draftBannerOffsetY}%` }}
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                          {draftBannerAnimation && (
+                            <div className={`banner-effect-layer banner-effect-${draftBannerAnimation} banner-interior-${draftBannerAnimation}`} style={{ borderRadius: "0.75rem" }} />
+                          )}
+                          <div className="absolute inset-0 bg-black/30 pointer-events-none flex items-center justify-center">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-white/80 bg-black/60 px-2.5 py-1 rounded-full border border-white/15 backdrop-blur-sm">
+                              {draftBannerAnimation ? currentEffect.name : "Sans effet intérieur"}
+                            </span>
                           </div>
                         </div>
 
-                        <div className="w-full text-center">
-                          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-[var(--color-text-primary)] block truncate">
-                            {fx.name}
-                          </span>
-                          <span className="text-[8px] text-[var(--color-text-secondary)] block truncate">
-                            {isUnlocked ? (isEquipped ? "✓ Équipé" : "Niv. " + fx.minLevel) : "🔒 Niv. " + fx.minLevel}
+                        <div className="mt-3 pt-3 border-t border-[var(--color-border)]/50 flex items-center justify-between text-[11px]">
+                          <span className="text-[var(--color-text-secondary)]">Cliquez pour explorer la collection</span>
+                          <span className="font-bold text-[var(--color-val-red)] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                            <span>{isSelected ? "Fermer la liste" : "Changer l'effet"}</span>
+                            <span>→</span>
                           </span>
                         </div>
-
-                        {isEquipped && (
-                          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-[var(--color-val-red)] rounded-full flex items-center justify-center text-[var(--color-accent-contrast)] shadow-accent-sm">
-                            <IconCheck size={10} />
-                          </div>
-                        )}
-                      </button>
+                      </div>
                     );
-                  })}
+                  })()}
+
+                  {/* CARTE 2 : EFFET DE BORDURE (CONTOUR) */}
+                  {(() => {
+                    const currentBorder =
+                      borderEffectsList.find((b) => b.id === draftBannerBorder) ||
+                      borderEffectsList[0] ||
+                      BANNER_BORDER_EFFECTS[0];
+                    const isSelected = editingCosmeticType === "border";
+
+                    return (
+                      <div
+                        onClick={() => {
+                          sounds.playClick();
+                          setEditingCosmeticType(isSelected ? "none" : "border");
+                        }}
+                        onMouseEnter={() => sounds.playHover()}
+                        className={`group relative rounded-2xl p-4 sm:p-5 border-2 transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden ${
+                          isSelected
+                            ? "border-[var(--color-val-red)] bg-[var(--color-surface)] shadow-accent-md scale-[1.01]"
+                            : "border-[var(--color-border)] bg-[var(--color-background)] hover:border-[var(--color-val-red)]/50 hover:bg-[var(--color-surface)]/40"
+                        }`}
+                      >
+                        {/* Indicateur de survol / Bouton modifier avec stylo */}
+                        <div className="absolute top-3.5 right-3.5 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[var(--color-val-red)] text-white text-[10px] font-black uppercase tracking-wider shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-1 group-hover:translate-y-0">
+                          <IconPencil size={12} />
+                          <span>Modifier</span>
+                        </div>
+
+                        <div className="space-y-2 mb-3">
+                          <div className="flex items-center justify-between gap-2 pr-20">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
+                              Effet de Bordure (Contour)
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-sm sm:text-base text-[var(--color-text-primary)] flex items-center gap-2">
+                            <span>{currentBorder.name}</span>
+                            {draftBannerBorder ? (
+                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                Active
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-gray-400 border border-white/10">
+                                Classique
+                              </span>
+                            )}
+                          </h4>
+                          <p className="text-[11px] text-[var(--color-text-secondary)] line-clamp-2">
+                            {currentBorder.desc}
+                          </p>
+                        </div>
+
+                        {/* Aperçu visuel avec contour dynamique superposé en calque propre */}
+                        <div className="p-1">
+                          <div className="relative w-full aspect-[3.5/1] rounded-xl overflow-hidden bg-[#0a0e13] border border-white/10">
+                            <img
+                              referrerPolicy="no-referrer"
+                              src={draftBannerUrl || p?.cardWideUrl || "https://media.valorant-api.com/maps/7eaecc1b-4337-bbf6-6ab9-04b8f06b3319/splash.png"}
+                              alt="Aperçu Bordure"
+                              style={{ objectPosition: `center ${draftBannerOffsetY}%` }}
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                            {draftBannerBorder && (
+                              <div className={`banner-border-layer banner-border-${draftBannerBorder} ${draftBannerBorder === "rgb_conic" ? "banner-border-animated" : ""}`} />
+                            )}
+                            <div className="absolute inset-0 bg-black/40 pointer-events-none flex items-center justify-center">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-white/80 bg-black/60 px-2.5 py-1 rounded-full border border-white/15 backdrop-blur-sm">
+                                {draftBannerBorder ? currentBorder.name : "Contour classique"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-[var(--color-border)]/50 flex items-center justify-between text-[11px]">
+                          <span className="text-[var(--color-text-secondary)]">Cliquez pour explorer la collection</span>
+                          <span className="font-bold text-[var(--color-val-red)] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                            <span>{isSelected ? "Fermer la liste" : "Changer la bordure"}</span>
+                            <span>→</span>
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                {/* Toggle bordure animée */}
-                <div className="bg-[var(--color-background)] p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-[var(--color-border)] flex items-center justify-between gap-3 sm:gap-4">
-                  <div className="space-y-1">
-                    <h4 className="font-bold text-xs sm:text-sm text-[var(--color-text-primary)] flex items-center gap-2">
-                      <span>Bordure animée rotative</span>
-                      {(trackerLevel ?? 1) >= 10 ? (
-                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                          Niv. 10
-                        </span>
-                      ) : (
-                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-white/10 text-gray-400 border border-white/15 flex items-center gap-1">
-                          <IconLock size={10} />
-                          Requis : Niv. 10
-                        </span>
-                      )}
-                    </h4>
-                    <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] max-w-xl">
-                      Ajoute un contour lumineux rotatif autour de votre bannière de profil, utilisant votre couleur d&apos;accent.
-                    </p>
+                {/* ==================== PANNEAU DÉTAILLÉ DE SÉLECTION D'EFFETS ==================== */}
+                {editingCosmeticType === "banner" && (
+                  <div className="p-4 sm:p-6 rounded-2xl bg-[var(--color-background)] border border-[var(--color-val-red)]/40 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center justify-between gap-3 pb-3 border-b border-[var(--color-border)]">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-val-red)]"></span>
+                          <h4 className="font-bold text-sm sm:text-base text-[var(--color-text-primary)]">
+                            Sélection des Effets de Bannière (Intérieur)
+                          </h4>
+                        </div>
+                        <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                          Ces animations habillent l&apos;intérieur de votre image sans altérer le contour du profil.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingCosmeticType("none")}
+                        className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-[var(--color-text-secondary)] hover:text-white transition-colors cursor-pointer"
+                      >
+                        Fermer ✕
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {interiorEffectsList.map((fx) => {
+                        const isUnlocked = (trackerLevel ?? 1) >= fx.minLevel;
+                        const isEquipped = draftBannerAnimation === fx.id;
+
+                        return (
+                          <div
+                            key={fx.id || "none"}
+                            onClick={() => {
+                              if (!isUnlocked) return;
+                              sounds.playClick();
+                              setDraftBannerAnimation(fx.id);
+                            }}
+                            onMouseEnter={() => isUnlocked && sounds.playHover()}
+                            className={`relative rounded-xl p-3 border-2 transition-all duration-200 flex flex-col justify-between gap-3 ${
+                              !isUnlocked
+                                ? "opacity-40 border-white/5 bg-white/[0.01] cursor-not-allowed"
+                                : isEquipped
+                                ? "border-[var(--color-val-red)] bg-[var(--color-surface)] shadow-accent-sm cursor-pointer"
+                                : "border-[var(--color-border)] hover:border-[var(--color-text-secondary)] bg-[var(--color-surface)]/50 cursor-pointer"
+                            }`}
+                          >
+                            <div className="relative w-full aspect-[3/1] rounded-lg overflow-hidden bg-[#0a0e13]">
+                              <img
+                                referrerPolicy="no-referrer"
+                                src={draftBannerUrl || p?.cardWideUrl || "https://media.valorant-api.com/maps/7eaecc1b-4337-bbf6-6ab9-04b8f06b3319/splash.png"}
+                                alt=""
+                                style={{ objectPosition: `center ${draftBannerOffsetY}%` }}
+                                className="absolute inset-0 w-full h-full object-cover opacity-80"
+                              />
+                              {fx.id && isUnlocked && (
+                                <div className={`banner-effect-layer banner-effect-${fx.id} banner-interior-${fx.id}`} style={{ borderRadius: "0.5rem" }} />
+                              )}
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                {!isUnlocked && (
+                                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/80 text-amber-300 text-[10px] font-bold border border-amber-400/30">
+                                    <IconLock size={12} />
+                                    <span>Niveau {fx.minLevel}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-[var(--color-text-primary)]">
+                                  {fx.name}
+                                </span>
+                                {isUnlocked ? (
+                                  <span className="text-[9px] font-black uppercase text-emerald-400">
+                                    Débloqué
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-black uppercase text-gray-500">
+                                    Niv. {fx.minLevel}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-[var(--color-text-secondary)] line-clamp-1">
+                                {fx.desc}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={!isUnlocked}
+                              className={`w-full py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${
+                                !isUnlocked
+                                  ? "bg-white/5 text-gray-500 cursor-not-allowed"
+                                  : isEquipped
+                                  ? "bg-[var(--color-val-red)] text-white shadow-accent-sm"
+                                  : "bg-white/10 hover:bg-white/20 text-white"
+                              }`}
+                            >
+                              {isEquipped ? "✓ Équipé" : isUnlocked ? "Sélectionner" : `Requis : Niv. ${fx.minLevel}`}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={(trackerLevel ?? 1) < 10}
-                    onClick={() => {
-                      if ((trackerLevel ?? 1) < 10) return;
-                      sounds.playClick();
-                      setDraftBannerBorder(!draftBannerBorder);
-                    }}
-                    className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 ${
-                      (trackerLevel ?? 1) < 10
-                        ? "opacity-30 cursor-not-allowed bg-gray-600"
-                        : draftBannerBorder
-                        ? "bg-[var(--color-val-red)] shadow-accent-sm cursor-pointer"
-                        : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)] cursor-pointer"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
-                        draftBannerBorder && (trackerLevel ?? 1) >= 10 ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
-                      }`}
-                    ></span>
-                  </button>
-                </div>
+                )}
+
+                {editingCosmeticType === "border" && (
+                  <div className="p-4 sm:p-6 rounded-2xl bg-[var(--color-background)] border border-[var(--color-val-red)]/40 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center justify-between gap-3 pb-3 border-b border-[var(--color-border)]">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-val-red)]"></span>
+                          <h4 className="font-bold text-sm sm:text-base text-[var(--color-text-primary)]">
+                            Sélection des Effets de Bordure (Contour)
+                          </h4>
+                        </div>
+                        <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                          Ces effets lumineux animent le cadre et le contour extérieur sans toucher à l&apos;image.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingCosmeticType("none")}
+                        className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-[var(--color-text-secondary)] hover:text-white transition-colors cursor-pointer"
+                      >
+                        Fermer ✕
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {borderEffectsList.map((borderDef) => {
+                        const isUnlocked = (trackerLevel ?? 1) >= borderDef.minLevel;
+                        const isEquipped = draftBannerBorder === borderDef.id;
+
+                        return (
+                          <div
+                            key={borderDef.id || "none"}
+                            onClick={() => {
+                              if (!isUnlocked) return;
+                              sounds.playClick();
+                              setDraftBannerBorder(borderDef.id);
+                            }}
+                            onMouseEnter={() => isUnlocked && sounds.playHover()}
+                            className={`relative rounded-xl p-3 border-2 transition-all duration-200 flex flex-col justify-between gap-3 ${
+                              !isUnlocked
+                                ? "opacity-40 border-white/5 bg-white/[0.01] cursor-not-allowed"
+                                : isEquipped
+                                ? "border-[var(--color-val-red)] bg-[var(--color-surface)] shadow-accent-sm cursor-pointer"
+                                : "border-[var(--color-border)] hover:border-[var(--color-text-secondary)] bg-[var(--color-surface)]/50 cursor-pointer"
+                            }`}
+                          >
+                            <div className="p-0.5">
+                              <div className="relative w-full aspect-[3/1] rounded-lg overflow-hidden bg-[#0a0e13] border border-white/10">
+                                <img
+                                  referrerPolicy="no-referrer"
+                                  src={draftBannerUrl || p?.cardWideUrl || "https://media.valorant-api.com/maps/7eaecc1b-4337-bbf6-6ab9-04b8f06b3319/splash.png"}
+                                  alt=""
+                                  style={{ objectPosition: `center ${draftBannerOffsetY}%` }}
+                                  className="absolute inset-0 w-full h-full object-cover opacity-80"
+                                />
+                                {isUnlocked && borderDef.id && (
+                                  <div className={`banner-border-layer banner-border-${borderDef.id} ${borderDef.id === "rgb_conic" ? "banner-border-animated" : ""}`} />
+                                )}
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                  {!isUnlocked && (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/80 text-amber-300 text-[10px] font-bold border border-amber-400/30">
+                                      <IconLock size={12} />
+                                      <span>Niveau {borderDef.minLevel}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-[var(--color-text-primary)]">
+                                  {borderDef.name}
+                                </span>
+                                {isUnlocked ? (
+                                  <span className="text-[9px] font-black uppercase text-emerald-400">
+                                    Débloqué
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-black uppercase text-gray-500">
+                                    Niv. {borderDef.minLevel}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-[var(--color-text-secondary)] line-clamp-1">
+                                {borderDef.desc}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={!isUnlocked}
+                              className={`w-full py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${
+                                !isUnlocked
+                                  ? "bg-white/5 text-gray-500 cursor-not-allowed"
+                                  : isEquipped
+                                  ? "bg-[var(--color-val-red)] text-white shadow-accent-sm"
+                                  : "bg-white/10 hover:bg-white/20 text-white"
+                              }`}
+                            >
+                              {isEquipped ? "✓ Équipée" : isUnlocked ? "Sélectionner" : `Requis : Niv. ${borderDef.minLevel}`}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2450,11 +2641,116 @@ export default function SettingsView({
           )}
 
           {settingsTab === "about" && (
-            <div className="glass-panel rounded-2xl p-3.5 sm:p-6 md:p-8">
-              <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)] mb-1 sm:mb-2">Valorant Performance Tracker</h3>
-              <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                Suivez vos performances Valorant, vos statistiques d&apos;agents, historiques de parties et analyses détaillées.
-              </p>
+            <div className="glass-panel rounded-2xl p-4 sm:p-6 md:p-8 space-y-6">
+              <div>
+                <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-[var(--color-val-red)] text-white">
+                  SGS Écosystème
+                </span>
+                <h3 className="font-bold text-sm sm:text-xl text-[var(--color-text-primary)] mt-2">
+                  SGS-Tracker — Valorant Performance Tracker
+                </h3>
+                <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-1 leading-relaxed">
+                  Suivez vos performances Valorant, vos statistiques d&apos;agents, historiques de parties et analyses détaillées avec coaching intelligent.
+                </p>
+              </div>
+
+              {/* Carte Statut & Version de l'application */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full ${desktop.isDesktop ? "bg-emerald-400 animate-pulse" : "bg-blue-400"}`}></span>
+                      <span className="font-bold text-sm text-[var(--color-text-primary)]">
+                        {desktop.isDesktop ? "Application Bureau Windows" : "Version Web / PWA"}
+                      </span>
+                      <span className="px-2 py-0.2 rounded-md bg-white/10 text-[10px] font-mono font-bold text-gray-300">
+                        v{desktop.currentVersion}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+                      {desktop.isDesktop
+                        ? "Exécution native avec le moteur WebView2 optimisé (~30 Mo RAM)."
+                        : "Exécution dans votre navigateur web avec synchronisation cloud."}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sounds.playClick();
+                      desktop.checkForUpdates();
+                    }}
+                    disabled={desktop.updateStatus === "checking"}
+                    className="px-4 py-2 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-accent-sm disabled:opacity-50 flex-shrink-0"
+                  >
+                    {desktop.updateStatus === "checking" ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <span>Vérification...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>🔄</span>
+                        <span>Vérifier les mises à jour</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Résultat du contrôle de mise à jour */}
+                {desktop.statusMessage && (
+                  <div
+                    className={`p-3.5 rounded-xl text-xs font-semibold flex items-center justify-between gap-3 border ${
+                      desktop.updateStatus === "up-to-date"
+                        ? "bg-emerald-950/20 border-emerald-500/30 text-emerald-300"
+                        : desktop.updateStatus === "update-available"
+                        ? "bg-amber-950/20 border-amber-500/30 text-amber-300"
+                        : desktop.updateStatus === "error"
+                        ? "bg-red-950/20 border-red-500/30 text-red-300"
+                        : "bg-white/5 border-white/10 text-gray-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span>
+                        {desktop.updateStatus === "up-to-date" ? "✓" : desktop.updateStatus === "update-available" ? "★" : "ℹ"}
+                      </span>
+                      <span>{desktop.statusMessage}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sounds.playLevelUp();
+                        desktop.reloadComponents();
+                      }}
+                      className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] uppercase tracking-wider transition-all cursor-pointer flex-shrink-0"
+                    >
+                      Synchroniser
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Spécificités Desktop vs Web */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Serveur en ligne</span>
+                  <p className="text-xs font-mono text-gray-300 truncate">
+                    {"https://spycam-tan.vercel.app"}
+                  </p>
+                  <p className="text-[11px] text-gray-500">
+                    Les composants et les correctifs sont automatiquement récupérés depuis ce serveur.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Mises à jour à chaud</span>
+                  <p className="text-xs font-bold text-white">Sans réinstallation</p>
+                  <p className="text-[11px] text-gray-500">
+                    Dès qu&apos;une modification est publiée sur le web, l&apos;application charge directement les nouveaux composants.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 

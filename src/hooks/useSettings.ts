@@ -45,8 +45,8 @@ export interface SettingsState {
   setNotificationPreferences: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   equippedBannerAnimation: string;
   setEquippedBannerAnimation: (v: string) => void;
-  equippedBannerBorder: boolean;
-  setEquippedBannerBorder: (v: boolean) => void;
+  equippedBannerBorder: string;
+  setEquippedBannerBorder: (v: string) => void;
   toggleFullscreen: () => void;
   /** Initialise les settings depuis les données utilisateur de la session */
   syncFromSession: (user: any) => void;
@@ -93,7 +93,23 @@ export function useSettings(): SettingsState {
   });
 
   const [equippedBannerAnimation, setEquippedBannerAnimation] = useState<string>("");
-  const [equippedBannerBorder, setEquippedBannerBorder] = useState<boolean>(false);
+  const [equippedBannerBorder, setEquippedBannerBorder] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("spycam_banner_border");
+        if (stored) return stored;
+      } catch (_) {}
+    }
+    return "";
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("spycam_banner_border", equippedBannerBorder);
+      } catch (_) {}
+    }
+  }, [equippedBannerBorder]);
 
   const [streamerMode, setStreamerMode] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -281,7 +297,13 @@ export function useSettings(): SettingsState {
       setEquippedBannerAnimation(user.equippedBannerAnimation || "");
     }
     if (user.equippedBannerBorder !== undefined) {
-      setEquippedBannerBorder(Boolean(user.equippedBannerBorder));
+      if (typeof user.equippedBannerBorder === "string") {
+        setEquippedBannerBorder(user.equippedBannerBorder);
+      } else if (user.equippedBannerBorder === true) {
+        setEquippedBannerBorder("rgb_conic");
+      } else {
+        setEquippedBannerBorder("");
+      }
     }
   }, []);
 
@@ -298,7 +320,13 @@ export function useSettings(): SettingsState {
       setEquippedBannerAnimation(user.equippedBannerAnimation || "");
     }
     if (user.equippedBannerBorder !== undefined) {
-      setEquippedBannerBorder(Boolean(user.equippedBannerBorder));
+      if (typeof user.equippedBannerBorder === "string") {
+        setEquippedBannerBorder(user.equippedBannerBorder);
+      } else if (user.equippedBannerBorder === true) {
+        setEquippedBannerBorder("rgb_conic");
+      } else {
+        setEquippedBannerBorder("");
+      }
     }
   }, []);
 

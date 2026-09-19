@@ -4,7 +4,7 @@ import React from "react";
 import { sounds } from "@/lib/soundEffects";
 import PerformanceScoreCard from "./PerformanceScoreCard";
 import { UserBadges } from "./UserBadges";
-import { IconBrain, IconShare, IconTrophy, IconDownload, IconSword } from "./icons/SpyIcons";
+import { IconBrain, IconShare, IconDownload, IconSword } from "./icons/SpyIcons";
 
 export interface ProfileBannerProps {
   player: any;
@@ -26,7 +26,7 @@ export interface ProfileBannerProps {
   isComparing?: boolean;
   onToggleCompare?: () => void;
   bannerAnimation?: string;
-  bannerBorder?: boolean;
+  bannerBorder?: boolean | string;
 }
 
 export default function ProfileBanner({
@@ -84,9 +84,19 @@ export default function ProfileBanner({
         />
         <div className="absolute inset-0 bg-black/40"></div>
 
-        {/* Effets cosmétiques de bannière */}
-        {bannerAnimation && <div className={`banner-effect-${bannerAnimation}`} />}
-        {bannerBorder && <div className="banner-border-animated" />}
+        {/* Effets cosmétiques de bannière (intérieur vs contour) */}
+        {bannerAnimation && (
+          <div
+            className={`banner-effect-layer banner-effect-${bannerAnimation} banner-interior-${bannerAnimation}`}
+          />
+        )}
+        {Boolean(bannerBorder) && (
+          <div
+            className={`banner-border-layer banner-border-${bannerBorder} ${
+              bannerBorder === "rgb_conic" ? "banner-border-animated" : ""
+            }`}
+          />
+        )}
 
         {/* SPI en haut à gauche & Export Carte / Favori en haut à droite */}
         <div className="absolute top-2.5 sm:top-3.5 left-3 sm:left-6 right-3 sm:right-6 flex items-center justify-between pointer-events-none z-20">
@@ -119,24 +129,6 @@ export default function ProfileBanner({
                   className="text-emerald-400 group-hover:scale-110 transition-transform"
                 />
                 <span className="hidden sm:inline">Coach Tactique</span>
-              </button>
-            )}
-            {onOpenAchievements && (
-              <button
-                type="button"
-                onMouseEnter={() => sounds.playHover()}
-                onClick={() => {
-                  sounds.playClick();
-                  onOpenAchievements();
-                }}
-                title="Défis Quotidiens & Niveau Tracker"
-                className="px-2.5 sm:px-3 py-1.5 rounded-xl glass-pill hover:bg-[var(--color-val-red)]/20 border-white/20 hover:border-[var(--color-val-red)] text-white transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg cursor-pointer group"
-              >
-                <IconTrophy
-                  size={14}
-                  className="text-[var(--color-val-red)] group-hover:scale-110 transition-transform"
-                />
-                <span className="hidden sm:inline">Défis</span>
               </button>
             )}
             {onExportCSV && (

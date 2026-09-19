@@ -111,6 +111,56 @@ export async function PUT(
         });
         break;
       }
+      case 'cosmetics': {
+        const descriptionContent = (body.cssRules || body.r2Key)
+          ? JSON.stringify({ desc: body.desc || body.name, cssRules: body.cssRules, r2Key: body.r2Key })
+          : (body.desc || body.name);
+        const existing = await (prisma as any).levelReward.findFirst({
+          where: { OR: [{ id }, { rewardKey: id }] }
+        });
+        if (existing) {
+          data = await (prisma as any).levelReward.update({
+            where: { id: existing.id },
+            data: {
+              level: body.minLevel !== undefined ? Number(body.minLevel) : (body.level !== undefined ? Number(body.level) : undefined),
+              type: body.type || existing.type,
+              title: body.name || body.title || existing.title,
+              description: descriptionContent,
+              badgeColor: body.color || body.badgeColor || existing.badgeColor,
+              isActive: body.isActive !== undefined ? body.isActive : true,
+            }
+          });
+        }
+        break;
+      }
+      case 'badges': {
+        const metaPayload = {
+          description: body.description || body.label,
+          iconType: body.iconType || (body.imageUrl ? "image" : "svg"),
+          imageUrl: body.imageUrl || null,
+          colorClass: body.colorClass || "text-amber-400",
+          bgClass: body.bgClass || "bg-amber-500/10",
+          borderClass: body.borderClass || "border-amber-400/30",
+          glowClass: body.glowClass || "shadow-[0_0_12px_rgba(251,191,36,0.25)]",
+        };
+        const existing = await (prisma as any).levelReward.findFirst({
+          where: { OR: [{ id }, { rewardKey: id }] }
+        });
+        if (existing) {
+          data = await (prisma as any).levelReward.update({
+            where: { id: existing.id },
+            data: {
+              level: body.minLevel !== undefined ? Number(body.minLevel) : (body.level !== undefined ? Number(body.level) : undefined),
+              type: "badge",
+              title: body.label || body.title || existing.title,
+              description: JSON.stringify(metaPayload),
+              badgeColor: body.color || body.badgeColor || existing.badgeColor,
+              isActive: body.isActive !== undefined ? body.isActive : true,
+            }
+          });
+        }
+        break;
+      }
       default:
         return setCORSHeaders(NextResponse.json({ error: 'Entity not found' }, { status: 404 }));
     }
@@ -140,7 +190,17 @@ export async function DELETE(
       case 'maps': await prisma.map.delete({ where: { id } }); break;
       case 'banners': await prisma.banner.delete({ where: { id } }); break;
       case 'quests': await (prisma as any).quest.delete({ where: { id } }); break;
-      case 'rewards': await (prisma as any).levelReward.delete({ where: { id } }); break;
+      case 'rewards':
+      case 'cosmetics':
+      case 'badges': {
+        const found = await (prisma as any).levelReward.findFirst({
+          where: { OR: [{ id }, { rewardKey: id }] }
+        });
+        if (found) {
+          await (prisma as any).levelReward.delete({ where: { id: found.id } });
+        }
+        break;
+      }
       default: return setCORSHeaders(NextResponse.json({ error: `Entity not found: ${entity}` }, { status: 404 }));
     }
     return setCORSHeaders(NextResponse.json({ success: true }));

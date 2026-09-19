@@ -46,3 +46,10 @@ next-env.d.ts
 src/components/LocalDevStatsPanel*
 src/app/api/admin*
 scripts/tmp*
+
+# Tauri / Rust build output
+src-tauri/target/
+installers/
+*.exe
+*.msi
+
