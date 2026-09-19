@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SGS-Tracker — Bureau Officiel</title>
+  <title>SGS-Tracker — Bureau Local (Dev)</title>
   <style>
     :root {
       --bg: #0a0e13;
       --surface: #121820;
       --border: rgba(255, 255, 255, 0.08);
       --red: #ff4655;
-      --red-hover: #ff5865;
+      --emerald: #10b981;
+      --emerald-hover: #059669;
       --text: #f0f2f5;
       --text-muted: #8b97a8;
     }
@@ -31,14 +32,14 @@
       overflow: hidden;
     }
     .card {
-      background: radial-gradient(circle at 50% 0%, rgba(255, 70, 85, 0.12), transparent 70%), var(--surface);
+      background: radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.12), transparent 70%), var(--surface);
       border: 1px solid var(--border);
       border-radius: 24px;
       padding: 40px 32px;
       max-width: 480px;
       width: 90%;
       text-align: center;
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), 0 0 1px rgba(255, 70, 85, 0.3);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), 0 0 1px rgba(16, 185, 129, 0.3);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -53,7 +54,7 @@
       height: 100%;
       border-radius: 18px;
       border: 1px solid var(--border);
-      box-shadow: 0 10px 30px rgba(255, 70, 85, 0.25);
+      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.25);
     }
     .badge {
       display: inline-flex;
@@ -61,13 +62,17 @@
       gap: 8px;
       padding: 6px 14px;
       border-radius: 999px;
-      background: rgba(255, 70, 85, 0.15);
-      color: var(--red);
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--emerald);
       font-size: 11px;
       font-weight: 800;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       margin-bottom: 14px;
+    }
+    .badge.offline {
+      background: rgba(255, 70, 85, 0.15);
+      color: var(--red);
     }
     .spinner {
       width: 12px;
@@ -106,14 +111,20 @@
       letter-spacing: 0.05em;
     }
     .btn-retry {
-      background: var(--red);
+      background: var(--emerald);
       color: #fff;
-      box-shadow: 0 4px 15px rgba(255, 70, 85, 0.35);
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35);
       display: none;
     }
     .btn-retry:hover {
-      background: var(--red-hover);
+      background: var(--emerald-hover);
       transform: translateY(-1px);
+    }
+    .hint {
+      margin-top: 14px;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: none;
     }
   </style>
 </head>
@@ -125,36 +136,68 @@
 
     <div class="badge" id="statusBadge">
       <div class="spinner" id="spinner"></div>
-      <span id="statusText">Connexion en cours...</span>
+      <span id="statusText">Connexion au serveur local...</span>
     </div>
 
-    <h1>SGS-Tracker</h1>
-    <p class="sub" id="subText">Connexion aux serveurs officiels Spycam...</p>
+    <h1>SGS-Tracker (Local)</h1>
+    <p class="sub" id="subText">Tentative de liaison avec http://localhost:3000...</p>
 
-    <button class="btn btn-retry" id="btnRetry" onclick="connectOnline()">🔄 Réessayer</button>
+    <button class="btn btn-retry" id="btnRetry" onclick="tryConnect()">🔄 Réessayer la connexion</button>
+    <p class="hint" id="hintText">💡 Astuce : Démarrez le tracker via AppControl ("⚡ Démarrer Tracker") puis cliquez sur Réessayer.</p>
   </div>
 
   <script>
-    var OFFICIAL_URL = "https://spycam-tan.vercel.app";
+    var LOCAL_URL = "http://localhost:3000";
 
-    function connectOnline() {
+    async function checkServer() {
+      try {
+        var controller = new AbortController();
+        var timer = setTimeout(function() { controller.abort(); }, 800);
+        await fetch(LOCAL_URL + "/manifest.webmanifest", {
+          signal: controller.signal,
+          mode: 'no-cors',
+          cache: 'no-store'
+        });
+        clearTimeout(timer);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    async function tryConnect() {
       var badge = document.getElementById('statusBadge');
       var spinner = document.getElementById('spinner');
       var statusText = document.getElementById('statusText');
       var subText = document.getElementById('subText');
       var btnRetry = document.getElementById('btnRetry');
+      var hintText = document.getElementById('hintText');
 
+      badge.classList.remove('offline');
       spinner.style.display = 'block';
-      statusText.textContent = "Connexion en cours...";
-      subText.textContent = "Lancement des services en ligne...";
+      statusText.textContent = "Connexion au serveur local...";
+      subText.textContent = "Vérification de http://localhost:3000...";
       btnRetry.style.display = 'none';
+      hintText.style.display = 'none';
 
-      // Redirection immédiate vers les serveurs officiels
-      window.location.replace(OFFICIAL_URL);
+      var isUp = await checkServer();
+      if (isUp) {
+        statusText.textContent = "Serveur local actif";
+        subText.textContent = "Chargement de vos modifications locales...";
+        setTimeout(function() {
+          window.location.replace(LOCAL_URL);
+        }, 500);
+      } else {
+        badge.classList.add('offline');
+        spinner.style.display = 'none';
+        statusText.textContent = "Serveur local éteint";
+        subText.textContent = "Impossible de joindre le port 3000. Assurez-vous que le tracker local est démarré.";
+        btnRetry.style.display = 'block';
+        hintText.style.display = 'block';
+      }
     }
 
-    // Lancement direct
-    connectOnline();
+    tryConnect();
   </script>
 </body>
 </html>

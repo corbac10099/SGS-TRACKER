@@ -414,14 +414,21 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
 
         {/* Aide si la page externe ne s'est pas ouverte */}
         {externalAuthUrl && googleLoading && (
-          <div className="text-center mb-3">
-            <button
-              type="button"
-              onClick={() => openInExternalBrowser(externalAuthUrl)}
-              className="text-[11px] text-[var(--color-val-red)] hover:underline cursor-pointer font-semibold"
+          <div className="flex flex-col gap-2 my-3 animate-fade-in">
+            <a
+              href={externalAuthUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                openInExternalBrowser(externalAuthUrl);
+              }}
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500/20 to-blue-500/20 border border-sky-500/40 hover:border-sky-400 text-sky-300 hover:text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md no-underline"
             >
-              La page ne s&apos;est pas ouverte ? Cliquez ici pour réouvrir
-            </button>
+              <span>🌐 Ouvrir dans votre navigateur (Chrome)</span>
+            </a>
+            <p className="text-[10px] text-gray-400 text-center leading-relaxed">
+              Cliquez pour ouvrir la page sur votre navigateur par défaut. Dès votre connexion validée, l&apos;application se déverrouille automatiquement.
+            </p>
           </div>
         )}
 

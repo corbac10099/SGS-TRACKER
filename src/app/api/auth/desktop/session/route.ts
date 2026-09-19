@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     const origin =
       host.includes("localhost") || host.includes("127.0.0.1")
         ? `${proto}://${host}`
-        : "https://spycam-tan.vercel.app";
+        : "https://tracker-sgs.vercel.app";
 
     const authUrl = `${origin}/auth/desktop-login?ticket=${ticket}`;
 
