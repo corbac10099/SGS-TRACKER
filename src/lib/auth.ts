@@ -29,16 +29,30 @@ export const authOptions: NextAuthOptions = {
             if (sig === expectedSig) {
               const payload = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf-8'));
               if (Date.now() <= payload.exp && payload.email?.toLowerCase() === email) {
-                const user = await prisma.user.findUnique({
+                let user = await prisma.user.findUnique({
                   where: { email },
                 });
-                if (user) {
-                  return {
-                    id: user.id,
-                    email: user.email,
-                    name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || user.email.split('@')[0],
-                  };
+                if (!user) {
+                  user = await prisma.user.findFirst({
+                    where: { email: { equals: email, mode: 'insensitive' } },
+                  });
                 }
+                if (!user) {
+                  user = await prisma.user.create({
+                    data: {
+                      email,
+                      name: payload.name || email.split('@')[0],
+                      onboardingDone: true,
+                      googleConnected: true,
+                      googleEmail: email,
+                    },
+                  });
+                }
+                return {
+                  id: user.id,
+                  email: user.email,
+                  name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || user.email.split('@')[0],
+                };
               }
             }
           } catch (e) {

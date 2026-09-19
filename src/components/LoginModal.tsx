@@ -140,12 +140,9 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
     setTimeout(() => {
       onClose();
       if (typeof window !== "undefined") {
-        const currentPath = window.location.pathname;
-        if (currentPath === "/login" || currentPath === "/register") {
-          router.replace("/");
-        }
+        window.location.reload();
       }
-    }, 200);
+    }, 350);
   };
 
   // 1. Connexion Google OAuth
