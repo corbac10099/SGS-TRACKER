@@ -22,7 +22,18 @@ export function isTauriEnvironment(): boolean {
 export async function openInExternalBrowser(url: string): Promise<boolean> {
   if (typeof window === "undefined") return false;
 
-  // 1. Essayer via Tauri v2 IPC core.invoke
+  // 1. Essayer via le plugin opener officiel de Tauri v2
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      await tauri.core.invoke("plugin:opener|open_url", { url });
+      return true;
+    }
+  } catch (e) {
+    console.warn("[Tauri] Erreur plugin opener:", e);
+  }
+
+  // 2. Essayer via la commande personnalisée Tauri open_browser
   try {
     const tauri = (window as any).__TAURI__;
     if (tauri?.core?.invoke) {
@@ -33,18 +44,20 @@ export async function openInExternalBrowser(url: string): Promise<boolean> {
     console.warn("[Tauri] Erreur invoke open_browser:", e);
   }
 
-  // 2. Essayer via Tauri __TAURI_INTERNALS__
+  // 3. Essayer via Tauri __TAURI_INTERNALS__
   try {
     const internals = (window as any).__TAURI_INTERNALS__;
     if (internals?.invoke) {
+      try {
+        await internals.invoke("plugin:opener|open_url", { url });
+        return true;
+      } catch {}
       await internals.invoke("open_browser", { url });
       return true;
     }
-  } catch (e) {
-    console.warn("[Tauri] Erreur internals invoke open_browser:", e);
-  }
+  } catch (e) {}
 
-  // 3. Fallback standard
+  // 4. Fallback standard
   try {
     const newWindow = window.open(url, "_blank", "noopener,noreferrer");
     if (newWindow) return true;
