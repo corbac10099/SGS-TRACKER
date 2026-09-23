@@ -29,6 +29,43 @@
   --accent-border-subtle: color-mix(in srgb, var(--accent-color) 30%, transparent);
 }
 
+/* ===== Barres de défilement personnalisées (remplace le slider Windows) ===== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-val-red, #ff4655);
+}
+
+.theme-light * {
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.theme-light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.theme-light ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-val-red, #ff4655);
+}
+
 /* ===== Mode Sans Animations ===== */
 html.disable-animations,
 html.disable-animations *,

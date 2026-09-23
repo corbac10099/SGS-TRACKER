@@ -1,0 +1,11 @@
+[[permission]]
+identifier = "allow-app-commands"
+description = "Autorise les commandes de l'application SGS-Tracker"
+
+[permission.commands]
+allow = [
+  "open_browser",
+  "set_titlebar_color",
+  "check_app_update",
+  "install_app_update"
+]

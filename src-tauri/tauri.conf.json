@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "SGS-Tracker — Valorant Performance Tracker",
+        "title": "SGS-Tracker \u2014 Valorant Performance Tracker",
         "width": 1380,
         "height": 880,
         "minWidth": 1024,
@@ -35,7 +35,7 @@
     "targets": "all",
     "shortDescription": "Valorant Performance Tracker & Analysis",
     "longDescription": "Suivez vos performances, statistiques et progression Valorant avec SGS-Tracker.",
-    "copyright": "Copyright © 2026 SGS",
+    "copyright": "Copyright \u00a9 2026 SGS",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -46,7 +46,10 @@
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",
-        "languages": ["French", "English"]
+        "languages": [
+          "French",
+          "English"
+        ]
       }
     },
     "createUpdaterArtifacts": true
@@ -55,7 +58,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCOUJDN0MxN0JFODM0ODIKUldTQ05PaDd3Y2ViYTJ6YkkzaHZJWmphU0w4RzUzcG1Hd0lRejQ4RUw4dHVab0xPelBCdjlRZmgK",
       "endpoints": [
-        "https://tracker-sgs.vercel.app/api/tracker/update-manifest?target={{target}}&current_version={{current_version}}"
+        "http://localhost:8000/api/tracker/update-manifest?target={{target}}&current_version={{current_version}}"
       ]
     }
   }
