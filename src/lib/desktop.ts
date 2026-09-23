@@ -122,3 +122,77 @@ export async function setTitleBarColor(hexColor: string): Promise<boolean> {
   return false;
 }
 
+export interface DesktopUpdateInfo {
+  available: boolean;
+  version?: string;
+  currentVersion?: string;
+  body?: string;
+  date?: string;
+  error?: string;
+}
+
+/**
+ * Vérifie si une mise à jour de l'application de bureau est disponible.
+ */
+export async function checkForDesktopUpdate(): Promise<DesktopUpdateInfo> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) {
+    return { available: false, error: "Non disponible hors de l'application de bureau." };
+  }
+
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      const res = await tauri.core.invoke("check_app_update");
+      return res;
+    }
+  } catch (e: any) {
+    console.warn("[Tauri] Erreur check_app_update:", e);
+    return { available: false, error: e?.message || String(e) };
+  }
+
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      const res = await internals.invoke("check_app_update");
+      return res;
+    }
+  } catch (e: any) {
+    return { available: false, error: e?.message || String(e) };
+  }
+
+  return { available: false, error: "Tauri IPC non initialisé." };
+}
+
+/**
+ * Télécharge et applique la mise à jour puis redémarre automatiquement l'application.
+ */
+export async function installDesktopUpdate(): Promise<{ success: boolean; message: string }> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) {
+    return { success: false, message: "Non disponible hors de l'application de bureau." };
+  }
+
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      const msg = await tauri.core.invoke("install_app_update");
+      return { success: true, message: msg || "Mise à jour en cours d'installation..." };
+    }
+  } catch (e: any) {
+    console.error("[Tauri] Erreur install_app_update:", e);
+    return { success: false, message: e?.message || String(e) };
+  }
+
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      const msg = await internals.invoke("install_app_update");
+      return { success: true, message: msg || "Mise à jour en cours d'installation..." };
+    }
+  } catch (e: any) {
+    return { success: false, message: e?.message || String(e) };
+  }
+
+  return { success: false, message: "Impossible de joindre le service de mise à jour." };
+}
+
+

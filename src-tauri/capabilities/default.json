@@ -7,7 +7,10 @@
   ],
   "permissions": [
     "core:default",
-    "opener:default"
+    "opener:default",
+    "updater:default",
+    "process:default",
+    "process:allow-restart"
   ],
   "remote": {
     "urls": [

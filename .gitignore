@@ -52,4 +52,6 @@ src-tauri/target/
 installers/
 *.exe
 *.msi
+*.key
+.tauri/
 

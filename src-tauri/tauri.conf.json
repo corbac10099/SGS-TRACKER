@@ -48,6 +48,15 @@
         "installerIcon": "icons/icon.ico",
         "languages": ["French", "English"]
       }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCOUJDN0MxN0JFODM0ODIKUldTQ05PaDd3Y2ViYTJ6YkkzaHZJWmphU0w4RzUzcG1Hd0lRejQ4RUw4dHVab0xPelBCdjlRZmgK",
+      "endpoints": [
+        "https://tracker-sgs.vercel.app/api/tracker/update-manifest?target={{target}}&current_version={{current_version}}"
+      ]
     }
   }
 }

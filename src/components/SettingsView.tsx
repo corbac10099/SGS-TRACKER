@@ -2700,11 +2700,13 @@ export default function SettingsView({
                 {/* Résultat du contrôle de mise à jour */}
                 {desktop.statusMessage && (
                   <div
-                    className={`p-3.5 rounded-xl text-xs font-semibold flex items-center justify-between gap-3 border ${
+                    className={`p-3.5 rounded-xl text-xs font-semibold flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border ${
                       desktop.updateStatus === "up-to-date"
                         ? "bg-emerald-950/20 border-emerald-500/30 text-emerald-300"
                         : desktop.updateStatus === "update-available"
                         ? "bg-amber-950/20 border-amber-500/30 text-amber-300"
+                        : desktop.updateStatus === "installing"
+                        ? "bg-blue-950/20 border-blue-500/30 text-blue-300 animate-pulse"
                         : desktop.updateStatus === "error"
                         ? "bg-red-950/20 border-red-500/30 text-red-300"
                         : "bg-white/5 border-white/10 text-gray-300"
@@ -2712,21 +2714,42 @@ export default function SettingsView({
                   >
                     <div className="flex items-center gap-2">
                       <span>
-                        {desktop.updateStatus === "up-to-date" ? "✓" : desktop.updateStatus === "update-available" ? "★" : "ℹ"}
+                        {desktop.updateStatus === "up-to-date"
+                          ? "✓"
+                          : desktop.updateStatus === "update-available"
+                          ? "★"
+                          : desktop.updateStatus === "installing"
+                          ? "⏳"
+                          : "ℹ"}
                       </span>
                       <span>{desktop.statusMessage}</span>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        sounds.playLevelUp();
-                        desktop.reloadComponents();
-                      }}
-                      className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] uppercase tracking-wider transition-all cursor-pointer flex-shrink-0"
-                    >
-                      Synchroniser
-                    </button>
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      {desktop.updateStatus === "update-available" && desktop.isDesktop && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            sounds.playLevelUp();
+                            desktop.installUpdate();
+                          }}
+                          className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer flex-shrink-0 shadow-lg"
+                        >
+                          🚀 Mettre à jour l&apos;application
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sounds.playLevelUp();
+                          desktop.reloadComponents();
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] uppercase tracking-wider transition-all cursor-pointer flex-shrink-0"
+                      >
+                        Actualiser
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2734,12 +2757,12 @@ export default function SettingsView({
               {/* Spécificités Desktop vs Web */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Serveur en ligne</span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Serveur officiel</span>
                   <p className="text-xs font-mono text-gray-300 truncate">
-                    {"https://spycam-tan.vercel.app"}
+                    {"https://tracker-sgs.vercel.app"}
                   </p>
                   <p className="text-[11px] text-gray-500">
-                    Les composants et les correctifs sont automatiquement récupérés depuis ce serveur.
+                    Les composants et les correctifs sont automatiquement récupérés depuis ce serveur sécurisé.
                   </p>
                 </div>
 
