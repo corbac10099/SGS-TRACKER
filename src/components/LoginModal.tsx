@@ -131,18 +131,15 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
 
   if (!isOpen) return null;
 
-  // Traitement post-authentification réactif sans rechargement lourd
-  const handlePostAuthSuccess = async (msg: string) => {
+  // Traitement post-authentification réactif avec redirection immédiate
+  const handlePostAuthSuccess = (msg: string) => {
     setSuccess(msg);
-    try {
-      await update?.();
-    } catch {}
     setTimeout(() => {
       onClose();
       if (typeof window !== "undefined") {
-        window.location.reload();
+        window.location.replace("/");
       }
-    }, 350);
+    }, 300);
   };
 
   // 1. Connexion Google OAuth
@@ -177,7 +174,10 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
           attempts++;
           if (attempts > 120) {
             // 3 minutes max
-            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
             setGoogleLoading(false);
             setError("Délai de connexion dépassé. Veuillez réessayer.");
             return;
@@ -188,28 +188,45 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
             const checkData = await checkRes.json();
 
             if (checkData.status === "authenticated" && checkData.email && checkData.ssoToken) {
-              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-              setSuccess("Connexion confirmée ! Synchronisation de votre session...");
+              if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+              }
+              setSuccess("Connexion confirmée ! Chargement de votre profil...");
 
-              // Connexion directe dans l'application via le token SSO sécurisé
-              const loginRes = await signIn("credentials", {
-                email: checkData.email,
-                ssoToken: checkData.ssoToken,
-                redirect: false,
-              });
+              try {
+                // Connexion directe dans l'application via le token SSO sécurisé
+                const loginRes = await signIn("credentials", {
+                  email: checkData.email,
+                  ssoToken: checkData.ssoToken,
+                  redirect: false,
+                });
 
-              if (loginRes?.ok) {
+                if (loginRes?.error) {
+                  setError(loginRes.error);
+                  setGoogleLoading(false);
+                  return;
+                }
+
+                // Succès confirmé : rechargement automatique immédiat
                 handlePostAuthSuccess("Connexion réussie !");
-              } else {
-                setError("Échec de synchronisation de la session.");
-                setGoogleLoading(false);
+              } catch (signInErr: any) {
+                console.warn("[Desktop OAuth signIn]", signInErr);
+                // Si la requête réseau ou le parsing NextAuth lève une exception alors que le cookie a été posé,
+                // recharger automatiquement pour afficher immédiatement le compte
+                handlePostAuthSuccess("Session activée !");
               }
             } else if (checkData.status === "expired") {
-              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+              }
               setGoogleLoading(false);
               setError("La session a expiré. Veuillez relancer la connexion.");
             }
-          } catch {}
+          } catch (pollErr) {
+            console.warn("[Desktop OAuth Poll warning]", pollErr);
+          }
         }, 1500);
       } catch (err: any) {
         setError(err?.message || "Erreur lors du lancement de la connexion externe.");

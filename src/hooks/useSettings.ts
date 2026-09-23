@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { getThemeBackgroundColor, setTitleBarColor } from "@/lib/desktop";
 
 export interface SettingsState {
   smartRating: boolean;
@@ -223,6 +224,10 @@ export function useSettings(): SettingsState {
         document.documentElement.style.setProperty("--custom-bg", matchBg[1]);
       }
     }
+
+    // Synchronisation de la barre de titre native (Desktop Tauri)
+    const effectiveBg = getThemeBackgroundColor(theme);
+    setTitleBarColor(effectiveBg);
 
     // Détermination de la couleur d'accent de l'utilisateur
     const extractAccent = (t: string | null | undefined): string => {
