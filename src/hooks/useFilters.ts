@@ -12,6 +12,7 @@ import {
   detectDominantRole,
   type AgentRole,
 } from "@/lib/valorant/performanceScore";
+import { resolveGameMode } from "@/lib/valorant/gameModes";
 import type { DevStatOverrides } from "@/lib/devStatsTypes";
 
 export interface FiltersState {
@@ -104,13 +105,16 @@ export function useFilters(
   const filteredMatches = useMemo(() => {
     if (!rawMatches || rawMatches.length === 0) return [];
     return rawMatches.filter((m: any) => {
+      const modeKey = resolveGameMode(m.mode).id;
       const modeMatch =
         gameMode === "all" ||
-        (gameMode === "competitive" && m.mode === "competitive") ||
-        (gameMode === "unrated" && m.mode === "unrated") ||
+        (gameMode === "competitive" && modeKey === "competitive") ||
+        (gameMode === "unrated" && modeKey === "unrated") ||
+        (gameMode === "deathmatch" && modeKey === "deathmatch") ||
+        (gameMode === "swiftplay" && modeKey === "swiftplay") ||
+        (gameMode === "team_deathmatch" && modeKey === "team_deathmatch") ||
         (gameMode === "other" &&
-          m.mode !== "competitive" &&
-          m.mode !== "unrated");
+          !["competitive", "unrated", "deathmatch", "swiftplay", "team_deathmatch"].includes(modeKey));
 
       const seasonMatch =
         selectedSeason === "all" || m.season === selectedSeason;

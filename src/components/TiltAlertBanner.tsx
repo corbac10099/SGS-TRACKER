@@ -14,7 +14,14 @@ export default function TiltAlertBanner({
   overallKd = 1.0,
   overallAcs = 200,
 }: TiltAlertBannerProps) {
-  const [dismissed, setDismissed] = useState<boolean>(false);
+  const [dismissedSignature, setDismissedSignature] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return localStorage.getItem("sgs_tilt_alert_dismissed_signature");
+      } catch {}
+    }
+    return null;
+  });
 
   const tiltAnalysis = useMemo(() => {
     if (!matches || matches.length < 3) return null;
@@ -79,7 +86,21 @@ export default function TiltAlertBanner({
     };
   }, [matches, overallKd, overallAcs]);
 
-  if (!tiltAnalysis || dismissed) return null;
+  const latestMatchId = matches[0]?.matchId || matches[0]?.id || "initial";
+  const alertSignature = tiltAnalysis
+    ? `${latestMatchId}_${tiltAnalysis.title}_${tiltAnalysis.consecutiveLosses}_${tiltAnalysis.recentKd}`
+    : "";
+
+  const isDismissed = dismissedSignature === alertSignature;
+
+  const handleDismiss = () => {
+    setDismissedSignature(alertSignature);
+    try {
+      localStorage.setItem("sgs_tilt_alert_dismissed_signature", alertSignature);
+    } catch {}
+  };
+
+  if (!tiltAnalysis || isDismissed) return null;
 
   const isCritical = tiltAnalysis.severity === "critical";
 
@@ -127,7 +148,7 @@ export default function TiltAlertBanner({
       </div>
 
       <button
-        onClick={() => setDismissed(true)}
+        onClick={handleDismiss}
         className="self-end sm:self-center px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-white/70 hover:text-white text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer border border-white/10 whitespace-nowrap flex-shrink-0"
       >
         J&apos;ai compris ✕

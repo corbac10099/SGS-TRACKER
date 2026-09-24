@@ -9,6 +9,7 @@ import { DailyQuest } from "./quests/types";
 import LiveClock from "./LiveClock";
 
 import { sounds } from "@/lib/soundEffects";
+import { useDesktopApp } from "@/hooks/useDesktopApp";
 import {
   IconTrophy,
   IconSettings,
@@ -98,10 +99,51 @@ export default function Header({
   onDeclineLobbyInvite,
   lobbyActionLoading = false,
 }: HeaderProps) {
+  const desktop = useDesktopApp();
+  const [unreadNewsCount, setUnreadNewsCount] = useState<number>(0);
+  const [currentNewsIds, setCurrentNewsIds] = useState<string[]>([]);
+
   const [isFocused, setIsFocused] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Vérification des actualités non lues
+  useEffect(() => {
+    fetch("/api/cms/news")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const ids = data.map((n: any) => String(n.id || n._id || n.title));
+          setCurrentNewsIds(ids);
+          try {
+            const seen = JSON.parse(localStorage.getItem("spycam_seen_news_ids") || "[]");
+            const unread = ids.filter((id: string) => !seen.includes(id)).length;
+            setUnreadNewsCount(unread);
+          } catch {
+            setUnreadNewsCount(0);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [newsView]);
+
+  // Si l'utilisateur consulte l'onglet Actualités, marquer toutes les actualités comme lues
+  useEffect(() => {
+    if (newsView && currentNewsIds.length > 0) {
+      try {
+        const seen = JSON.parse(localStorage.getItem("spycam_seen_news_ids") || "[]");
+        const merged = Array.from(new Set([...seen, ...currentNewsIds]));
+        localStorage.setItem("spycam_seen_news_ids", JSON.stringify(merged));
+        setUnreadNewsCount(0);
+      } catch {}
+    }
+  }, [newsView, currentNewsIds]);
+
+  // Vérification discrète des mises à jour au montage
+  useEffect(() => {
+    desktop.checkForUpdates();
+  }, [desktop.checkForUpdates]);
 
   // ─── Sliding Pill State ─────────────────────────────────────────────
   const navContainerRef = useRef<HTMLDivElement>(null);
@@ -221,7 +263,7 @@ export default function Header({
   }, []);
 
   // ─── Nav Items Config ──────────────────────────────────────────────
-  const navItems: { id: NavId; label: string; icon: React.ReactNode; onClick: () => void; show: boolean }[] = [
+  const navItems: { id: NavId; label: string; icon: React.ReactNode; onClick: () => void; show: boolean; badge?: number }[] = [
     {
       id: "profile",
       label: "Profil",
@@ -233,8 +275,12 @@ export default function Header({
       id: "news",
       label: "Actualités",
       icon: <IconNews size={15} />,
-      onClick: () => onOpenNews(),
+      onClick: () => {
+        setUnreadNewsCount(0);
+        onOpenNews();
+      },
       show: true,
+      badge: unreadNewsCount,
     },
     {
       id: "agents",
@@ -323,6 +369,11 @@ export default function Header({
                     >
                       {item.icon}
                       <span className="hidden xl:inline">{item.label}</span>
+                      {item.badge !== undefined && item.badge > 0 && (
+                        <span className="px-1.5 py-0.2 bg-[var(--color-val-red)] text-white text-[9px] font-black rounded-full shadow-sm animate-pulse ml-0.5">
+                          {item.badge}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -498,6 +549,14 @@ export default function Header({
             >
               <IconSettings size={15} className={settingsOpen ? "animate-spin-slow" : ""} />
               <span>Paramètres</span>
+              {desktop.updateStatus === "update-available" && (
+                <span
+                  className="px-1.5 py-0.2 bg-emerald-500 text-black text-[9px] font-black rounded-full shadow-sm animate-pulse ml-0.5"
+                  title="Nouvelle mise à jour disponible !"
+                >
+                  1
+                </span>
+              )}
             </button>
           </div>
 

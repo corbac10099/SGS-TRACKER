@@ -36,10 +36,13 @@ const TABS = [
 ];
 
 const GAME_MODES = [
-  { id: "all", label: "All" },
-  { id: "competitive", label: "Competitive" },
-  { id: "unrated", label: "Unrated" },
-  { id: "other", label: "Others" },
+  { id: "all", label: "Tous" },
+  { id: "competitive", label: "Compétitif" },
+  { id: "unrated", label: "Non classé" },
+  { id: "deathmatch", label: "Deathmatch" },
+  { id: "swiftplay", label: "Swiftplay" },
+  { id: "team_deathmatch", label: "TDM" },
+  { id: "other", label: "Autres" },
 ];
 
 export default function ProfileTabs({

@@ -5,6 +5,7 @@ import {
 } from "@/lib/valorant/types";
 import { AGENTS_CATALOG, OFFICIAL_WEAPONS } from "@/lib/valorant/mock";
 import { resolveAgentDisplay, getAgentInfo } from "@/lib/valorant/agentsCatalog";
+import { resolveGameMode } from "@/lib/valorant/gameModes";
 
 const HENRIK_BASE = "https://api.henrikdev.xyz/valorant";
 
@@ -158,7 +159,9 @@ export async function fetchHenrikPlayerData(
     const raw = rawMatches[idx];
     const meta = raw.metadata || raw.meta || {};
     const mapName = meta.map?.name || meta.map || "Ascent";
-    const mode = meta.mode || "Competitive";
+    const gameModeInfo = resolveGameMode(meta.mode || meta.queue || "Competitive");
+    const isDeathmatch = gameModeInfo.id === "deathmatch";
+
     const startedAt = meta.game_start
       ? new Date(meta.game_start * 1000).toISOString()
       : meta.started_at || new Date().toISOString();
@@ -182,13 +185,12 @@ export async function fetchHenrikPlayerData(
     const enemyTeamKey = myTeamKey === "blue" ? "red" : "blue";
     const enemyTeamData = teams[enemyTeamKey] || teams.red || {};
 
-    const won = !!myTeamData.has_won;
-    if (won) totalWins++;
+    let won = isDeathmatch ? false : !!myTeamData.has_won;
 
     const myScore = myTeamData.rounds_won ?? 13;
     const enemyScore = enemyTeamData.rounds_won ?? 10;
-    const scoreStr = `${myScore} - ${enemyScore}`;
-    const roundsPlayed = meta.rounds_played || myScore + enemyScore || 20;
+    let scoreStr = `${myScore} - ${enemyScore}`;
+    const roundsPlayed = isDeathmatch ? 0 : (meta.rounds_played || myScore + enemyScore || 20);
     totalRounds += roundsPlayed;
 
     const kills = me?.stats?.kills ?? me?.score?.kills ?? 15;
@@ -348,6 +350,19 @@ export async function fetchHenrikPlayerData(
       });
     }
 
+    if (isDeathmatch) {
+      const allDMPlayers = [...myTeam, ...enemyTeam];
+      allDMPlayers.sort((a, b) => b.kills - a.kills || b.score - a.score);
+      const myRank = allDMPlayers.findIndex((p) => p.isMe) + 1;
+      won = myRank === 1;
+      scoreStr = `#${myRank > 0 ? myRank : 1} (${kills} frags)`;
+      myTeam.length = 0;
+      myTeam.push(...allDMPlayers);
+      enemyTeam.length = 0;
+    }
+
+    if (won) totalWins++;
+
     // Timeline des rounds
     const timeline = Array.isArray(raw.rounds) && raw.rounds.length > 0
       ? raw.rounds.map((rnd: any, rIdx: number) => {
@@ -415,8 +430,8 @@ export async function fetchHenrikPlayerData(
     parsedMatches.push({
       matchId: meta.id || meta.matchid || `henrik-match-${idx}`,
       map: mapName,
-      mode,
-      modeIcon: "https://media.valorant-api.com/gamemodes/96bd63d2-4573-b36d-9936-88a1b088c08b/displayicon.png",
+      mode: gameModeInfo.id,
+      modeIcon: gameModeInfo.icon,
       agent: agentName,
       agentIcon: agentDisp.iconUrl,
       rank: rankName,

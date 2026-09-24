@@ -2657,21 +2657,14 @@ export default function SettingsView({
               {/* Carte Statut & Version de l'application */}
               <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2.5 h-2.5 rounded-full ${desktop.isDesktop ? "bg-emerald-400 animate-pulse" : "bg-blue-400"}`}></span>
-                      <span className="font-bold text-sm text-[var(--color-text-primary)]">
-                        {desktop.isDesktop ? "Application Bureau Windows" : "Version Web / PWA"}
-                      </span>
-                      <span className="px-2 py-0.2 rounded-md bg-white/10 text-[10px] font-mono font-bold text-gray-300">
-                        v{desktop.currentVersion}
-                      </span>
-                    </div>
-                    <p className="text-xs text-[var(--color-text-secondary)] mt-1">
-                      {desktop.isDesktop
-                        ? "Exécution native avec le moteur WebView2 optimisé (~30 Mo RAM)."
-                        : "Exécution dans votre navigateur web avec synchronisation cloud."}
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${desktop.isDesktop ? "bg-emerald-400 animate-pulse" : "bg-blue-400"}`}></span>
+                    <span className="font-bold text-sm text-[var(--color-text-primary)]">
+                      {desktop.isDesktop ? "Application Bureau Windows" : "Version Web / PWA"}
+                    </span>
+                    <span className="px-2 py-0.2 rounded-md bg-white/10 text-[10px] font-mono font-bold text-gray-300">
+                      v{desktop.currentVersion}
+                    </span>
                   </div>
 
                   <button
@@ -2680,7 +2673,7 @@ export default function SettingsView({
                       sounds.playClick();
                       desktop.checkForUpdates();
                     }}
-                    disabled={desktop.updateStatus === "checking"}
+                    disabled={desktop.updateStatus === "checking" || desktop.updateStatus === "installing"}
                     className="px-4 py-2 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-accent-sm disabled:opacity-50 flex-shrink-0"
                   >
                     {desktop.updateStatus === "checking" ? (
@@ -2725,54 +2718,23 @@ export default function SettingsView({
                       <span>{desktop.statusMessage}</span>
                     </div>
 
-                    <div className="flex items-center gap-2 self-end sm:self-center">
-                      {desktop.updateStatus === "update-available" && desktop.isDesktop && (
+                    {desktop.updateStatus === "update-available" && (
+                      <div className="flex items-center gap-2 self-end sm:self-center">
                         <button
                           type="button"
                           onClick={() => {
                             sounds.playLevelUp();
                             desktop.installUpdate();
                           }}
-                          className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer flex-shrink-0 shadow-lg"
+                          className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex-shrink-0 shadow-lg flex items-center gap-1.5"
                         >
-                          🚀 Mettre à jour l&apos;application
+                          <span>🚀</span>
+                          <span>Installer la mise à jour</span>
                         </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          sounds.playLevelUp();
-                          desktop.reloadComponents();
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] uppercase tracking-wider transition-all cursor-pointer flex-shrink-0"
-                      >
-                        Actualiser
-                      </button>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-
-              {/* Spécificités Desktop vs Web */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Serveur officiel</span>
-                  <p className="text-xs font-mono text-gray-300 truncate">
-                    {"https://tracker-sgs.vercel.app"}
-                  </p>
-                  <p className="text-[11px] text-gray-500">
-                    Les composants et les correctifs sont automatiquement récupérés depuis ce serveur sécurisé.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Mises à jour à chaud</span>
-                  <p className="text-xs font-bold text-white">Sans réinstallation</p>
-                  <p className="text-[11px] text-gray-500">
-                    Dès qu&apos;une modification est publiée sur le web, l&apos;application charge directement les nouveaux composants.
-                  </p>
-                </div>
               </div>
             </div>
           )}

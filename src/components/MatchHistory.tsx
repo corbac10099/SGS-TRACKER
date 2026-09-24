@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from
 import { tr } from "@/lib/i18n";
 import { sounds } from "@/lib/soundEffects";
 import { calculateSingleMatchSPI } from "@/lib/valorant/performanceScore";
+import { resolveGameMode } from "@/lib/valorant/gameModes";
 import PerformanceStarBadge from "./PerformanceStarBadge";
 import { IconCamera, IconLightbulb } from "./icons/SpyIcons";
 import KillmapView from "./KillmapView";
@@ -223,6 +224,7 @@ const MATCH_TABS = [
 ];
 
 export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPlayer }: { match: any; searchPlayer: (id: string) => void }) {
+  const modeInfo = resolveGameMode(match.mode);
   const [tab, setTab] = useState<"overview" | "scoreboard" | "timeline" | "duels" | "economy" | "killmap">("overview");
   const [isExporting, setIsExporting] = useState(false);
 
@@ -294,12 +296,12 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
       ctx.fillStyle = "#8b97a3";
       ctx.font = "bold 18px sans-serif";
       const dateStr = new Date(match.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
-      ctx.fillText(`${match.map.toUpperCase()} • ${match.mode?.toUpperCase() || "COMPÉTITIF"} • ${dateStr}`, 50, 100);
+      ctx.fillText(`${match.map.toUpperCase()} • ${modeInfo.displayName.toUpperCase()} • ${dateStr}`, 50, 100);
 
       // Match Result
       ctx.fillStyle = match.won ? "#0ebf99" : "#ff4655";
       ctx.font = "900 64px sans-serif";
-      ctx.fillText(match.won ? "VICTOIRE" : "DÉFAITE", 50, 180);
+      ctx.fillText(modeInfo.id === "deathmatch" ? (match.won ? "TOP 1" : "CLASSEMENT") : (match.won ? "VICTOIRE" : "DÉFAITE"), 50, 180);
 
       // Score
       ctx.fillStyle = "#ffffff";
@@ -418,25 +420,45 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
 
       {/* Overview */}
       {tab === "overview" && (
-        <div className="flex flex-col md:flex-row gap-6">
-          <div className="flex-1 space-y-2">
-            <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-3 text-center bg-emerald-500/10 py-1 rounded border border-emerald-500/20">
-              Équipe Victoire
-            </h4>
-            {(match.won ? match.myTeam : match.enemyTeam)?.map((p: any) => (
-              <PlayerRow key={p.puuid} player={p} isWinnerTeam={true} />
-            ))}
+        !modeInfo.hasTeams ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+              <span className="text-[11px] font-black uppercase tracking-wider text-amber-400">
+                Classement Général ({[...(match.myTeam || []), ...(match.enemyTeam || [])].length} Joueurs)
+              </span>
+              <span className="text-[10px] text-amber-200/70 font-bold uppercase tracking-wider">
+                Mode Free-For-All
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[...(match.myTeam || []), ...(match.enemyTeam || [])]
+                .sort((a, b) => b.kills - a.kills || b.acs - a.acs)
+                .map((p: any, pIdx: number) => (
+                  <PlayerRow key={p.puuid} player={p} isWinnerTeam={pIdx === 0} />
+                ))}
+            </div>
           </div>
-          <div className="w-px bg-[var(--color-border)] hidden md:block"></div>
-          <div className="flex-1 space-y-2">
-            <h4 className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-3 text-center bg-red-500/10 py-1 rounded border border-red-500/20">
-              Équipe Défaite
-            </h4>
-            {(match.won ? match.enemyTeam : match.myTeam)?.map((p: any) => (
-              <PlayerRow key={p.puuid} player={p} isWinnerTeam={false} />
-            ))}
+        ) : (
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex-1 space-y-2">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-3 text-center bg-emerald-500/10 py-1 rounded border border-emerald-500/20">
+                Équipe Victoire
+              </h4>
+              {(match.won ? match.myTeam : match.enemyTeam)?.map((p: any) => (
+                <PlayerRow key={p.puuid} player={p} isWinnerTeam={true} />
+              ))}
+            </div>
+            <div className="w-px bg-[var(--color-border)] hidden md:block"></div>
+            <div className="flex-1 space-y-2">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-3 text-center bg-red-500/10 py-1 rounded border border-red-500/20">
+                Équipe Défaite
+              </h4>
+              {(match.won ? match.enemyTeam : match.myTeam)?.map((p: any) => (
+                <PlayerRow key={p.puuid} player={p} isWinnerTeam={false} />
+              ))}
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {/* Scoreboard */}
@@ -546,59 +568,71 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
 
       {/* Timeline */}
       {tab === "timeline" && (
-        <div className="flex flex-col gap-6 py-2">
-          <div className="flex items-start justify-center gap-1.5 sm:gap-2 overflow-x-auto pb-4 pt-16">
-            {match.timeline?.slice(0, 12).map((r: any) => (
-              <RoundBar key={r.roundNum} round={r} />
-            ))}
-            {match.timeline?.length > 12 && (
-              <div className="flex flex-col items-center justify-center h-20 px-1 sm:px-3">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--color-text-secondary)]">
-                  <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                  <path d="M12 7v5l3 3"></path>
-                </svg>
-              </div>
-            )}
-            {match.timeline?.slice(12).map((r: any) => (
-              <RoundBar key={r.roundNum} round={r} />
-            ))}
-          </div>
-
-          <div className="glass-card p-4 sm:p-5 rounded-2xl text-xs space-y-3 max-h-[250px] overflow-y-auto custom-scrollbar">
-            <h4 className="font-bold text-[var(--color-text-primary)] uppercase tracking-widest text-[10px] mb-4">
-              Journal des événements marqués
+        !modeInfo.hasRounds || !match.timeline || match.timeline.length === 0 ? (
+          <div className="p-8 text-center glass-card rounded-2xl space-y-2 border border-white/5 my-2">
+            <div className="text-3xl">🎯</div>
+            <h4 className="font-bold text-sm text-[var(--color-text-primary)]">
+              Chronologie des manches non applicable
             </h4>
-            {match.timeline?.map((r: any) => (
-              <div
-                key={r.roundNum}
-                className="flex gap-4 border-b border-[rgba(255,255,255,0.04)] pb-3 items-center group hover:bg-[rgba(255,255,255,0.02)] transition-colors px-2 rounded-lg"
-              >
-                <span className="text-[10px] text-[var(--color-text-secondary)] w-12 font-black tracking-widest">M {r.roundNum}</span>
-
-                <div className="flex-1 flex gap-3">
-                  {r.myKillsInRound > 0 && (
-                    <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                      {r.myKillsInRound} élimination(s)
-                    </span>
-                  )}
-                  {r.diedInRound && (
-                    <span className="text-[var(--color-val-red)] font-bold bg-[var(--color-val-red)]/10 px-2 py-0.5 rounded border border-[var(--color-val-red)]/20">
-                      Mort(e)
-                    </span>
-                  )}
-                  {!r.myKillsInRound && !r.diedInRound && (
-                    <span className="text-[var(--color-text-secondary)] italic">Pas d&apos;événement majeur</span>
-                  )}
-                </div>
-
-                <span className="text-[9px] uppercase tracking-widest text-right flex flex-col items-end gap-0.5">
-                  <span className="text-[var(--color-text-secondary)]">Victoire</span>
-                  <span className={`font-black ${r.winner === "myTeam" ? "text-emerald-400" : "text-[var(--color-val-red)]"}`}>{r.winCondition}</span>
-                </span>
-              </div>
-            ))}
+            <p className="text-xs text-[var(--color-text-secondary)] max-w-md mx-auto leading-relaxed">
+              Le mode <strong>{modeInfo.displayName}</strong> est une élimination continue sans manches classiques ni pose de Spike. Consultez l&apos;onglet <strong>Leaderboard</strong> pour le détail des frags et duels.
+            </p>
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-6 py-2">
+            <div className="flex items-start justify-center gap-1.5 sm:gap-2 overflow-x-auto pb-4 pt-16">
+              {match.timeline?.slice(0, 12).map((r: any) => (
+                <RoundBar key={r.roundNum} round={r} />
+              ))}
+              {match.timeline?.length > 12 && (
+                <div className="flex flex-col items-center justify-center h-20 px-1 sm:px-3">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--color-text-secondary)]">
+                    <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    <path d="M12 7v5l3 3"></path>
+                  </svg>
+                </div>
+              )}
+              {match.timeline?.slice(12).map((r: any) => (
+                <RoundBar key={r.roundNum} round={r} />
+              ))}
+            </div>
+
+            <div className="glass-card p-4 sm:p-5 rounded-2xl text-xs space-y-3 max-h-[250px] overflow-y-auto custom-scrollbar">
+              <h4 className="font-bold text-[var(--color-text-primary)] uppercase tracking-widest text-[10px] mb-4">
+                Journal des événements marqués
+              </h4>
+              {match.timeline?.map((r: any) => (
+                <div
+                  key={r.roundNum}
+                  className="flex gap-4 border-b border-[rgba(255,255,255,0.04)] pb-3 items-center group hover:bg-[rgba(255,255,255,0.02)] transition-colors px-2 rounded-lg"
+                >
+                  <span className="text-[10px] text-[var(--color-text-secondary)] w-12 font-black tracking-widest">M {r.roundNum}</span>
+
+                  <div className="flex-1 flex gap-3">
+                    {r.myKillsInRound > 0 && (
+                      <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                        {r.myKillsInRound} élimination(s)
+                      </span>
+                    )}
+                    {r.diedInRound && (
+                      <span className="text-[var(--color-val-red)] font-bold bg-[var(--color-val-red)]/10 px-2 py-0.5 rounded border border-[var(--color-val-red)]/20">
+                        Mort(e)
+                      </span>
+                    )}
+                    {!r.myKillsInRound && !r.diedInRound && (
+                      <span className="text-[var(--color-text-secondary)] italic">Pas d&apos;événement majeur</span>
+                    )}
+                  </div>
+
+                  <span className="text-[9px] uppercase tracking-widest text-right flex flex-col items-end gap-0.5">
+                    <span className="text-[var(--color-text-secondary)]">Victoire</span>
+                    <span className={`font-black ${r.winner === "myTeam" ? "text-emerald-400" : "text-[var(--color-val-red)]"}`}>{r.winCondition}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
       )}
 
       {/* Duels 1v1 */}
@@ -762,6 +796,8 @@ function MatchHistoryComponent({
           expandedMatchId === match.matchId ||
           (match.id && expandedMatchId === match.id);
         const spi = calculateSingleMatchSPI(match, match.role);
+        const modeInfo = resolveGameMode(match.mode);
+        const isDeathmatch = modeInfo.id === "deathmatch";
         const matchRank = getPlayerRank(match, {
           name: currentPlayerRank,
           icon: currentPlayerRankUrl,
@@ -787,21 +823,25 @@ function MatchHistoryComponent({
               className={`w-full glass-panel-interactive rounded-2xl p-4 flex items-center gap-3 sm:gap-4 border-l-4 cursor-pointer select-none ${
                 match.won
                   ? "border-l-emerald-500 hover:border-l-emerald-400"
+                  : isDeathmatch
+                  ? "border-l-amber-500/80 hover:border-l-amber-400"
                   : "border-l-[var(--color-val-red)] hover:border-l-[var(--color-val-red)]"
               } ${isExpanded ? "bg-[var(--color-surface-hover)] shadow-lg ring-1 ring-[var(--color-val-red)]/30" : ""}`}
             >
-              {/* Mode Icon */}
-              {match.modeIcon && (
+              {/* Mode Icon avec infobulle */}
+              <div
+                className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-xl bg-white/5 border border-white/10 shadow-sm transition-transform hover:scale-110"
+                title={`${modeInfo.displayName} (${modeInfo.scoreLabel || "Mode"})`}
+              >
                 <img
                   referrerPolicy="no-referrer"
-                  src={match.modeIcon}
-                  alt={match.mode}
-                  className="w-7 h-7 sm:w-8 sm:h-8 opacity-70 drop-shadow-md mode-icon hidden xs:block"
-                  title={match.mode}
+                  src={modeInfo.icon || match.modeIcon}
+                  alt={modeInfo.displayName}
+                  className="w-5 h-5 object-contain opacity-90 drop-shadow-sm"
                   loading="lazy"
                   decoding="async"
                 />
-              )}
+              </div>
 
               <img
                 referrerPolicy="no-referrer"
@@ -825,6 +865,9 @@ function MatchHistoryComponent({
                 <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                   <span className="font-bold text-[var(--color-text-on-surface)] text-sm">{match.agent}</span>
                   <span className="text-[10px] text-[var(--color-text-secondary)] uppercase">{match.map}</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-gray-300">
+                    {modeInfo.displayName}
+                  </span>
                   {match.season && (
                     <span className="text-[9px] text-[var(--color-val-red)] font-bold bg-[rgba(255,70,85,0.1)] px-1.5 py-0.5 rounded">
                       {match.season}
@@ -861,8 +904,16 @@ function MatchHistoryComponent({
               <div className="flex flex-col items-end flex-shrink-0">
                 <div className="flex items-baseline gap-1.5 sm:gap-2">
                   {match.score && <span className="text-base sm:text-lg font-black text-[var(--color-text-on-surface)]">{match.score}</span>}
-                  <span className={`text-xs font-black uppercase tracking-wider ${match.won ? "text-emerald-400" : "text-[var(--color-val-red)]"}`}>
-                    {match.won ? "Victoire" : "Défaite"}
+                  <span
+                    className={`text-xs font-black uppercase tracking-wider ${
+                      match.won
+                        ? "text-emerald-400"
+                        : isDeathmatch
+                        ? "text-amber-400"
+                        : "text-[var(--color-val-red)]"
+                    }`}
+                  >
+                    {isDeathmatch ? (match.won ? "Top 1" : "Terminé") : (match.won ? "Victoire" : "Défaite")}
                   </span>
                 </div>
                 <span className="text-[10px] text-[var(--color-text-secondary)] mt-0.5">

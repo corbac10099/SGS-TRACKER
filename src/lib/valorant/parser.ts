@@ -5,8 +5,9 @@ import {
   AgentPerformanceStat,
   MatchTeamPlayer,
 } from "./types";
-import { AGENTS_CATALOG, OFFICIAL_WEAPONS } from "./mock";
 import { resolveAgentDisplay } from "./agentsCatalog";
+import { resolveGameMode } from "./gameModes";
+import { OFFICIAL_WEAPONS } from "./mock";
 
 const UUID_TO_AGENT_MAP: Record<string, string> = {
   "add6443a-41bd-e414-f6ad-e58d267f4e95": "Jett",
@@ -98,18 +99,73 @@ export function parseRiotMatchData(
     const kills = me.stats?.kills || 0;
     const deaths = me.stats?.deaths || 0;
     const assists = me.stats?.assists || 0;
-    const roundsPlayed = match.roundResults?.length || myTeam?.roundsPlayed || 22;
-    const myAcs = Math.round((me.stats?.score || 0) / Math.max(1, roundsPlayed));
 
-    const myRoundsWon = myTeam?.roundsWon ?? (won ? 13 : 8);
-    const enemyRoundsWon = enemyTeam?.roundsWon ?? (won ? 8 : 13);
-    const scoreStr = `${myRoundsWon} - ${enemyRoundsWon}`;
+    const gameModeInfo = resolveGameMode(match.matchInfo?.queueId);
+    const isDeathmatch = gameModeInfo.id === "deathmatch";
+
+    const roundsPlayed = isDeathmatch
+      ? 0
+      : match.roundResults?.length || myTeam?.roundsPlayed || 22;
+    const myAcs = Math.round((me.stats?.score || 0) / Math.max(1, roundsPlayed || 1));
+
+    let isMatchWon = won;
+    let scoreStr = "";
+
+    const rawMap = (match.matchInfo?.mapId || "Ascent").toLowerCase();
+    const mapName = MAP_ID_MAP[rawMap] || match.matchInfo?.mapId || "Ascent";
+
+    // Teammates and enemies
+    const parsedMyTeam: MatchTeamPlayer[] = [];
+    const parsedEnemyTeam: MatchTeamPlayer[] = [];
+
+    const allParsedPlayers: MatchTeamPlayer[] = match.players.map((p: any) => {
+      const pCharId = (p.characterId || "").toLowerCase();
+      const pAgentName = UUID_TO_AGENT_MAP[pCharId] || "";
+      const pAgent = resolveAgentDisplay(pAgentName);
+      const isMe = p.puuid === puuid;
+      return {
+        puuid: p.puuid,
+        name: p.gameName || "Agent",
+        tag: p.tagLine || "EU1",
+        agent: pAgentName || "Inconnu",
+        agentIcon: pAgent.iconUrl,
+        score: p.stats?.score || 0,
+        acs: Math.round((p.stats?.score || 0) / Math.max(1, roundsPlayed || 1)),
+        kills: p.stats?.kills || 0,
+        deaths: p.stats?.deaths || 0,
+        assists: p.stats?.assists || 0,
+        isMe,
+      };
+    });
+
+    if (isDeathmatch) {
+      // En Deathmatch (FFA), trier tous les joueurs par frags
+      allParsedPlayers.sort((a, b) => b.kills - a.kills || (b.score || 0) - (a.score || 0));
+      const myRank = allParsedPlayers.findIndex((p) => p.puuid === puuid) + 1;
+      isMatchWon = myRank === 1;
+      scoreStr = `#${myRank > 0 ? myRank : 1} (${kills} frags)`;
+      // Tous les joueurs sont placés dans une seule liste pour le leaderboard
+      parsedMyTeam.push(...allParsedPlayers);
+    } else {
+      const myRoundsWon = myTeam?.roundsWon ?? (won ? 13 : 8);
+      const enemyRoundsWon = enemyTeam?.roundsWon ?? (won ? 8 : 13);
+      scoreStr = `${myRoundsWon} - ${enemyRoundsWon}`;
+
+      match.players.forEach((p: any, pIdx: number) => {
+        const tPlayer = allParsedPlayers[pIdx];
+        if (p.teamId === me.teamId) {
+          parsedMyTeam.push(tPlayer);
+        } else {
+          parsedEnemyTeam.push(tPlayer);
+        }
+      });
+    }
 
     if (!agentPlayCount[agentName]) {
       agentPlayCount[agentName] = { games: 0, wins: 0, kills: 0, deaths: 0, assists: 0, minutes: 0 };
     }
     agentPlayCount[agentName].games++;
-    if (won) agentPlayCount[agentName].wins++;
+    if (isMatchWon) agentPlayCount[agentName].wins++;
     agentPlayCount[agentName].kills += kills;
     agentPlayCount[agentName].deaths += deaths;
     agentPlayCount[agentName].assists += assists;
@@ -119,51 +175,18 @@ export function parseRiotMatchData(
     const bs = me.stats?.bodyshots || Math.floor(kills * 1.8);
     const ls = me.stats?.legshots || Math.floor(kills * 0.2);
 
-    const rawMap = (match.matchInfo?.mapId || "Ascent").toLowerCase();
-    const mapName = MAP_ID_MAP[rawMap] || match.matchInfo?.mapId || "Ascent";
-
-    // Teammates and enemies
-    const parsedMyTeam: MatchTeamPlayer[] = [];
-    const parsedEnemyTeam: MatchTeamPlayer[] = [];
-
-    match.players.forEach((p: any) => {
-      const pCharId = (p.characterId || "").toLowerCase();
-      const pAgentName = UUID_TO_AGENT_MAP[pCharId] || "";
-      const pAgent = resolveAgentDisplay(pAgentName);
-      const isMe = p.puuid === puuid;
-      const tPlayer: MatchTeamPlayer = {
-        puuid: p.puuid,
-        name: p.gameName || "Agent",
-        tag: p.tagLine || "EU1",
-        agent: pAgentName || "Inconnu",
-        agentIcon: pAgent.iconUrl,
-        score: p.stats?.score || 0,
-        acs: Math.round((p.stats?.score || 0) / Math.max(1, roundsPlayed)),
-        kills: p.stats?.kills || 0,
-        deaths: p.stats?.deaths || 0,
-        assists: p.stats?.assists || 0,
-        isMe,
-      };
-
-      if (p.teamId === me.teamId) {
-        parsedMyTeam.push(tPlayer);
-      } else {
-        parsedEnemyTeam.push(tPlayer);
-      }
-    });
-
     const gameDurationMs = match.matchInfo?.gameLengthMillis || 1800000;
     const durMins = Math.floor(gameDurationMs / 60000);
     const durSecs = Math.floor((gameDurationMs % 60000) / 1000);
 
     matchHistory.push({
       matchId: match.matchInfo?.matchId || `match-${idx}`,
-      mode: match.matchInfo?.queueId || "competitive",
-      modeIcon: "https://media.valorant-api.com/gamemodes/96bd3920-4f36-d026-2b28-c683eb0bcac5/displayicon.png",
+      mode: gameModeInfo.id,
+      modeIcon: gameModeInfo.icon,
       map: mapName,
       agent: agentName || "Inconnu",
       agentIcon: agent.iconUrl,
-      won,
+      won: isMatchWon,
       score: scoreStr,
       kills,
       deaths,

@@ -51,6 +51,16 @@ export default function NotificationsDropdown({
     return [];
   });
 
+  const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("spycam_dismissed_notifications");
+        return stored ? JSON.parse(stored) : [];
+      } catch {}
+    }
+    return [];
+  });
+
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Fetch news and build initial notification list with stable IDs
@@ -129,10 +139,11 @@ export default function NotificationsDropdown({
       });
   }, [playerStats]);
 
-  const unreadCount = notifications.filter((n) => !readIds.includes(n.id)).length + (lobbyInvites?.length || 0);
+  const visibleNotifications = notifications.filter((n) => !dismissedIds.includes(n.id));
+  const unreadCount = visibleNotifications.filter((n) => !readIds.includes(n.id)).length + (lobbyInvites?.length || 0);
 
   const markAllAsRead = () => {
-    const allIds = notifications.map((n) => n.id);
+    const allIds = visibleNotifications.map((n) => n.id);
     setReadIds((prev) => {
       const merged = Array.from(new Set([...prev, ...allIds]));
       try {
@@ -148,6 +159,18 @@ export default function NotificationsDropdown({
       const merged = [...prev, id];
       try {
         localStorage.setItem("spycam_read_notifications", JSON.stringify(merged));
+      } catch {}
+      return merged;
+    });
+  };
+
+  const dismissNotification = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    sounds.playCancel();
+    setDismissedIds((prev) => {
+      const merged = Array.from(new Set([...prev, id]));
+      try {
+        localStorage.setItem("spycam_dismissed_notifications", JSON.stringify(merged));
       } catch {}
       return merged;
     });
@@ -301,18 +324,18 @@ export default function NotificationsDropdown({
 
           {/* List of Notifications */}
           <div className="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar max-h-[350px]">
-            {notifications.length === 0 && lobbyInvites.length === 0 ? (
+            {visibleNotifications.length === 0 && lobbyInvites.length === 0 ? (
               <div className="p-8 text-center text-[var(--color-text-secondary)] text-xs font-bold uppercase tracking-wider">
                 Aucune notification
               </div>
             ) : (
-              notifications.map((n) => {
+              visibleNotifications.map((n) => {
                 const isRead = readIds.includes(n.id);
                 return (
                   <div
                     key={n.id}
                     onClick={() => handleNotificationClick(n)}
-                    className={`p-3 rounded-xl transition-all duration-200 border cursor-pointer flex gap-3 items-start ${
+                    className={`group/notif p-3 rounded-xl transition-all duration-200 border cursor-pointer flex gap-3 items-start relative ${
                       isRead
                         ? "bg-transparent border-transparent hover:bg-[var(--color-surface-hover)] opacity-70"
                         : "bg-[var(--color-surface-hover)] border-[var(--color-border)] hover:border-[var(--color-val-red)]/50 shadow-sm"
@@ -325,7 +348,7 @@ export default function NotificationsDropdown({
                       }`}
                     ></span>
 
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 pr-6">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
                         <span className="font-bold text-xs text-[var(--color-text-primary)] truncate">{n.title}</span>
                         <span className="text-[9px] text-[var(--color-text-secondary)] uppercase flex-shrink-0 font-semibold">
@@ -334,6 +357,16 @@ export default function NotificationsDropdown({
                       </div>
                       <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">{n.message}</p>
                     </div>
+
+                    {/* Delete button on hover */}
+                    <button
+                      type="button"
+                      onClick={(e) => dismissNotification(n.id, e)}
+                      title="Masquer cette notification"
+                      className="absolute right-2 top-2 w-5 h-5 rounded-md hover:bg-white/10 text-gray-500 hover:text-white flex items-center justify-center text-[10px] opacity-0 group-hover/notif:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      ✕
+                    </button>
                   </div>
                 );
               })
