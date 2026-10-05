@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { sounds } from "@/lib/soundEffects";
 import { IconCrosshair } from "./icons/SpyIcons";
 
@@ -115,8 +116,13 @@ const ALL_WEAPONS_DATA: WeaponStat[] = [
 ];
 
 export default function WeaponHitmap({ matchHistory, stats }: WeaponHitmapProps) {
+  const [mounted, setMounted] = useState<boolean>(false);
   const [showAllModal, setShowAllModal] = useState<boolean>(false);
   const [hoveredZone, setHoveredZone] = useState<{ weaponId: string; zone: "head" | "body" | "legs" } | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Compute weapon statistics based on match history and global totals
   const weaponsList = useMemo(() => {
@@ -277,16 +283,16 @@ export default function WeaponHitmap({ matchHistory, stats }: WeaponHitmapProps)
       </div>
 
       {/* Modal: All Weapons Catalog */}
-      {showAllModal && (
+      {showAllModal && mounted && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
           onClick={() => {
             sounds.playCancel();
             setShowAllModal(false);
           }}
         >
           <div
-            className="w-full max-w-lg glass-modal rounded-3xl p-5 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
+            className="w-full max-w-lg glass-modal rounded-3xl p-5 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200 border border-white/20 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -359,7 +365,8 @@ export default function WeaponHitmap({ matchHistory, stats }: WeaponHitmapProps)
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

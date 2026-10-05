@@ -88,6 +88,7 @@ export interface MatchTeamPlayer {
   puuid: string;
   name: string;
   tag?: string;
+  team?: string;
   agent: string;
   agentIcon: string;
   rank?: string;
@@ -101,6 +102,16 @@ export interface MatchTeamPlayer {
   firstBloods?: number;
   isMe: boolean;
   isPublicProfile?: boolean;
+}
+
+export interface MatchDuoTeam {
+  teamId: string;
+  teamName?: string;
+  kills: number;
+  score: number;
+  rank?: number;
+  isMyTeam?: boolean;
+  players: MatchTeamPlayer[];
 }
 
 export interface ValorantMatchData {
@@ -131,6 +142,9 @@ export interface ValorantMatchData {
   date: string;
   myTeam: MatchTeamPlayer[];
   enemyTeam: MatchTeamPlayer[];
+  allTeams?: MatchDuoTeam[];
+  isRanked?: boolean;
+  teamFormat?: "standard" | "duos" | "ffa" | string;
   timeline: MatchRoundTimeline[];
   duels: MatchPlayerDuel[];
 }

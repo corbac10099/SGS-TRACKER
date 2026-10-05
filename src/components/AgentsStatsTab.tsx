@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo } from "react";
 import { sounds } from "@/lib/soundEffects";
-import { MAP_INFO } from "./MapsStatsTab";
+import { getMapInfo } from "@/lib/valorant/mapsCatalog";
+import { resolveGameMode } from "@/lib/valorant/gameModes";
 
 export interface AgentsStatsTabProps {
   agentStats: any[];
@@ -22,7 +23,14 @@ export default function AgentsStatsTab({
 }: AgentsStatsTabProps) {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
 
-  // Regroupement des données de matchs par agent
+  // Filtrer les stats d'agents pour exclure les entités non jouables avec sorts (Robo-Agent, Inconnu)
+  const validAgentStats = useMemo(() => {
+    return (agentStats || []).filter(
+      (ag) => ag.name && ag.name !== "Robo-Agent" && ag.name !== "AbilityDraftAgent" && ag.name !== "Inconnu"
+    );
+  }, [agentStats]);
+
+  // Regroupement des données de matchs par agent (uniquement pour les modes avec sorts propres)
   const agentDetailsMap = useMemo(() => {
     const map: Record<
       string,
@@ -40,7 +48,13 @@ export default function AgentsStatsTab({
 
     matches.forEach((m) => {
       const agName = m.agent;
-      if (!agName) return;
+      if (!agName || agName === "Robo-Agent" || agName === "AbilityDraftAgent" || agName === "Inconnu") return;
+
+      const modeInfo = resolveGameMode(m.mode);
+      if (modeInfo.trackAgentStats === false) return;
+      const mModeLower = String(m.mode || "").toLowerCase();
+      if (mModeLower.includes("deathmatch") && !mModeLower.includes("team") && !mModeLower.includes("hurm")) return;
+      if (mModeLower.includes("gauntlet") || mModeLower.includes("abilitydraft") || mModeLower.includes("glitched")) return;
 
       if (!map[agName]) {
         map[agName] = {
@@ -80,11 +94,11 @@ export default function AgentsStatsTab({
     return map;
   }, [matches]);
 
-  if (!agentStats || agentStats.length === 0) return null;
+  if (!validAgentStats || validAgentStats.length === 0) return null;
 
   return (
     <div className="w-full space-y-3 animate-in fade-in duration-500">
-      {agentStats.map((agent: any) => {
+      {validAgentStats.map((agent: any) => {
         const isExpanded = expandedAgent === agent.name;
         const details = agentDetailsMap[agent.name];
         const agentMatchesCount = details?.matches.length || agent.games || 0;
@@ -256,7 +270,8 @@ export default function AgentsStatsTab({
                             mStat.games > 0
                               ? Math.round((mStat.wins / mStat.games) * 100)
                               : 0;
-                          const mapSplash = MAP_INFO[mapName]?.splash;
+                          const mapInfo = getMapInfo(mapName);
+                          const mapSplash = mapInfo.listViewIcon || mapInfo.splash;
                           return (
                             <div
                               key={mapName}

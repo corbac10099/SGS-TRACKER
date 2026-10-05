@@ -29,6 +29,8 @@ import {
   IconBell,
   IconBellOff,
   IconPencil,
+  IconRefresh,
+  IconGlobe,
 } from "./icons/SpyIcons";
 import { BADGES_REGISTRY, parseBadges } from "./UserBadges";
 import { BANNER_INTERIOR_EFFECTS, BANNER_BORDER_EFFECTS } from "./quests/types";
@@ -38,6 +40,7 @@ import { requestPushPermission, sendLocalNotification } from "@/lib/pushNotifica
 import SgsAccountSettings from "./SgsAccountSettings";
 import SgsLegalModal from "./SgsLegalModal";
 import { useDesktopApp } from "@/hooks/useDesktopApp";
+import { isDiscordRpcEnabled, setDiscordRpcEnabled, getDiscordRpcMode, setDiscordRpcMode } from "@/lib/discordRpc";
 
 export const DEFAULT_SHORTCUTS: Record<string, string> = {
   search: "/",
@@ -48,6 +51,7 @@ export const DEFAULT_SHORTCUTS: Record<string, string> = {
   settings: "s",
   eco: "e",
   leaderboard: "l",
+  overlay: "F9",
 };
 
 export const SHORTCUT_DEFINITIONS = [
@@ -59,6 +63,7 @@ export const SHORTCUT_DEFINITIONS = [
   { id: "settings", label: "Ouvrir ou fermer les Paramètres", defaultKey: "s" },
   { id: "eco", label: "Basculer le Mode Éco (Basse consommation)", defaultKey: "e" },
   { id: "leaderboard", label: "Afficher le Classement Régional", defaultKey: "l" },
+  { id: "overlay", label: "Afficher / Masquer l'Overlay en Jeu (Superposition)", defaultKey: "F9" },
 ];
 
 export interface SettingsViewProps {
@@ -95,6 +100,8 @@ export interface SettingsViewProps {
   setStreamerMode?: (val: boolean) => void;
   disableAnimations?: boolean;
   setDisableAnimations?: (val: boolean) => void;
+  ecoMode?: boolean;
+  setEcoMode?: (val: boolean) => void;
   forceMyTheme?: boolean;
   setForceMyTheme?: (val: boolean) => void;
   dndEnabled?: boolean;
@@ -144,6 +151,8 @@ export default function SettingsView({
   setStreamerMode,
   disableAnimations = false,
   setDisableAnimations,
+  ecoMode = false,
+  setEcoMode,
   forceMyTheme = false,
   setForceMyTheme,
   dndEnabled = false,
@@ -233,6 +242,8 @@ export default function SettingsView({
     }
     return 0.08;
   });
+  const [draftDiscordRpc, setDraftDiscordRpc] = useState<boolean>(() => isDiscordRpcEnabled());
+  const [draftDiscordRpcMode, setDraftDiscordRpcMode] = useState<"full" | "discrete">(() => getDiscordRpcMode());
 
   // Customizable Keyboard Shortcuts State
   const [draftShortcutsEnabled, setDraftShortcutsEnabled] = useState<boolean>(() => {
@@ -296,6 +307,13 @@ export default function SettingsView({
       if (stored !== null) return stored === "true";
     }
     return disableAnimations;
+  });
+  const [draftEcoMode, setDraftEcoMode] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("spycam_eco_mode");
+      if (stored !== null) return stored === "true";
+    }
+    return ecoMode;
   });
   const [draftForceMyTheme, setDraftForceMyTheme] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -385,7 +403,7 @@ export default function SettingsView({
     if (locale) setDraftLocale(locale);
   }, [locale]);
 
-  // Key recording listener
+  // Key recording listener (supporte les touches uniques et les combinaisons jusqu'à 2 touches)
   useEffect(() => {
     if (!recordingShortcutId) return;
 
@@ -396,12 +414,43 @@ export default function SettingsView({
         setRecordingShortcutId(null);
         return;
       }
-      const pressed = e.key.toLowerCase();
+
+      // Si l'utilisateur appuie uniquement sur une touche modificatrice, attendre la 2e touche
+      if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) {
+        return;
+      }
+
+      const parts: string[] = [];
+      if (e.ctrlKey) parts.push("Ctrl");
+      else if (e.altKey) parts.push("Alt");
+      else if (e.shiftKey) parts.push("Shift");
+
+      let keyName = e.key;
+      if (keyName === " ") keyName = "Space";
+      else if (keyName.length === 1) keyName = keyName.toUpperCase();
+      else if (/^f\d{1,2}$/i.test(keyName)) keyName = keyName.toUpperCase();
+      else keyName = keyName.charAt(0).toUpperCase() + keyName.slice(1);
+
+      // Combinaison max 2 touches (ex: "Ctrl+F9", "Alt+O", ou "F9")
+      const combo = parts.length > 0 ? `${parts[0]}+${keyName}` : keyName;
+
       sounds.playLockIn();
       setDraftShortcuts((prev) => ({
         ...prev,
-        [recordingShortcutId]: pressed,
+        [recordingShortcutId]: combo,
       }));
+
+      // Si c'est le raccourci de l'overlay, l'enregistrer dans Tauri immédiatement
+      if (recordingShortcutId === "overlay") {
+        try {
+          localStorage.setItem("spycam_overlay_shortcut", combo);
+          if (typeof window !== "undefined" && (window as any).__TAURI__?.core) {
+            const tauriCombo = combo.replace(/Ctrl/g, "Control");
+            (window as any).__TAURI__.core.invoke("register_overlay_shortcut", { shortcut: tauriCombo }).catch(() => {});
+          }
+        } catch {}
+      }
+
       setRecordingShortcutId(null);
     };
 
@@ -469,14 +518,28 @@ export default function SettingsView({
         localStorage.setItem("spycam_sound_volume", String(draftSoundVolume));
         localStorage.setItem("spycam_shortcuts_enabled", String(draftShortcutsEnabled));
         localStorage.setItem("spycam_shortcuts_config", JSON.stringify(draftShortcuts));
+        if (draftShortcuts.overlay) {
+          localStorage.setItem("spycam_overlay_shortcut", draftShortcuts.overlay);
+          if (typeof window !== "undefined" && (window as any).__TAURI__?.core) {
+            const tauriCombo = draftShortcuts.overlay.replace(/Ctrl/g, "Control");
+            (window as any).__TAURI__.core.invoke("register_overlay_shortcut", { shortcut: tauriCombo }).catch(() => {});
+          }
+        }
         localStorage.setItem("spycam_spi_dynamic_chart_color", String(draftSpiDynamicColors));
         localStorage.setItem("spycam_spi_theme_adapt", String(draftSpiThemeAdapt));
         localStorage.setItem("spycam_disable_animations", String(draftDisableAnimations));
+        localStorage.setItem("spycam_eco_mode", String(draftEcoMode));
         localStorage.setItem("spycam_force_my_theme", String(draftForceMyTheme));
+        if (typeof document !== "undefined") {
+          document.documentElement.classList.toggle("mode-eco", draftEcoMode);
+        }
+        setDiscordRpcEnabled(draftDiscordRpc);
+        setDiscordRpcMode(draftDiscordRpcMode);
         sounds.setEnabled(draftSoundEnabled);
         sounds.setVolume(draftSoundVolume);
         if (setStreamerMode) setStreamerMode(draftStreamerMode);
         if (setDisableAnimations) setDisableAnimations(draftDisableAnimations);
+        if (setEcoMode) setEcoMode(draftEcoMode);
         if (setForceMyTheme) setForceMyTheme(draftForceMyTheme);
         window.dispatchEvent(new CustomEvent("spycam_settings_updated", {
           detail: { spiDynamicColors: draftSpiDynamicColors, spiThemeAdapt: draftSpiThemeAdapt }
@@ -579,40 +642,306 @@ export default function SettingsView({
         {/* Sidebar / Top Tabs Bar on mobile */}
         <div className="w-full md:w-64 flex flex-row md:flex-col gap-1.5 sm:gap-2 overflow-x-auto pb-2 md:pb-0 custom-scrollbar flex-shrink-0">
           {[
-            { id: "account", label: "Compte SGS & Connexions" },
-            { id: "features", label: "Fonctionnalités" },
-            { id: "notifications", label: "Notifications & DND" },
-            { id: "shortcuts", label: "Raccourcis Clavier" },
-            { id: "privacy", label: "Confidentialité" },
-            { id: "appearance", label: "Apparence & Bannière" },
-            { id: "language", label: "Langue & Traductions" },
-            { id: "legal", label: "Mentions Légales & CGU" },
-            { id: "about", label: "À propos" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onMouseEnter={() => sounds.playHover()}
-              onClick={() => {
-                sounds.playTabSwitch();
-                setSettingsTab(tab.id);
-                pushUrl({ view: "settings", settingsTab: tab.id });
-              }}
-              className={`text-left px-3.5 sm:px-5 py-2.5 sm:py-4 rounded-xl font-bold uppercase tracking-wider text-xs sm:text-sm transition-all whitespace-nowrap cursor-pointer flex-shrink-0 ${
-                settingsTab === tab.id
-                  ? "bg-[var(--color-surface-hover)] border-b-2 md:border-b-0 md:border-l-4 border-[var(--color-val-red)] text-[var(--color-text-primary)] shadow-md"
-                  : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text-primary)]"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+            { id: "account", label: "Compte", icon: <IconUsers size={16} /> },
+            { id: "privacy", label: "Confidentialité", icon: <IconLock size={16} /> },
+            { id: "appearance", label: "Thèmes & Affichage", icon: <IconPencil size={16} /> },
+            { id: "cosmetics", label: "Bannières & Effets", icon: <IconBadgeVerified size={16} /> },
+            { id: "language", label: "Langue", icon: <IconGlobe size={16} /> },
+            { id: "features", label: "Fonctionnalités", icon: <IconGamepad size={16} /> },
+            { id: "notifications", label: "Notifications", icon: <IconBell size={16} /> },
+            { id: "shortcuts", label: "Raccourcis", icon: <IconKeyboard size={16} /> },
+            { id: "about", label: "À propos & Légal", icon: <IconInfo size={16} /> },
+          ].map((tab) => {
+            const isActive = settingsTab === tab.id || (tab.id === "about" && settingsTab === "legal");
+
+            return (
+              <button
+                key={tab.id}
+                onMouseEnter={() => sounds.playHover()}
+                onClick={() => {
+                  sounds.playTabSwitch();
+                  setSettingsTab(tab.id);
+                  pushUrl({ view: "settings", settingsTab: tab.id });
+                }}
+                className={`text-left px-3.5 sm:px-4 py-2.5 sm:py-3.5 rounded-xl font-bold uppercase tracking-wider text-xs sm:text-sm transition-all whitespace-nowrap cursor-pointer flex-shrink-0 flex items-center gap-2.5 ${
+                  isActive
+                    ? "bg-[var(--color-surface-hover)] border-b-2 md:border-b-0 md:border-l-4 border-[var(--color-val-red)] text-[var(--color-text-primary)] shadow-md"
+                    : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text-primary)]"
+                }`}
+              >
+                <span className={isActive ? "text-[var(--color-val-red)]" : "text-white/40"}>
+                  {tab.icon}
+                </span>
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Content */}
         <div key={settingsTab} className="flex-1 min-w-0 animate-tab-in">
           {settingsTab === "account" && (
-            <SgsAccountSettings />
+            <div className="space-y-6">
+              <SgsAccountSettings />
+            </div>
           )}
+
+          {settingsTab === "privacy" && (
+            <div className="glass-panel rounded-2xl p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6">
+                <div>
+                  <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Confidentialité du profil</h3>
+                  <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                    Gérez qui peut consulter vos statistiques et historiques de parties
+                  </p>
+                </div>
+
+                <div className="bg-[var(--color-background)] p-3.5 sm:p-6 rounded-xl sm:rounded-2xl border border-[var(--color-border)] flex items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div
+                      className={`w-9 h-9 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center font-bold text-base sm:text-xl flex-shrink-0 ${
+                        draftIsPublic ? "bg-green-500/20 text-green-400 border border-green-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
+                      }`}
+                    >
+                      {draftIsPublic ? (
+                        <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+                          <path d="M2 12h20" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs sm:text-base text-[var(--color-text-primary)]">
+                        {draftIsPublic ? "Profil Public" : "Profil Privé"}
+                      </h4>
+                      <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] mt-0.5 max-w-md">
+                        {draftIsPublic
+                          ? "Tout le monde peut consulter votre profil et vos statistiques."
+                          : "Votre profil est masqué pour les autres utilisateurs."}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setDraftIsPublic(!draftIsPublic)}
+                    className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
+                      draftIsPublic ? "bg-green-500" : "bg-gray-600"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                        draftIsPublic ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                      }`}
+                    ></span>
+                  </button>
+                </div>
+
+                {/* Accordéon : Ce que voient les autres visiteurs */}
+                <div className="pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                  <div
+                    onClick={() => {
+                      sounds.playClick();
+                      setPrivacyStatsExpanded(!privacyStatsExpanded);
+                    }}
+                    className="flex items-center justify-between p-3 sm:p-4 rounded-xl bg-[var(--color-surface)]/60 hover:bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-val-red)]/40 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-9 h-9 rounded-xl bg-[var(--color-val-red)]/10 border border-[var(--color-val-red)]/30 flex items-center justify-center flex-shrink-0">
+                        <IconEye size={18} className="text-[var(--color-val-red)]" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <h4 className="font-bold text-xs sm:text-base text-[var(--color-text-primary)] flex items-center gap-2">
+                          <span>Ce que voient les autres visiteurs</span>
+                          <span className="px-1.5 py-0.2 rounded-full bg-[var(--color-val-red)]/20 text-[var(--color-val-red)] text-[10px] font-black">
+                            {statOptions.length - draftHiddenStats.length}/{statOptions.length}
+                          </span>
+                        </h4>
+                        <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] truncate">
+                          {privacyStatsExpanded
+                            ? "Cliquez pour replier les options de visibilité"
+                            : "Cliquez pour déplier et choisir les statistiques visibles ou masquées"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)] hidden xs:inline">
+                        {draftHiddenStats.length === 0 ? "Tout visible" : `${draftHiddenStats.length} masquée(s)`}
+                      </span>
+                      <span
+                        className={`text-sm sm:text-base font-black transition-transform duration-300 text-[var(--color-text-secondary)] group-hover:text-[var(--color-val-red)] ${
+                          privacyStatsExpanded ? "rotate-90 text-[var(--color-val-red)]" : "rotate-0"
+                        }`}
+                      >
+                        →
+                      </span>
+                    </div>
+                  </div>
+
+                  {privacyStatsExpanded && (
+                    <div className="space-y-4 mt-3 pt-3 border-t border-[var(--color-border)]/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)]">
+                          Choisissez précisément les statistiques et graphiques accessibles aux personnes qui consultent votre profil.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onMouseEnter={() => sounds.playHover()}
+                            onClick={() => {
+                              sounds.playBreeze();
+                              setDraftHiddenStats([]);
+                            }}
+                            className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] text-emerald-400 border border-[var(--color-border)] cursor-pointer"
+                          >
+                            Tout rendre visible
+                          </button>
+                          <button
+                            type="button"
+                            onMouseEnter={() => sounds.playHover()}
+                            onClick={() => {
+                              sounds.playBreeze();
+                              setDraftHiddenStats(statOptions.map((s) => s.id));
+                            }}
+                            className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] text-red-400 border border-[var(--color-border)] cursor-pointer"
+                          >
+                            Tout masquer
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Explicative Banner */}
+                      <div className="p-3 bg-[var(--color-surface)]/60 rounded-xl border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] flex items-center gap-2">
+                        <IconShield size={16} className="text-sky-400 flex-shrink-0" />
+                        <span>
+                          Les éléments marqués comme <strong>Masqués</strong> seront invisibles pour les visiteurs externes, mais restent toujours affichés sur votre propre compte.
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3 mb-4">
+                        {statOptions.map((stat) => {
+                          const isVisibleToOthers = !draftHiddenStats.includes(stat.id);
+                          return (
+                            <div
+                              key={stat.id}
+                              onMouseEnter={() => sounds.playHover()}
+                              onClick={() => {
+                                sounds.playBreeze();
+                                if (isVisibleToOthers) {
+                                  setDraftHiddenStats([...draftHiddenStats, stat.id]);
+                                } else {
+                                  setDraftHiddenStats(draftHiddenStats.filter((id) => id !== stat.id));
+                                }
+                              }}
+                              className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                                isVisibleToOthers
+                                  ? "bg-emerald-500/5 border-emerald-500/40 hover:border-emerald-500 shadow-sm"
+                                  : "bg-red-500/5 border-red-500/25 opacity-70 hover:opacity-100 hover:border-red-500/50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="text-[var(--color-text-secondary)] flex-shrink-0">{stat.icon}</span>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-xs sm:text-sm font-bold truncate text-[var(--color-text-primary)]">
+                                    {stat.label}
+                                  </span>
+                                  <span className="text-[10px] font-semibold text-[var(--color-text-secondary)]">
+                                    {isVisibleToOthers ? (
+                                      <span className="text-emerald-400">Visible aux visiteurs</span>
+                                    ) : (
+                                      <span className="text-red-400">Masqué aux autres</span>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div
+                                className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black transition-colors ${
+                                  isVisibleToOthers ? "bg-emerald-600 text-white shadow-md" : "bg-red-900/60 text-red-300 border border-red-500/30"
+                                }`}
+                              >
+                                {isVisibleToOthers ? <IconEye size={12} /> : <IconLock size={12} />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section : Autorisations Spécifiques pour vos Amis */}
+                <div className="pt-4 sm:pt-6 border-t border-[var(--color-border)] space-y-3">
+                  <div>
+                    <h4 className="font-bold text-xs sm:text-base text-[var(--color-text-primary)] flex items-center gap-2">
+                      <IconUsers size={18} className="text-sky-400" />
+                      <span>Autorisations Spécifiques pour vos Amis</span>
+                    </h4>
+                    <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] mt-0.5">
+                      Réglez pour chaque ami l&apos;autorisation d&apos;accéder à vos statistiques lorsque votre profil est en mode Privé.
+                    </p>
+                  </div>
+
+                  {sgsFriends.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-xs text-gray-400 text-center">
+                      Vous n&apos;avez pas encore d&apos;amis ajoutés sur votre compte.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {sgsFriends.map((f) => (
+                        <div
+                          key={f.friendshipId}
+                          className="p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-between gap-3"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {f.avatarUrl ? (
+                              <img src={f.avatarUrl} alt={f.name} className="w-8 h-8 rounded-lg object-cover border border-white/10" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-xs font-bold text-white border border-white/10">
+                                {f.name.slice(0, 1).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-white truncate">{f.name}</div>
+                              <div className="text-[10px] text-gray-400 font-mono">{f.riotId}</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className={`text-[11px] font-bold ${f.canViewStats ? "text-emerald-400" : "text-red-400"}`}>
+                              {f.canViewStats ? "Accès autorisé" : "Accès bloqué"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                sounds.playClick();
+                                if (f.friendId) {
+                                  updateFriendPermission(f.friendId, !f.canViewStats);
+                                }
+                              }}
+                              className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors duration-300 flex-shrink-0 cursor-pointer ${
+                                f.canViewStats ? "bg-emerald-500" : "bg-gray-600"
+                              }`}
+                              title="Basculer l'autorisation pour cet ami"
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 sm:h-4 sm:w-4 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                                  f.canViewStats ? "translate-x-4 sm:translate-x-5" : "translate-x-1"
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
           {settingsTab === "features" && (
             <div className="glass-panel rounded-2xl p-3.5 sm:p-6 md:p-8">
@@ -665,6 +994,69 @@ export default function SettingsView({
                       }`}
                     ></span>
                   </button>
+                </div>
+
+                {/* Discord Rich Presence (RPC) Toggle */}
+                <div className="flex flex-col gap-3 pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <IconGamepad size={18} className="text-indigo-400" />
+                        <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">
+                          Discord Rich Presence
+                        </h3>
+                        <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded font-black">
+                          DISCORD
+                        </span>
+                      </div>
+                      <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                        Affiche votre agent, votre carte et vos statistiques en direct sur votre profil Discord
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        sounds.playClick();
+                        setDraftDiscordRpc(!draftDiscordRpc);
+                      }}
+                      className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
+                        draftDiscordRpc ? "bg-indigo-600 shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                          draftDiscordRpc ? "bg-white" : "bg-white"
+                        } shadow-md transition-all duration-300 ${
+                          draftDiscordRpc ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                        }`}
+                      ></span>
+                    </button>
+                  </div>
+
+                  {draftDiscordRpc && (
+                    <div className="flex flex-wrap items-center gap-2 bg-indigo-950/20 border border-indigo-500/20 p-2.5 rounded-xl animate-in fade-in">
+                      <span className="text-xs text-indigo-300 font-semibold">Mode d&apos;affichage :</span>
+                      <button
+                        onClick={() => setDraftDiscordRpcMode("full")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                          draftDiscordRpcMode === "full"
+                            ? "bg-indigo-600 text-white"
+                            : "bg-white/5 text-white/60 hover:text-white"
+                        }`}
+                      >
+                        Complet (Map + Score + Agent)
+                      </button>
+                      <button
+                        onClick={() => setDraftDiscordRpcMode("discrete")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                          draftDiscordRpcMode === "discrete"
+                            ? "bg-indigo-600 text-white"
+                            : "bg-white/5 text-white/60 hover:text-white"
+                        }`}
+                      >
+                        Discret (Sur SGS-Tracker)
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* SPI Dynamic Chart Color Toggle */}
@@ -796,90 +1188,11 @@ export default function SettingsView({
                     </div>
                   )}
                 </div>
-
-                {/* Notifications Push Web */}
-                <div className="flex flex-col gap-3 pt-4 sm:pt-6 border-t border-[var(--color-border)]">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Notifications Push Navigateur</h3>
-                      <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
-                        Recevez des alertes sur le statut de vos matchs, nouveaux salons LFG et actualités
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        sounds.playClick();
-                        const perm = await requestPushPermission();
-                        if (perm === "granted") {
-                          sendLocalNotification("SPYCAM Activé !", "Les notifications push sont bien configurées sur cet appareil.");
-                        }
-                      }}
-                      className="px-3.5 py-1.5 rounded-xl bg-[var(--color-val-red)] hover:bg-[#ff5e6c] text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-md flex-shrink-0"
-                    >
-                      Activer / Tester
-                    </button>
-                  </div>
-                </div>
-
-                {/* Disable All Animations Toggle */}
-                <div className="flex items-center justify-between pt-4 sm:pt-6 border-t border-[var(--color-border)]">
-                  <div>
-                    <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Désactiver toutes les animations</h3>
-                    <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
-                      Supprime l&apos;ensemble des transitions, effets de fondu et animations d&apos;interface pour une réactivité instantanée maximale
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      sounds.playClick();
-                      setDraftDisableAnimations(!draftDisableAnimations);
-                    }}
-                    className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
-                      draftDisableAnimations ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
-                        draftDisableAnimations ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
-                      } shadow-md transition-all duration-300 ${
-                        draftDisableAnimations ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
-                      }`}
-                    ></span>
-                  </button>
-                </div>
-
-                {/* Force Personal Theme on Visited Profiles Toggle */}
-                <div className="flex items-center justify-between pt-4 sm:pt-6 border-t border-[var(--color-border)]">
-                  <div>
-                    <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Forcer mon thème sur les profils visités</h3>
-                    <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
-                      Conserve votre thème personnalisé même lors de la consultation du profil d&apos;un autre joueur (désactivé par défaut : vous visualisez le thème du propriétaire)
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      sounds.playClick();
-                      setDraftForceMyTheme(!draftForceMyTheme);
-                    }}
-                    className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
-                      draftForceMyTheme ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
-                        draftForceMyTheme ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
-                      } shadow-md transition-all duration-300 ${
-                        draftForceMyTheme ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
-                      }`}
-                    ></span>
-                  </button>
-                </div>
               </div>
             </div>
           )}
 
-          {/* ==================== TAB : NOTIFICATIONS & NE PAS DÉRANGER ==================== */}
+          {/* ==================== TAB : NOTIFICATIONS ==================== */}
           {settingsTab === "notifications" && (
             <div className="glass-panel rounded-2xl p-3.5 sm:p-6 md:p-8 space-y-6">
               {/* SECTION 1 : MODE NE PAS DÉRANGER */}
@@ -1078,7 +1391,7 @@ export default function SettingsView({
             </div>
           )}
 
-          {/* ==================== TAB 2 : RACCOURCIS CLAVIER (PERSONNALISABLES & DÉSACTIVABLES) ==================== */}
+          {/* ==================== TAB : RACCOURCIS ==================== */}
           {settingsTab === "shortcuts" && (
             <div className="glass-panel rounded-2xl p-3.5 sm:p-6 md:p-8 space-y-6">
               {/* Header */}
@@ -1167,11 +1480,20 @@ export default function SettingsView({
                           }`}
                         >
                           <div className="min-w-0 flex-1">
-                            <h4 className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)] truncate">
-                              {def.label}
-                            </h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)] truncate">
+                                {def.label}
+                              </h4>
+                              {def.id === "overlay" && (
+                                <span className="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[9px] font-black uppercase tracking-wider flex-shrink-0">
+                                  🎮 En Jeu (OS)
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[10px] text-[var(--color-text-secondary)]">
-                              Touche par défaut : {def.defaultKey.toUpperCase()}
+                              {def.id === "overlay"
+                                ? "Combinaison max 2 touches (ex: Ctrl+F9, Alt+O, F9)"
+                                : `Touche par défaut : ${def.defaultKey.toUpperCase()}`}
                             </span>
                           </div>
 
@@ -1181,14 +1503,16 @@ export default function SettingsView({
                               sounds.playClick();
                               setRecordingShortcutId(isRecording ? null : def.id);
                             }}
-                            title="Cliquez pour changer cette touche"
-                            className={`px-3 py-1.5 rounded-xl font-mono text-xs font-black transition-all cursor-pointer flex items-center justify-center min-w-[48px] ${
+                            title="Cliquez pour changer cette touche ou combinaison"
+                            className={`px-3 py-1.5 rounded-xl font-mono text-xs font-black transition-all cursor-pointer flex items-center justify-center min-w-[56px] ${
                               isRecording
-                                ? "bg-[var(--color-val-red)] text-white shadow-lg shadow-[rgba(255,70,85,0.5)]"
+                                ? "bg-[var(--color-val-red)] text-white shadow-lg shadow-[rgba(255,70,85,0.5)] animate-pulse"
+                                : def.id === "overlay"
+                                ? "bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 hover:bg-cyan-500/30"
                                 : "bg-black/40 border border-white/20 text-white hover:border-[var(--color-val-red)] hover:text-[var(--color-val-red)]"
                             }`}
                           >
-                            {isRecording ? "Appuyez..." : currentKey}
+                            {isRecording ? "Pressez (1 ou 2 touches)..." : currentKey}
                           </button>
                         </div>
                       );
@@ -1196,273 +1520,17 @@ export default function SettingsView({
                   </div>
 
                   {recordingShortcutId && (
-                    <p className="text-center text-xs text-amber-400 animate-bounce pt-2 flex items-center justify-center gap-1.5">
-                      <IconKeyboard size={13} />
-                      <span>Appuyez sur la touche désirée sur votre clavier (ou <strong>Échap</strong> pour annuler).</span>
-                    </p>
+                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center text-xs text-amber-300 flex items-center justify-center gap-2 animate-pulse">
+                      <IconKeyboard size={15} />
+                      <span>
+                        Appuyez sur la touche ou combinaison voulue (<strong>1 ou 2 touches</strong> max, ex: <strong>Ctrl+F9</strong>, <strong>Alt+O</strong>, ou <strong>F9</strong>. Appuyez sur <strong>Échap</strong> pour annuler).
+                      </span>
+                    </div>
                   )}
                 </div>
               )}
             </div>
           )}
-
-          {settingsTab === "privacy" && (
-            <div className="glass-panel rounded-2xl p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6">
-              <div>
-                <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Confidentialité du profil</h3>
-                <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
-                  Gérez qui peut consulter vos statistiques et historiques de parties
-                </p>
-              </div>
-
-              <div className="bg-[var(--color-background)] p-3.5 sm:p-6 rounded-xl sm:rounded-2xl border border-[var(--color-border)] flex items-center justify-between gap-3 sm:gap-4">
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div
-                    className={`w-9 h-9 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center font-bold text-base sm:text-xl flex-shrink-0 ${
-                      draftIsPublic ? "bg-green-500/20 text-green-400 border border-green-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
-                    }`}
-                  >
-                    {draftIsPublic ? (
-                      <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10" />
-                        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-                        <path d="M2 12h20" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                      </svg>
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-xs sm:text-base text-[var(--color-text-primary)]">
-                      {draftIsPublic ? "Profil Public" : "Profil Privé"}
-                    </h4>
-                    <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] mt-0.5 max-w-md">
-                      {draftIsPublic
-                        ? "Tout le monde peut consulter votre profil et vos statistiques."
-                        : "Votre profil est masqué pour les autres utilisateurs."}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setDraftIsPublic(!draftIsPublic)}
-                  className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
-                    draftIsPublic ? "bg-green-500" : "bg-gray-600"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
-                      draftIsPublic ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
-                    }`}
-                  ></span>
-                </button>
-              </div>
-
-              {/* Accordéon : Ce que voient les autres visiteurs */}
-              <div className="pt-4 sm:pt-6 border-t border-[var(--color-border)]">
-                <div
-                  onClick={() => {
-                    sounds.playClick();
-                    setPrivacyStatsExpanded(!privacyStatsExpanded);
-                  }}
-                  className="flex items-center justify-between p-3 sm:p-4 rounded-xl bg-[var(--color-surface)]/60 hover:bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-val-red)]/40 transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-9 h-9 rounded-xl bg-[var(--color-val-red)]/10 border border-[var(--color-val-red)]/30 flex items-center justify-center flex-shrink-0">
-                      <IconEye size={18} className="text-[var(--color-val-red)]" />
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <h4 className="font-bold text-xs sm:text-base text-[var(--color-text-primary)] flex items-center gap-2">
-                        <span>Ce que voient les autres visiteurs</span>
-                        <span className="px-1.5 py-0.2 rounded-full bg-[var(--color-val-red)]/20 text-[var(--color-val-red)] text-[10px] font-black">
-                          {statOptions.length - draftHiddenStats.length}/{statOptions.length}
-                        </span>
-                      </h4>
-                      <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] truncate">
-                        {privacyStatsExpanded
-                          ? "Cliquez pour replier les options de visibilité"
-                          : "Cliquez pour déplier et choisir les statistiques visibles ou masquées"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)] hidden xs:inline">
-                      {draftHiddenStats.length === 0 ? "Tout visible" : `${draftHiddenStats.length} masquée(s)`}
-                    </span>
-                    <span
-                      className={`text-sm sm:text-base font-black transition-transform duration-300 text-[var(--color-text-secondary)] group-hover:text-[var(--color-val-red)] ${
-                        privacyStatsExpanded ? "rotate-90 text-[var(--color-val-red)]" : "rotate-0"
-                      }`}
-                    >
-                      →
-                    </span>
-                  </div>
-                </div>
-
-                {privacyStatsExpanded && (
-                  <div className="space-y-4 mt-3 pt-3 border-t border-[var(--color-border)]/50 animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)]">
-                        Choisissez précisément les statistiques et graphiques accessibles aux personnes qui consultent votre profil.
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onMouseEnter={() => sounds.playHover()}
-                          onClick={() => {
-                            sounds.playBreeze();
-                            setDraftHiddenStats([]);
-                          }}
-                          className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] text-emerald-400 border border-[var(--color-border)] cursor-pointer"
-                        >
-                          Tout rendre visible
-                        </button>
-                        <button
-                          type="button"
-                          onMouseEnter={() => sounds.playHover()}
-                          onClick={() => {
-                            sounds.playBreeze();
-                            setDraftHiddenStats(statOptions.map((s) => s.id));
-                          }}
-                          className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] text-red-400 border border-[var(--color-border)] cursor-pointer"
-                        >
-                          Tout masquer
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Explicative Banner */}
-                    <div className="p-3 bg-[var(--color-surface)]/60 rounded-xl border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] flex items-center gap-2">
-                      <IconShield size={16} className="text-sky-400 flex-shrink-0" />
-                      <span>
-                        Les éléments marqués comme <strong>Masqués</strong> seront invisibles pour les visiteurs externes, mais restent toujours affichés sur votre propre compte.
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3 mb-4">
-                      {statOptions.map((stat) => {
-                        const isVisibleToOthers = !draftHiddenStats.includes(stat.id);
-                        return (
-                          <div
-                            key={stat.id}
-                            onMouseEnter={() => sounds.playHover()}
-                            onClick={() => {
-                              sounds.playBreeze();
-                              if (isVisibleToOthers) {
-                                setDraftHiddenStats([...draftHiddenStats, stat.id]);
-                              } else {
-                                setDraftHiddenStats(draftHiddenStats.filter((id) => id !== stat.id));
-                              }
-                            }}
-                            className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                              isVisibleToOthers
-                                ? "bg-emerald-500/5 border-emerald-500/40 hover:border-emerald-500 shadow-sm"
-                                : "bg-red-500/5 border-red-500/25 opacity-70 hover:opacity-100 hover:border-red-500/50"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="text-[var(--color-text-secondary)] flex-shrink-0">{stat.icon}</span>
-                              <div className="flex flex-col min-w-0">
-                                <span className="text-xs sm:text-sm font-bold truncate text-[var(--color-text-primary)]">
-                                  {stat.label}
-                                </span>
-                                <span className="text-[10px] font-semibold text-[var(--color-text-secondary)]">
-                                  {isVisibleToOthers ? (
-                                    <span className="text-emerald-400">Visible aux visiteurs</span>
-                                  ) : (
-                                    <span className="text-red-400">Masqué aux autres</span>
-                                  )}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div
-                              className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black transition-colors ${
-                                isVisibleToOthers ? "bg-emerald-600 text-white shadow-md" : "bg-red-900/60 text-red-300 border border-red-500/30"
-                              }`}
-                            >
-                              {isVisibleToOthers ? <IconEye size={12} /> : <IconLock size={12} />}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Section : Autorisations Spécifiques pour vos Amis */}
-              <div className="pt-4 sm:pt-6 border-t border-[var(--color-border)] space-y-3">
-                <div>
-                  <h4 className="font-bold text-xs sm:text-base text-[var(--color-text-primary)] flex items-center gap-2">
-                    <IconUsers size={18} className="text-sky-400" />
-                    <span>Autorisations Spécifiques pour vos Amis</span>
-                  </h4>
-                  <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] mt-0.5">
-                    Réglez pour chaque ami l&apos;autorisation d&apos;accéder à vos statistiques lorsque votre profil est en mode Privé.
-                  </p>
-                </div>
-
-                {sgsFriends.length === 0 ? (
-                  <div className="p-4 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-xs text-gray-400 text-center">
-                    Vous n&apos;avez pas encore d&apos;amis ajoutés sur votre compte.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {sgsFriends.map((f) => (
-                      <div
-                        key={f.friendshipId}
-                        className="p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-between gap-3"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {f.avatarUrl ? (
-                            <img src={f.avatarUrl} alt={f.name} className="w-8 h-8 rounded-lg object-cover border border-white/10" />
-                          ) : (
-                            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-xs font-bold text-white border border-white/10">
-                              {f.name.slice(0, 1).toUpperCase()}
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-white truncate">{f.name}</div>
-                            <div className="text-[10px] text-gray-400 font-mono">{f.riotId}</div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <span className={`text-[11px] font-bold ${f.canViewStats ? "text-emerald-400" : "text-red-400"}`}>
-                            {f.canViewStats ? "Accès autorisé" : "Accès bloqué"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              sounds.playClick();
-                              if (f.friendId) {
-                                updateFriendPermission(f.friendId, !f.canViewStats);
-                              }
-                            }}
-                            className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors duration-300 flex-shrink-0 cursor-pointer ${
-                              f.canViewStats ? "bg-emerald-500" : "bg-gray-600"
-                            }`}
-                            title="Basculer l'autorisation pour cet ami"
-                          >
-                            <span
-                              className={`inline-block h-3.5 w-3.5 sm:h-4 sm:w-4 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
-                                f.canViewStats ? "translate-x-4 sm:translate-x-5" : "translate-x-1"
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {settingsTab === "appearance" && (
             <div className="glass-panel rounded-2xl p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-10">
               {/* Sélecteur de Thème */}
@@ -1575,6 +1643,95 @@ export default function SettingsView({
                 </button>
               </div>
 
+              {/* Forcer mon thème sur les profils visités */}
+              <div className="flex items-center justify-between pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                <div>
+                  <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Forcer mon thème sur les profils visités</h3>
+                  <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                    Conserve votre thème personnalisé même lors de la consultation du profil d&apos;un autre joueur (désactivé par défaut : vous visualisez le thème du propriétaire)
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    sounds.playClick();
+                    setDraftForceMyTheme(!draftForceMyTheme);
+                  }}
+                  className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
+                    draftForceMyTheme ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                      draftForceMyTheme ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                    } shadow-md transition-all duration-300 ${
+                      draftForceMyTheme ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                    }`}
+                  ></span>
+                </button>
+              </div>
+
+              {/* Disable All Animations Toggle */}
+              <div className="flex items-center justify-between pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                <div>
+                  <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Désactiver toutes les animations</h3>
+                  <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                    Supprime l&apos;ensemble des transitions, effets de fondu et animations d&apos;interface pour une réactivité instantanée maximale
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    sounds.playClick();
+                    setDraftDisableAnimations(!draftDisableAnimations);
+                  }}
+                  className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
+                    draftDisableAnimations ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                      draftDisableAnimations ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                    } shadow-md transition-all duration-300 ${
+                      draftDisableAnimations ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                    }`}
+                  ></span>
+                </button>
+              </div>
+
+              {/* Mode Éco (Paramètre enfant sous Désactiver les animations) */}
+              <div className="ml-4 sm:ml-8 pl-4 border-l-2 border-[var(--color-val-red)]/30 flex items-center justify-between pt-3 pb-1">
+                <div>
+                  <h4 className="font-bold text-xs sm:text-base text-[var(--color-text-primary)]">
+                    Mode Économie d&apos;énergie (Mode Éco)
+                  </h4>
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                    Réduit le rendu visuel lourd et met en pause les calculs en arrière-plan pour économiser les ressources CPU/GPU
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    sounds.playClick();
+                    setDraftEcoMode(!draftEcoMode);
+                  }}
+                  className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
+                    draftEcoMode ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 sm:h-4 sm:w-4 transform rounded-full ${
+                      draftEcoMode ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                    } shadow-md transition-all duration-300 ${
+                      draftEcoMode ? "translate-x-4 sm:translate-x-6" : "translate-x-1"
+                    }`}
+                  ></span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ==================== TAB : BANNIÈRES & EFFETS ==================== */}
+          {settingsTab === "cosmetics" && (
+            <div className="glass-panel rounded-2xl p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-10">
               {/* Gestion de la Bannière */}
               <div className="space-y-4 sm:space-y-6">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -2222,6 +2379,7 @@ export default function SettingsView({
                     );
                   })()}
                 </div>
+              </div>
 
                 {/* ==================== PANNEAU DÉTAILLÉ DE SÉLECTION D'EFFETS ==================== */}
                 {editingCosmeticType === "banner" && (
@@ -2437,12 +2595,12 @@ export default function SettingsView({
                     </div>
                   </div>
                 )}
-              </div>
             </div>
           )}
 
+          {/* ==================== TAB : LANGUE ==================== */}
           {settingsTab === "language" && (
-            <div className="glass-panel rounded-2xl p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6">
+            <div className="glass-panel rounded-2xl p-3.5 sm:p-6 md:p-8 space-y-6">
               <div>
                 <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">Langue de l&apos;interface</h3>
                 <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">Sélectionnez votre langue d&apos;affichage préférée.</p>
@@ -2578,7 +2736,7 @@ export default function SettingsView({
             </div>
           )}
 
-          {settingsTab === "legal" && (
+          {(settingsTab === "about" || settingsTab === "legal") && (
             <div className="glass-panel rounded-2xl p-4 sm:p-6 md:p-8 space-y-6">
               <div>
                 <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-[var(--color-val-red)] text-white">SGS Conformité</span>
@@ -2637,11 +2795,9 @@ export default function SettingsView({
                   <p className="text-[11px] text-gray-400">Politique officielle &ldquo;Legal Jibber-Jabber&rdquo;.</p>
                 </button>
               </div>
-            </div>
-          )}
 
-          {settingsTab === "about" && (
-            <div className="glass-panel rounded-2xl p-4 sm:p-6 md:p-8 space-y-6">
+              {/* Section À propos de l'écosystème */}
+              <div className="pt-6 border-t border-[var(--color-border)] space-y-4">
               <div>
                 <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-[var(--color-val-red)] text-white">
                   SGS Écosystème
@@ -2660,38 +2816,52 @@ export default function SettingsView({
                   <div className="flex items-center gap-2">
                     <span className={`w-2.5 h-2.5 rounded-full ${desktop.isDesktop ? "bg-emerald-400 animate-pulse" : "bg-blue-400"}`}></span>
                     <span className="font-bold text-sm text-[var(--color-text-primary)]">
-                      {desktop.isDesktop ? "Application Bureau Windows" : "Version Web / PWA"}
+                      {desktop.isDesktop ? "Application Bureau Windows" : "Version Web & PWA (Cloud)"}
                     </span>
                     <span className="px-2 py-0.2 rounded-md bg-white/10 text-[10px] font-mono font-bold text-gray-300">
                       v{desktop.currentVersion}
                     </span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      sounds.playClick();
-                      desktop.checkForUpdates();
-                    }}
-                    disabled={desktop.updateStatus === "checking" || desktop.updateStatus === "installing"}
-                    className="px-4 py-2 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-accent-sm disabled:opacity-50 flex-shrink-0"
-                  >
-                    {desktop.updateStatus === "checking" ? (
-                      <>
-                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        <span>Vérification...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>🔄</span>
-                        <span>Vérifier les mises à jour</span>
-                      </>
-                    )}
-                  </button>
+                  {desktop.isDesktop ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sounds.playClick();
+                        desktop.checkForUpdates();
+                      }}
+                      disabled={desktop.updateStatus === "checking" || desktop.updateStatus === "installing"}
+                      className="px-4 py-2 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-accent-sm disabled:opacity-50 flex-shrink-0"
+                    >
+                      {desktop.updateStatus === "checking" ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          <span>Vérification...</span>
+                        </>
+                      ) : (
+                        <>
+                          <IconRefresh size={14} />
+                          <span>Vérifier les mises à jour</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-xs flex items-center gap-1.5">
+                      <IconCheck size={14} className="text-emerald-400" />
+                      <span>Version Web Cloud (Synchronisée)</span>
+                    </span>
+                  )}
                 </div>
 
-                {/* Résultat du contrôle de mise à jour */}
-                {desktop.statusMessage && (
+                {!desktop.isDesktop && (
+                  <div className="p-3 rounded-xl bg-blue-950/20 border border-blue-500/20 text-xs text-blue-200/80 flex items-center gap-2">
+                    <IconInfo size={16} className="text-blue-400 flex-shrink-0" />
+                    <span>Vous utilisez la version Web. Les mises à jour s&apos;appliquent automatiquement en direct sans aucune installation requise.</span>
+                  </div>
+                )}
+
+                {/* Résultat du contrôle de mise à jour (Desktop uniquement) */}
+                {desktop.isDesktop && desktop.statusMessage && (
                   <div
                     className={`p-3.5 rounded-xl text-xs font-semibold flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border ${
                       desktop.updateStatus === "up-to-date"
@@ -2737,6 +2907,7 @@ export default function SettingsView({
                 )}
               </div>
             </div>
+          </div>
           )}
 
           {/* Action Buttons */}

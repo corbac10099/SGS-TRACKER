@@ -945,3 +945,13 @@ html.disable-animations *::after {
   }
 }
 
+/* === Fenêtre Overlay In-Game Transparente === */
+html:has(.overlay-window-root),
+body:has(.overlay-window-root) {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  overflow: hidden !important;
+}
+
+

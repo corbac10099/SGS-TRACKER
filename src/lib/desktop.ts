@@ -67,6 +67,153 @@ export async function openInExternalBrowser(url: string): Promise<boolean> {
 }
 
 /**
+ * Récupère la version native de l'application depuis le package Tauri.
+ */
+export async function getAppVersion(): Promise<string> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) {
+    return "1.0.0";
+  }
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      return await tauri.core.invoke("get_app_version");
+    }
+  } catch {}
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      return await internals.invoke("get_app_version");
+    }
+  } catch {}
+  return "1.0.0";
+}
+
+/**
+ * Déclenche le déplacement fluide natif de la fenêtre à la souris.
+ */
+export async function startDragWindow(): Promise<void> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) return;
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      await tauri.core.invoke("start_drag_window");
+      return;
+    }
+  } catch {}
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      await internals.invoke("start_drag_window");
+    }
+  } catch {}
+}
+
+/**
+ * Modifie la taille de la fenêtre d'overlay en pixels logiques.
+ */
+export async function setOverlaySize(width: number, height: number): Promise<void> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) return;
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      await tauri.core.invoke("set_overlay_size", { width, height });
+      return;
+    }
+  } catch {}
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      await internals.invoke("set_overlay_size", { width, height });
+    }
+  } catch {}
+}
+
+/**
+ * Déplace la fenêtre d'overlay selon un delta x et y.
+ */
+export async function moveOverlayWindow(deltaX: number, deltaY: number): Promise<void> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) return;
+  const payload = { deltaX, deltaY, delta_x: deltaX, delta_y: deltaY };
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      await tauri.core.invoke("move_overlay_window", payload);
+      return;
+    }
+  } catch {}
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      await internals.invoke("move_overlay_window", payload);
+    }
+  } catch {}
+}
+
+/**
+ * Récupère les coordonnées (x, y) de la fenêtre d'overlay en pixels logiques.
+ */
+export async function getOverlayPosition(): Promise<[number, number] | null> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) return null;
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      return await tauri.core.invoke("get_overlay_position");
+    }
+  } catch {}
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      return await internals.invoke("get_overlay_position");
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Définit la position absolue (x, y) de la fenêtre d'overlay en pixels logiques.
+ */
+export async function setOverlayPosition(x: number, y: number): Promise<void> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) return;
+  const payload = { x, y };
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      await tauri.core.invoke("set_overlay_position", payload);
+      return;
+    }
+  } catch {}
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      await internals.invoke("set_overlay_position", payload);
+    }
+  } catch {}
+}
+
+/**
+ * Active ou désactive la traversée des clics souris (click-through) sur l'overlay.
+ * Si activé, la souris et les tirs traversent directement vers le jeu Valorant.
+ */
+export async function setOverlayClickThrough(enabled: boolean): Promise<void> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) return;
+  const payload = { enabled };
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      await tauri.core.invoke("set_overlay_click_through", payload);
+      return;
+    }
+  } catch {}
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      await internals.invoke("set_overlay_click_through", payload);
+    }
+  } catch {}
+}
+
+
+/**
  * Retourne la couleur de fond hexadécimale associée à un thème utilisateur.
  */
 export function getThemeBackgroundColor(theme: string | null | undefined): string {
@@ -164,32 +311,54 @@ export async function checkForDesktopUpdate(): Promise<DesktopUpdateInfo> {
 }
 
 /**
- * Télécharge et applique la mise à jour puis redémarre automatiquement l'application.
+ * Télécharge et applique la mise à jour puis lance l'installation de la nouvelle version.
  */
-export async function installDesktopUpdate(): Promise<{ success: boolean; message: string }> {
-  if (typeof window === "undefined" || !isTauriEnvironment()) {
-    return { success: false, message: "Non disponible hors de l'application de bureau." };
+export async function installDesktopUpdate(downloadUrl?: string): Promise<{ success: boolean; message: string }> {
+  if (typeof window === "undefined") {
+    return { success: false, message: "Environnement invalide." };
   }
 
-  try {
-    const tauri = (window as any).__TAURI__;
-    if (tauri?.core?.invoke) {
-      const msg = await tauri.core.invoke("install_app_update");
-      return { success: true, message: msg || "Mise à jour en cours d'installation..." };
+  // Si on est dans Tauri Desktop
+  if (isTauriEnvironment()) {
+    const targetUrl = downloadUrl || "/installers/SGS-Tracker-Setup.exe";
+
+    // 1. Mise à jour transparente en interne (in-place silent update)
+    try {
+      const tauri = (window as any).__TAURI__;
+      if (tauri?.core?.invoke) {
+        const msg = await tauri.core.invoke("apply_in_place_update", { url: targetUrl });
+        return { success: true, message: msg || "Mise à jour interne appliquée ! Redémarrage en cours..." };
+      }
+    } catch (e: any) {
+      console.warn("[Tauri] Erreur apply_in_place_update:", e);
     }
-  } catch (e: any) {
-    console.error("[Tauri] Erreur install_app_update:", e);
-    return { success: false, message: e?.message || String(e) };
+
+    try {
+      const internals = (window as any).__TAURI_INTERNALS__;
+      if (internals?.invoke) {
+        const msg = await internals.invoke("apply_in_place_update", { url: targetUrl });
+        return { success: true, message: msg || "Mise à jour interne appliquée ! Redémarrage en cours..." };
+      }
+    } catch (e: any) {}
+
+    // 2. Fallback vers l'updater natif de Tauri
+    try {
+      const tauri = (window as any).__TAURI__;
+      if (tauri?.core?.invoke) {
+        const msg = await tauri.core.invoke("install_app_update");
+        return { success: true, message: msg || "Mise à jour en cours d'installation..." };
+      }
+    } catch (e: any) {
+      console.warn("[Tauri] Fallback install_app_update:", e);
+    }
   }
 
-  try {
-    const internals = (window as any).__TAURI_INTERNALS__;
-    if (internals?.invoke) {
-      const msg = await internals.invoke("install_app_update");
-      return { success: true, message: msg || "Mise à jour en cours d'installation..." };
-    }
-  } catch (e: any) {
-    return { success: false, message: e?.message || String(e) };
+  // Si hors application de bureau ou fallback : ouvrir le lien de téléchargement direct
+  if (downloadUrl) {
+    try {
+      window.open(downloadUrl, "_blank");
+      return { success: true, message: "Téléchargement du nouvel installeur démarré dans votre navigateur." };
+    } catch (e) {}
   }
 
   return { success: false, message: "Impossible de joindre le service de mise à jour." };

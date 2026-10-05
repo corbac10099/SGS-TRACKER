@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "SGS-Tracker",
+  "productName": "SGS-Tracker (Local)",
   "version": "1.0.0",
-  "identifier": "com.sgs.tracker",
+  "identifier": "com.sgs.tracker.local",
   "build": {
     "frontendDist": "ui",
     "devUrl": "http://localhost:3000",
@@ -24,6 +24,22 @@
         "fullscreen": false,
         "theme": "Dark",
         "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SGS-Tracker-Desktop/1.0.0 (Tauri)"
+      },
+      {
+        "label": "overlay",
+        "title": "SGS-Tracker In-Game Overlay",
+        "url": "overlay.html",
+        "width": 780,
+        "height": 490,
+        "x": 30,
+        "y": 30,
+        "resizable": true,
+        "alwaysOnTop": true,
+        "transparent": true,
+        "decorations": false,
+        "visible": false,
+        "skipTaskbar": true,
+        "shadow": false
       }
     ],
     "security": {
@@ -59,7 +75,8 @@
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCOUJDN0MxN0JFODM0ODIKUldTQ05PaDd3Y2ViYTJ6YkkzaHZJWmphU0w4RzUzcG1Hd0lRejQ4RUw4dHVab0xPelBCdjlRZmgK",
       "endpoints": [
         "http://localhost:8000/api/tracker/update-manifest?target={{target}}&current_version={{current_version}}"
-      ]
+      ],
+      "dangerousInsecureTransportProtocol": true
     }
   }
 }

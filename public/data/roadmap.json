@@ -1,0 +1,38 @@
+[
+  {
+    "id": "rm-1",
+    "title": "Optimisation Overlay In-Game",
+    "category": "Desktop App",
+    "status": "in-progress",
+    "priority": "Haute",
+    "eta": "Octobre 2026",
+    "description": "Overlay ultra-léger DirectX avec affichage des statistiques d'adversaires au chargement de la partie."
+  },
+  {
+    "id": "rm-2",
+    "title": "Mode Replay 2D Interactif",
+    "category": "Tracker Web",
+    "status": "planned",
+    "priority": "Moyenne",
+    "eta": "Novembre 2026",
+    "description": "Visualisation du cheminement des joueurs manche par manche sur la minimap 2D."
+  },
+  {
+    "id": "rm-3",
+    "title": "Système de Tournois Communautaires",
+    "category": "SGS Hub",
+    "status": "idea",
+    "priority": "Basse",
+    "eta": "Q1 2027",
+    "description": "Création d'arbres de tournois automatisés et suivi des classements en temps réel."
+  },
+  {
+    "id": "rm-4",
+    "title": "Coach Vocal IA Avancé",
+    "category": "Intelligence Artificielle",
+    "status": "in-progress",
+    "priority": "Haute",
+    "eta": "Octobre 2026",
+    "description": "Conseils tactiques personnalisés en fin de manche basés sur l'économie et les positions."
+  }
+]

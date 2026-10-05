@@ -62,7 +62,12 @@ export async function PUT(
           data: {
             uuid: body.uuid,
             name: body.name,
-            splashUrl: body.splashUrl,
+            splashUrl: body.splashUrl !== undefined ? body.splashUrl : undefined,
+            listViewIcon: body.listViewIcon !== undefined ? body.listViewIcon : undefined,
+            displayIcon: body.displayIcon !== undefined ? body.displayIcon : undefined,
+            tacticalType: body.tacticalType !== undefined ? body.tacticalType : undefined,
+            accent: body.accent !== undefined ? body.accent : undefined,
+            bgGradient: body.bgGradient !== undefined ? body.bgGradient : undefined,
             isDraft: body.isDraft,
           }
         });

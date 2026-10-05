@@ -4,49 +4,11 @@ import {
   WeaponPerformanceStat,
   AgentPerformanceStat,
   MatchTeamPlayer,
+  MatchDuoTeam,
 } from "./types";
 import { resolveAgentDisplay } from "./agentsCatalog";
 import { resolveGameMode } from "./gameModes";
 import { OFFICIAL_WEAPONS } from "./mock";
-
-const UUID_TO_AGENT_MAP: Record<string, string> = {
-  "add6443a-41bd-e414-f6ad-e58d267f4e95": "Jett",
-  "a3bfb853-43b2-7238-a4f1-ad90e9e46bcc": "Reyna",
-  "f94c3b30-42be-e959-889c-5aa313dba261": "Raze",
-  "8e253930-4c05-31dd-1b6c-968525494517": "Omen",
-  "1dbf2edd-4729-0984-3115-daa5eed44993": "Clove",
-  "320b2a48-4d9b-a075-30f1-1f93a9b638fa": "Sova",
-  "ded3520f-4264-bfed-162d-b080e2abccf9": "Sova",
-  "117ed9e3-49f3-6512-3ccf-0cada7e3823b": "Cypher",
-  "1179a7fd-434f-492b-8234-54522e337923": "Cypher",
-  "1e58de9c-4950-5125-93e9-a0aee9f98746": "Killjoy",
-  "0e38b510-41a8-5780-5e8f-568b2a4f2d6c": "Iso",
-  "115d823a-4e6f-eed9-9d3a-4cd3a9ac5716": "Iso",
-  "707eab51-4836-f488-046a-cda6bf494859": "Viper",
-  "22697a3d-45bf-8dd7-4fec-84a9e28c69d7": "Chamber",
-  "e370fa57-4757-3604-3648-499e1f642d3f": "Gekko",
-  "dade69b4-4f5a-8528-247b-219e5a1facd6": "Fade",
-  "5f8d3a7f-467b-97f3-062c-13acf203c006": "Breach",
-  "5f8d3a7f-467b-97f3-062c-edd4003d00ad": "Breach",
-  "cc8b64c8-4b25-4ff9-6e7f-37b4da43d235": "Deadlock",
-  "cc8e01d3-47f9-70e4-9294-4abee08ea256": "Deadlock",
-  "eb93336a-449b-9c1b-0a54-a891f7921d69": "Phoenix",
-  "eb9333ab-4054-7b4e-4e94-c4a31e090bf8": "Phoenix",
-  "569fdd95-4d10-43ab-ca70-79becc718b46": "Sage",
-  "9f0d8ba9-4140-b941-57d3-a7ad57c6b417": "Brimstone",
-  "6f2a04ca-43e0-be17-7f36-b3908627744d": "Skye",
-  "7f94d92c-4234-0a36-9646-3a87eb8b5c89": "Yoru",
-  "41fb69c1-4189-7b37-f117-bcaf1e96f1bf": "Astra",
-  "601dbbe7-43ce-be57-2a40-4abd24953621": "KAY/O",
-  "bb2a4828-46eb-8cd1-e765-15848195d751": "Neon",
-  "95b78ed7-4637-86d9-7e41-71ba8c293152": "Harbor",
-  "efba5359-4016-a1e5-7626-b1ae76895940": "Vyse",
-  "b5bb382d-4264-bfeb-a6d9-4886616428f8": "Vyse",
-  "b444168c-4e35-8076-db47-ef9bf368f384": "Tejo",
-  "7c8a4701-4de6-9355-b254-e09bc2a34b72": "Miks",
-  "92eeef5d-43b5-1d4a-8d03-b3927a09034b": "Veto",
-  "df1cb487-4902-002e-5c17-d28e83e78588": "Waylay",
-};
 
 const MAP_ID_MAP: Record<string, string> = {
   "/game/maps/ascent/ascent": "Ascent",
@@ -84,13 +46,30 @@ export function parseRiotMatchData(
     const me = match.players.find((p: any) => p.puuid === puuid);
     if (!me) return;
 
-    if (me.competitiveTier && me.competitiveTier > 0) {
+    const gameModeInfo = resolveGameMode(match.matchInfo?.queueId || match.matchInfo?.gameMode);
+    const strategy = gameModeInfo.parsingStrategy || "standard";
+    const isDeathmatch = strategy === "ffa";
+    const isDuos = strategy === "duos" || strategy === "multi-team" || (match.teams && match.teams.length > 2);
+    const isGauntlet =
+      gameModeInfo.id === "gauntlet" ||
+      isDuos ||
+      String(match.matchInfo?.gameMode || "").toLowerCase().includes("abilitydraft") ||
+      String(match.matchInfo?.gameMode || "").toLowerCase().includes("gauntlet");
+
+    if (gameModeInfo.isRanked && me.competitiveTier && me.competitiveTier > 0) {
       latestRankTier = me.competitiveTier;
     }
 
+    const defaultAgentIcon = isGauntlet
+      ? "https://media.valorant-api.com/agents/773f0c78-4486-752b-68ef-4585d7f4b848/displayicon.png"
+      : "https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png";
+
     const charId = (me.characterId || "").toLowerCase();
-    const agentName = UUID_TO_AGENT_MAP[charId] || "";
-    const agent = resolveAgentDisplay(agentName);
+    let agentDisp = resolveAgentDisplay(charId);
+    if ((!agentDisp.isConfigured || agentDisp.name === "Inconnu") && isGauntlet) {
+      agentDisp = resolveAgentDisplay("Robo-Agent");
+    }
+    const agentName = agentDisp.name || (isGauntlet ? "Robo-Agent" : "Inconnu");
 
     const myTeam = match.teams?.find((t: any) => t.teamId === me.teamId);
     const enemyTeam = match.teams?.find((t: any) => t.teamId !== me.teamId);
@@ -99,9 +78,6 @@ export function parseRiotMatchData(
     const kills = me.stats?.kills || 0;
     const deaths = me.stats?.deaths || 0;
     const assists = me.stats?.assists || 0;
-
-    const gameModeInfo = resolveGameMode(match.matchInfo?.queueId);
-    const isDeathmatch = gameModeInfo.id === "deathmatch";
 
     const roundsPlayed = isDeathmatch
       ? 0
@@ -118,17 +94,22 @@ export function parseRiotMatchData(
     const parsedMyTeam: MatchTeamPlayer[] = [];
     const parsedEnemyTeam: MatchTeamPlayer[] = [];
 
-    const allParsedPlayers: MatchTeamPlayer[] = match.players.map((p: any) => {
+    const allParsedPlayers: MatchTeamPlayer[] = match.players.map((p: any, pIdx: number) => {
       const pCharId = (p.characterId || "").toLowerCase();
-      const pAgentName = UUID_TO_AGENT_MAP[pCharId] || "";
-      const pAgent = resolveAgentDisplay(pAgentName);
+      let pAgentDisp = resolveAgentDisplay(pCharId);
+      if ((!pAgentDisp.isConfigured || pAgentDisp.name === "Inconnu") && isGauntlet) {
+        pAgentDisp = resolveAgentDisplay("Robo-Agent");
+      }
       const isMe = p.puuid === puuid;
+      const resolvedIcon = pAgentDisp.iconUrl || defaultAgentIcon;
+      const resolvedName = p.gameName || p.name || p.riotIdGameName || (isMe ? "Vous" : `Joueur ${pIdx + 1}`);
+
       return {
-        puuid: p.puuid,
-        name: p.gameName || "Agent",
-        tag: p.tagLine || "EU1",
-        agent: pAgentName || "Inconnu",
-        agentIcon: pAgent.iconUrl,
+        puuid: p.puuid || `p-${pIdx}`,
+        name: resolvedName,
+        tag: p.tagLine || p.tag || p.riotIdTagLine || "EU1",
+        agent: pAgentDisp.name || (isGauntlet ? "Robo-Agent" : (p.characterId ? "Agent" : "Inconnu")),
+        agentIcon: resolvedIcon,
         score: p.stats?.score || 0,
         acs: Math.round((p.stats?.score || 0) / Math.max(1, roundsPlayed || 1)),
         kills: p.stats?.kills || 0,
@@ -138,6 +119,8 @@ export function parseRiotMatchData(
       };
     });
 
+    let duoTeams: MatchDuoTeam[] | undefined;
+
     if (isDeathmatch) {
       // En Deathmatch (FFA), trier tous les joueurs par frags
       allParsedPlayers.sort((a, b) => b.kills - a.kills || (b.score || 0) - (a.score || 0));
@@ -146,6 +129,38 @@ export function parseRiotMatchData(
       scoreStr = `#${myRank > 0 ? myRank : 1} (${kills} frags)`;
       // Tous les joueurs sont placés dans une seule liste pour le leaderboard
       parsedMyTeam.push(...allParsedPlayers);
+    } else if (isDuos) {
+      // En Gauntlet / Mode Duos (8 équipes de 2) ou multi-team
+      const teamGroups: Record<string, MatchDuoTeam> = {};
+      match.players.forEach((p: any, pIdx: number) => {
+        // Grouper par teamId si présent, sinon par blocs de 2 (fallback Gauntlet)
+        const tId = String(p.teamId || `team-${Math.floor(pIdx / 2) + 1}`);
+        if (!teamGroups[tId]) {
+          teamGroups[tId] = { teamId: tId, kills: 0, score: 0, players: [] };
+        }
+        const tPlayer = allParsedPlayers[pIdx];
+        teamGroups[tId].kills += tPlayer.kills;
+        teamGroups[tId].score += (tPlayer.score || 0);
+        teamGroups[tId].players.push(tPlayer);
+      });
+
+      const sortedDuos = Object.values(teamGroups).sort((a, b) => b.kills - a.kills || b.score - a.score);
+      const myDuoRank = sortedDuos.findIndex((d) => d.teamId === String(me.teamId)) + 1;
+      isMatchWon = myDuoRank === 1;
+      scoreStr = `#${myDuoRank > 0 ? myDuoRank : 1} (${kills} frags)`;
+
+      const myDuo = teamGroups[String(me.teamId)];
+      if (myDuo) {
+        parsedMyTeam.push(...myDuo.players);
+      }
+      sortedDuos.forEach((d, dIdx) => {
+        d.rank = dIdx + 1;
+        d.isMyTeam = d.teamId === String(me.teamId);
+        if (d.teamId !== String(me.teamId)) {
+          parsedEnemyTeam.push(...d.players);
+        }
+      });
+      duoTeams = sortedDuos;
     } else {
       const myRoundsWon = myTeam?.roundsWon ?? (won ? 13 : 8);
       const enemyRoundsWon = enemyTeam?.roundsWon ?? (won ? 8 : 13);
@@ -161,15 +176,25 @@ export function parseRiotMatchData(
       });
     }
 
-    if (!agentPlayCount[agentName]) {
-      agentPlayCount[agentName] = { games: 0, wins: 0, kills: 0, deaths: 0, assists: 0, minutes: 0 };
+    const shouldCountAgentStats =
+      gameModeInfo.trackAgentStats !== false &&
+      !isDeathmatch &&
+      !isGauntlet &&
+      agentName !== "Robo-Agent" &&
+      agentName !== "AbilityDraftAgent" &&
+      agentName !== "Inconnu";
+
+    if (shouldCountAgentStats) {
+      if (!agentPlayCount[agentName]) {
+        agentPlayCount[agentName] = { games: 0, wins: 0, kills: 0, deaths: 0, assists: 0, minutes: 0 };
+      }
+      agentPlayCount[agentName].games++;
+      if (isMatchWon) agentPlayCount[agentName].wins++;
+      agentPlayCount[agentName].kills += kills;
+      agentPlayCount[agentName].deaths += deaths;
+      agentPlayCount[agentName].assists += assists;
+      agentPlayCount[agentName].minutes += Math.round((match.matchInfo?.gameLengthMillis || 1800000) / 60000);
     }
-    agentPlayCount[agentName].games++;
-    if (isMatchWon) agentPlayCount[agentName].wins++;
-    agentPlayCount[agentName].kills += kills;
-    agentPlayCount[agentName].deaths += deaths;
-    agentPlayCount[agentName].assists += assists;
-    agentPlayCount[agentName].minutes += Math.round((match.matchInfo?.gameLengthMillis || 1800000) / 60000);
 
     const hs = me.stats?.headshots || Math.floor(kills * 0.8);
     const bs = me.stats?.bodyshots || Math.floor(kills * 1.8);
@@ -179,13 +204,20 @@ export function parseRiotMatchData(
     const durMins = Math.floor(gameDurationMs / 60000);
     const durSecs = Math.floor((gameDurationMs % 60000) / 1000);
 
+    // Détection robuste de la date
+    const matchDateStr = match.matchInfo?.gameStartMillis 
+      ? new Date(match.matchInfo.gameStartMillis).toISOString()
+      : (match.matchInfo?.gameStart ? new Date(match.matchInfo.gameStart).toISOString() : new Date().toISOString());
+
     matchHistory.push({
       matchId: match.matchInfo?.matchId || `match-${idx}`,
       mode: gameModeInfo.id,
       modeIcon: gameModeInfo.icon,
       map: mapName,
       agent: agentName || "Inconnu",
-      agentIcon: agent.iconUrl,
+      agentIcon: agentDisp.iconUrl || (charId ? `https://media.valorant-api.com/agents/${charId}/displayicon.png` : defaultAgentIcon),
+      isRanked: gameModeInfo.isRanked,
+      teamFormat: gameModeInfo.teamFormat || "standard",
       won: isMatchWon,
       score: scoreStr,
       kills,
@@ -201,9 +233,10 @@ export function parseRiotMatchData(
       firstBloods: 2,
       roundsPlayed,
       duration: `${durMins}m ${durSecs}s`,
-      date: new Date(match.matchInfo?.gameStartMillis || Date.now() - idx * 3600000).toISOString(),
+      date: matchDateStr,
       myTeam: parsedMyTeam,
       enemyTeam: parsedEnemyTeam,
+      allTeams: duoTeams,
       timeline: [],
       duels: [],
     });

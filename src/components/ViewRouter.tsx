@@ -53,6 +53,14 @@ const DynamicNewsView = dynamic(
   }
 );
 
+const DynamicDownloadAppView = dynamic(
+  () => import("@/components/DownloadAppViewComponent"),
+  {
+    ssr: false,
+    loading: () => <ViewLoadingSkeleton message="Chargement du Téléchargement..." />,
+  }
+);
+
 export interface ViewRouterProps {
   nav: {
     settingsOpen: boolean;
@@ -60,10 +68,12 @@ export interface ViewRouterProps {
     lobbiesView: boolean;
     newsView: boolean;
     agentsView: boolean;
+    downloadView?: boolean;
     targetNewsId?: string | null;
     setSettingsOpen: (v: boolean) => void;
     setLeaderboardView: (v: boolean) => void;
     setLobbiesView: (v: boolean) => void;
+    setDownloadView?: (v: boolean) => void;
     pushUrl: (opts: any) => void;
   };
   settings: any;
@@ -93,7 +103,10 @@ export default function ViewRouter({
     return (
       <div key="settings" className="animate-page-in w-full">
         <DynamicSettingsView
-          onClose={() => nav.setSettingsOpen(false)}
+          onClose={() => {
+            nav.setSettingsOpen(false);
+            if (nav.setDownloadView) nav.setDownloadView(false);
+          }}
           smartRating={settings.smartRating}
           setSmartRating={settings.setSmartRating}
           theme={settings.theme}
@@ -130,6 +143,8 @@ export default function ViewRouter({
           setStreamerMode={settings.setStreamerMode}
           disableAnimations={settings.disableAnimations}
           setDisableAnimations={settings.setDisableAnimations}
+          ecoMode={settings.ecoMode}
+          setEcoMode={settings.setEcoMode}
           forceMyTheme={settings.forceMyTheme}
           setForceMyTheme={settings.setForceMyTheme}
           dndEnabled={settings.dndEnabled}
@@ -144,6 +159,14 @@ export default function ViewRouter({
           setEquippedBannerBorder={settings.setEquippedBannerBorder}
           trackerLevel={trackerLevel}
         />
+      </div>
+    );
+  }
+
+  if (nav.downloadView) {
+    return (
+      <div key="download" className="animate-page-in w-full">
+        <DynamicDownloadAppView onClose={() => nav.setDownloadView && nav.setDownloadView(false)} />
       </div>
     );
   }

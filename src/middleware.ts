@@ -5,6 +5,12 @@ export function middleware(req: NextRequest) {
   const host = req.headers.get("host") || "";
   const pathname = url.pathname;
 
+  // Réécrire la requête /overlay.html vers la route dédiée /overlay
+  if (pathname === "/overlay.html") {
+    url.pathname = "/overlay";
+    return NextResponse.rewrite(url);
+  }
+
   // Ignorer les fichiers statiques et les routes API internes
   if (
     pathname.startsWith("/_next") ||

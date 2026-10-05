@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
+import Link from "next/link";
 import { signOut } from "next-auth/react";
 import NotificationsDropdown from "./NotificationsDropdown";
 import FriendsDropdown from "./FriendsDropdown";
@@ -33,11 +34,14 @@ export interface HeaderProps {
   newsView: boolean;
   agentsView: boolean;
   lobbiesView?: boolean;
+  downloadView?: boolean;
+  onOpenLiveMatch?: () => void;
   settingsOpen: boolean;
   onGoHome: () => void;
   onOpenNews: (newsId?: string) => void;
   onOpenAgents: () => void;
   onOpenLobbies?: () => void;
+  onOpenDownload?: () => void;
   onOpenHotkeys?: () => void;
   onToggleSettings: () => void;
   onOpenLeaderboard?: () => void;
@@ -72,11 +76,14 @@ export default function Header({
   newsView,
   agentsView,
   lobbiesView = false,
+  downloadView = false,
+  onOpenLiveMatch,
   settingsOpen,
   onGoHome,
   onOpenNews,
   onOpenAgents,
   onOpenLobbies,
+  onOpenDownload,
   onOpenHotkeys,
   onToggleSettings,
   onOpenLeaderboard,
@@ -516,10 +523,46 @@ export default function Header({
             <FriendsDropdown onSelectPlayer={onSelectFavorite} />
           </div>
 
-          {/* ── Capsule 1: LiveClock + Notifications ── */}
-          <div className="hidden md:flex items-center gap-0.5 p-1 rounded-2xl bg-black/30 border border-white/10 backdrop-blur-md">
+          {/* ── Capsule 1: LiveClock + Bouton Télécharger l'App + Notifications ── */}
+          <div className="hidden md:flex items-center gap-1.5 p-1 rounded-2xl bg-black/30 border border-white/10 backdrop-blur-md">
             <LiveClock />
+            
             <div className="w-px h-4 bg-white/10" />
+
+            {/* Bouton Télécharger l'Application Desktop (masqué quand on est déjà dans l'app de bureau) */}
+            {!desktop.isDesktop && (
+              <>
+                <Link
+                  href="/download"
+                  onClick={(e) => {
+                    if (onOpenDownload) {
+                      e.preventDefault();
+                      sounds.playTabSwitch();
+                      onOpenDownload();
+                    }
+                  }}
+                  onMouseEnter={() => sounds.playHover()}
+                  title="Télécharger l'Application Desktop (Windows .exe)"
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold cursor-pointer select-none transition-all duration-200 active:scale-95 whitespace-nowrap group ${
+                    downloadView
+                      ? "bg-[var(--color-val-red)] text-white shadow-accent-md"
+                      : "bg-white/5 hover:bg-[var(--color-val-red)]/20 text-white/90 hover:text-white border border-white/5 hover:border-[var(--color-val-red)]/40"
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5 text-[var(--color-val-red)] group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span>App Desktop</span>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-[var(--color-val-red)]/20 text-[var(--color-val-red)] border border-[var(--color-val-red)]/30 font-black">
+                    .EXE
+                  </span>
+                </Link>
+                <div className="w-px h-4 bg-white/10" />
+              </>
+            )}
+
             <NotificationsDropdown
               compact={true}
               onNavigateToNews={onOpenNews}
@@ -549,7 +592,7 @@ export default function Header({
             >
               <IconSettings size={15} className={settingsOpen ? "animate-spin-slow" : ""} />
               <span>Paramètres</span>
-              {desktop.updateStatus === "update-available" && (
+              {desktop.isDesktop && desktop.updateStatus === "update-available" && (
                 <span
                   className="px-1.5 py-0.2 bg-emerald-500 text-black text-[9px] font-black rounded-full shadow-sm animate-pulse ml-0.5"
                   title="Nouvelle mise à jour disponible !"

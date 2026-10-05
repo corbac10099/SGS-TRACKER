@@ -7,5 +7,16 @@ allow = [
   "open_browser",
   "set_titlebar_color",
   "check_app_update",
-  "install_app_update"
+  "install_app_update",
+  "apply_in_place_update",
+  "download_and_launch_installer",
+  "register_overlay_shortcut",
+  "toggle_overlay",
+  "start_drag_window",
+  "set_overlay_size",
+  "move_overlay_window",
+  "set_overlay_position",
+  "get_overlay_position",
+  "set_overlay_click_through",
+  "get_app_version"
 ]

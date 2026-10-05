@@ -161,16 +161,27 @@ export const PlayerRow = React.memo(function PlayerRow({ player, isWinnerTeam }:
           : "glass-pill border border-transparent hover:border-[var(--color-border)]"
       }`}
     >
-      <img referrerPolicy="no-referrer" src={player.agentIcon} className="w-10 h-10 rounded-lg shadow-sm" alt={player.agent} loading="lazy" />
-      {/* Rang du joueur */}
       <img
         referrerPolicy="no-referrer"
-        src={pRank.icon}
-        alt={pRank.name}
-        title={pRank.name}
-        className="w-7 h-7 object-contain flex-shrink-0 drop-shadow-sm cursor-help"
+        src={player.agentIcon || "https://media.valorant-api.com/agents/773f0c78-4486-752b-68ef-4585d7f4b848/displayicon.png"}
+        onError={(e) => {
+          e.currentTarget.src = "https://media.valorant-api.com/agents/773f0c78-4486-752b-68ef-4585d7f4b848/displayicon.png";
+        }}
+        className="w-10 h-10 rounded-lg shadow-sm object-cover"
+        alt={player.agent || "Agent"}
         loading="lazy"
       />
+      {/* Rang du joueur */}
+      {pRank.icon && pRank.name !== "Non classé" ? (
+        <img
+          referrerPolicy="no-referrer"
+          src={pRank.icon}
+          alt={pRank.name}
+          title={pRank.name}
+          className="w-7 h-7 object-contain flex-shrink-0 drop-shadow-sm cursor-help"
+          loading="lazy"
+        />
+      ) : null}
       <div className="flex-1 min-w-0">
         <div
           className={`font-bold text-sm truncate ${
@@ -436,6 +447,66 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
                 .map((p: any, pIdx: number) => (
                   <PlayerRow key={p.puuid} player={p} isWinnerTeam={pIdx === 0} />
                 ))}
+            </div>
+          </div>
+        ) : (match.teamFormat === "duos" || (match.allTeams && match.allTeams.length > 2)) ? (
+          /* Multi-équipes / Mode Duos (Gauntlet : 8 duos) */
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-3 py-2 bg-[var(--color-surface-hover)] border border-[var(--color-border)] rounded-xl">
+              <span className="text-[11px] font-black uppercase tracking-wider text-[var(--color-text-primary)]">
+                Classement par Équipe ({match.allTeams?.length || 8} Duos)
+              </span>
+              <span className="text-[10px] text-[var(--color-val-red)] font-black uppercase tracking-wider">
+                Format {modeInfo.displayName || "Duos"}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {match.allTeams?.map((team: any, tIdx: number) => {
+                const isTop1 = (team.rank || tIdx + 1) === 1;
+                const isMy = team.isMyTeam || team.players?.some((p: any) => p.isMe);
+                return (
+                  <div
+                    key={team.teamId || tIdx}
+                    className={`rounded-2xl p-3 border transition-all ${
+                      isMy
+                        ? "bg-cyan-500/5 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
+                        : isTop1
+                        ? "bg-emerald-500/5 border-emerald-500/30"
+                        : "bg-[var(--color-surface)] border-[var(--color-border)]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-[var(--color-border)]/40">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-xs font-black px-2 py-0.5 rounded-lg ${
+                            isTop1
+                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                              : "bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)]"
+                          }`}
+                        >
+                          #{team.rank || tIdx + 1}
+                        </span>
+                        <span className="text-xs font-bold text-[var(--color-text-primary)]">
+                          {team.teamName || `Duo ${team.rank || tIdx + 1}`}
+                        </span>
+                        {isMy && (
+                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
+                            Votre Équipe
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs font-bold text-[var(--color-text-secondary)]">
+                        {team.kills} Frags • {team.score} Pts
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {team.players?.map((p: any) => (
+                        <PlayerRow key={p.puuid} player={p} isWinnerTeam={isTop1} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : (

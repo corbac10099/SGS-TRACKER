@@ -249,6 +249,22 @@ export const BASE_AGENTS_CATALOG: Record<string, AgentCatalogEntry> = {
     iconUrl: "https://media.valorant-api.com/agents/df1cb487-4902-002e-5c17-d28e83e78588/displayicon.png",
     fullPortrait: "https://media.valorant-api.com/agents/df1cb487-4902-002e-5c17-d28e83e78588/fullportrait.png",
   },
+  "Robo-Agent": {
+    name: "Robo-Agent",
+    determinant: "Robo-Agent",
+    role: "Flex",
+    uuid: "773f0c78-4486-752b-68ef-4585d7f4b848",
+    iconUrl: "https://media.valorant-api.com/agents/773f0c78-4486-752b-68ef-4585d7f4b848/displayicon.png",
+    fullPortrait: "https://media.valorant-api.com/agents/773f0c78-4486-752b-68ef-4585d7f4b848/displayicon.png",
+  },
+  AbilityDraftAgent: {
+    name: "Robo-Agent",
+    determinant: "AbilityDraftAgent",
+    role: "Flex",
+    uuid: "773f0c78-4486-752b-68ef-4585d7f4b848",
+    iconUrl: "https://media.valorant-api.com/agents/773f0c78-4486-752b-68ef-4585d7f4b848/displayicon.png",
+    fullPortrait: "https://media.valorant-api.com/agents/773f0c78-4486-752b-68ef-4585d7f4b848/displayicon.png",
+  },
 };
 
 /**
@@ -306,14 +322,24 @@ export function getAgentInfo(
     }
   }
 
+  // Alias spéciaux pour le mode Gauntlet: Glitched / Draft de sorts
+  if (
+    target.includes("abilitydraft") ||
+    target.includes("roboagent") ||
+    target.includes("gauntlet") ||
+    target === "773f0c784486752b68ef4585d7f4b848" ||
+    target === "773f0c78-4486-752b-68ef-4585d7f4b848"
+  ) {
+    return BASE_AGENTS_CATALOG["Robo-Agent"];
+  }
+
   // 3. Si l'agent n'est pas configuré : renvoie strictement null (aucun fallback erroné)
   return null;
 }
 
 /**
  * Résout les métadonnées d'affichage pour un agent.
- * Si l'agent n'est pas configuré, renvoie une icône vide "" pour éviter
- * d'afficher l'image d'un autre agent.
+ * Si l'agent n'est pas configuré, renvoie une icône sécurisée d'agent (jamais une icône de mode de jeu).
  */
 export function resolveAgentDisplay(
   identifier?: string,
@@ -337,10 +363,27 @@ export function resolveAgentDisplay(
       isConfigured: true,
     };
   }
+  // 4. Si l'identifiant est un UUID Valorant valide, générer l'URL officielle valorant-api
+  if (identifier && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier)) {
+    return {
+      name: identifier.slice(0, 8),
+      role: "Flex",
+      iconUrl: `https://media.valorant-api.com/agents/${identifier}/displayicon.png`,
+      fullPortrait: `https://media.valorant-api.com/agents/${identifier}/fullportrait.png`,
+      uuid: identifier,
+      isConfigured: true,
+    };
+  }
+
+  const raw = String(identifier || "").toLowerCase();
+  const isRoboFallback = raw.includes("gauntlet") || raw.includes("abilitydraft") || raw.includes("robo");
+
   return {
-    name: identifier || "Inconnu",
+    name: isRoboFallback ? "Robo-Agent" : (identifier || "Inconnu"),
     role: "Flex",
-    iconUrl: "",
+    iconUrl: isRoboFallback
+      ? "https://media.valorant-api.com/agents/773f0c78-4486-752b-68ef-4585d7f4b848/displayicon.png"
+      : "https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png",
     fullPortrait: "",
     uuid: "",
     isConfigured: false,

@@ -2,6 +2,7 @@ import {
   ValorantProfileResponse,
   ValorantMatchData,
   AgentPerformanceStat,
+  MatchDuoTeam,
 } from "@/lib/valorant/types";
 import { AGENTS_CATALOG, OFFICIAL_WEAPONS } from "@/lib/valorant/mock";
 import { resolveAgentDisplay, getAgentInfo } from "@/lib/valorant/agentsCatalog";
@@ -160,11 +161,26 @@ export async function fetchHenrikPlayerData(
     const meta = raw.metadata || raw.meta || {};
     const mapName = meta.map?.name || meta.map || "Ascent";
     const gameModeInfo = resolveGameMode(meta.mode || meta.queue || "Competitive");
-    const isDeathmatch = gameModeInfo.id === "deathmatch";
+    const strategy = gameModeInfo.parsingStrategy || "standard";
+    const isDeathmatch = strategy === "ffa";
+    const isDuos = strategy === "duos" || strategy === "multi-team" || (raw.teams && Object.keys(raw.teams).length > 2);
+    const isGauntlet =
+      gameModeInfo.id === "gauntlet" ||
+      isDuos ||
+      String(meta.mode || "").toLowerCase().includes("gauntlet") ||
+      String(meta.mode || "").toLowerCase().includes("abilitydraft") ||
+      String(meta.queue || "").toLowerCase().includes("gauntlet") ||
+      String(meta.queue || "").toLowerCase().includes("abilitydraft");
 
+    const defaultAgentIcon = isGauntlet
+      ? "https://media.valorant-api.com/agents/773f0c78-4486-752b-68ef-4585d7f4b848/displayicon.png"
+      : "https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png";
+
+    // Détection robuste de la date
     const startedAt = meta.game_start
       ? new Date(meta.game_start * 1000).toISOString()
-      : meta.started_at || new Date().toISOString();
+      : meta.started_at || meta.game_start_patched || new Date().toISOString();
+    
     const duration = meta.game_length ? Math.round(meta.game_length / 60) : 32;
 
     // Trouver le joueur dans le match
@@ -173,8 +189,8 @@ export async function fetchHenrikPlayerData(
       allPlayers.find(
         (p: any) =>
           p.puuid === puuid ||
-          (p.name?.toLowerCase() === realName.toLowerCase() &&
-            p.tag?.toLowerCase() === realTag.toLowerCase())
+          ((p.name || p.game_name)?.toLowerCase() === realName.toLowerCase() &&
+            (p.tag || p.tag_line)?.toLowerCase() === realTag.toLowerCase())
       ) ||
       allPlayers[0] ||
       raw.stats;
@@ -214,17 +230,33 @@ export async function fetchHenrikPlayerData(
     );
     totalScore += me?.stats?.score || kills * 205;
 
-    const agentName = me?.character?.name || me?.character || "";
-    const agentDisp = resolveAgentDisplay(agentName);
-
-    if (!agentPlayCounts[agentName]) {
-      agentPlayCounts[agentName] = { games: 0, wins: 0, kills: 0, deaths: 0, minutes: 0 };
+    const rawMeAgent = me?.character?.name || me?.character?.id || me?.character || "";
+    let agentDisp = resolveAgentDisplay(rawMeAgent);
+    if ((!agentDisp.isConfigured || agentDisp.name === "Inconnu") && isGauntlet) {
+      agentDisp = resolveAgentDisplay("Robo-Agent");
     }
-    agentPlayCounts[agentName].games++;
-    if (won) agentPlayCounts[agentName].wins++;
-    agentPlayCounts[agentName].kills += kills;
-    agentPlayCounts[agentName].deaths += deaths;
-    agentPlayCounts[agentName].minutes += duration;
+    const agentName = agentDisp.name || (isGauntlet ? "Robo-Agent" : "Inconnu");
+    const agentIcon = agentDisp.iconUrl || defaultAgentIcon;
+
+    // Ne comptabiliser les statistiques d'agents que pour les modes avec sorts propres (ex: Compétitif, Non-classé, Vélocité, TDM)
+    const shouldCountAgentStats =
+      gameModeInfo.trackAgentStats !== false &&
+      !isDeathmatch &&
+      !isGauntlet &&
+      agentName !== "Robo-Agent" &&
+      agentName !== "AbilityDraftAgent" &&
+      agentName !== "Inconnu";
+
+    if (shouldCountAgentStats) {
+      if (!agentPlayCounts[agentName]) {
+        agentPlayCounts[agentName] = { games: 0, wins: 0, kills: 0, deaths: 0, minutes: 0 };
+      }
+      agentPlayCounts[agentName].games++;
+      if (won) agentPlayCounts[agentName].wins++;
+      agentPlayCounts[agentName].kills += kills;
+      agentPlayCounts[agentName].deaths += deaths;
+      agentPlayCounts[agentName].minutes += duration;
+    }
 
     // Construction des équipes myTeam et enemyTeam pour le Scoreboard / Leaderboard du match
     const myTeam: any[] = [];
@@ -236,31 +268,40 @@ export async function fetchHenrikPlayerData(
         const isMyTeam = pTeamKey === myTeamKey;
         const isMePlayer =
           p.puuid === puuid ||
-          (p.name?.toLowerCase() === realName.toLowerCase() &&
-            p.tag?.toLowerCase() === realTag.toLowerCase());
+          ((p.name || p.game_name)?.toLowerCase() === realName.toLowerCase() &&
+            (p.tag || p.tag_line)?.toLowerCase() === realTag.toLowerCase());
 
-        const pAgentName = p.character?.name || p.character || "";
-        const pAgentDisp = resolveAgentDisplay(pAgentName);
+        const rawPAgent = p.character?.name || p.character?.id || p.character || "";
+        let pAgentDisp = resolveAgentDisplay(rawPAgent);
+        if ((!pAgentDisp.isConfigured || pAgentDisp.name === "Inconnu") && isGauntlet) {
+          pAgentDisp = resolveAgentDisplay("Robo-Agent");
+        }
+        const pAgentName = pAgentDisp.name || (isGauntlet ? "Robo-Agent" : (p.character ? "Agent" : "Inconnu"));
+        const pAgentIcon = pAgentDisp.iconUrl || defaultAgentIcon;
+
         const pKills = p.stats?.kills ?? p.score?.kills ?? 0;
         const pDeaths = p.stats?.deaths ?? p.score?.deaths ?? 0;
         const pAssists = p.stats?.assists ?? p.score?.assists ?? 0;
         const pAcs = Math.round((p.stats?.score || pKills * 200) / Math.max(roundsPlayed, 1));
         const pTier = p.currenttier || 18;
         const pTierName = p.currenttier_patched || "Ascendant 1";
+        const resolvedPName = p.name || p.game_name || p.riot_id_name || p.player_display_name || (isMePlayer ? realName : `Joueur ${myTeam.length + enemyTeam.length + 1}`);
+        const resolvedPTag = p.tag || p.tag_line || p.riot_id_tag || "EU1";
 
         const teamPlayerObj = {
-          puuid: p.puuid || `player-${p.name || "anon"}-${myTeam.length + enemyTeam.length}`,
-          name: p.name || (isMePlayer ? realName : "Joueur"),
-          tag: p.tag || "EU1",
+          puuid: p.puuid || `player-${resolvedPName}-${myTeam.length + enemyTeam.length}`,
+          name: resolvedPName,
+          tag: resolvedPTag,
           agent: pAgentName,
-          agentIcon: pAgentDisp.iconUrl,
-          rank: pTierName,
-          rankUrl: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${pTier}/largeicon.png`,
+          agentIcon: pAgentIcon,
+          rank: gameModeInfo.isRanked ? pTierName : "Non classé",
+          rankUrl: gameModeInfo.isRanked ? `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${pTier}/largeicon.png` : "",
           score: p.stats?.score || pKills * 200,
           acs: pAcs,
           kills: pKills,
           deaths: pDeaths,
           assists: pAssists,
+          team: pTeamKey,
           econScore: Math.round(p.economy?.spent?.average || (p.damage_made ? p.damage_made / 20 : 65)),
           firstBloods: p.first_bloods || (pKills > 15 ? 3 : pKills > 10 ? 2 : 1),
           isMe: isMePlayer,
@@ -323,7 +364,7 @@ export async function fetchHenrikPlayerData(
       });
     }
 
-    if (enemyTeam.length === 0) {
+    if (enemyTeam.length === 0 && !isDuos && !isDeathmatch) {
       const enemyAgents = ["Clove", "Raze", "Fade", "Cypher", "Breach"];
       enemyAgents.forEach((agName, aIdx) => {
         const cat = AGENTS_CATALOG[agName] || AGENTS_CATALOG.Clove;
@@ -350,15 +391,50 @@ export async function fetchHenrikPlayerData(
       });
     }
 
+    let duoTeams: MatchDuoTeam[] | undefined;
+
     if (isDeathmatch) {
       const allDMPlayers = [...myTeam, ...enemyTeam];
-      allDMPlayers.sort((a, b) => b.kills - a.kills || b.score - a.score);
+      allDMPlayers.sort((a, b) => b.kills - a.kills || (b.score || 0) - (a.score || 0));
       const myRank = allDMPlayers.findIndex((p) => p.isMe) + 1;
       won = myRank === 1;
       scoreStr = `#${myRank > 0 ? myRank : 1} (${kills} frags)`;
       myTeam.length = 0;
       myTeam.push(...allDMPlayers);
       enemyTeam.length = 0;
+    } else if (isDuos) {
+      const allDuoPlayers = [...myTeam, ...enemyTeam];
+      const teamGroups: Record<string, MatchDuoTeam> = {};
+      allDuoPlayers.forEach((p, pIdx) => {
+        // En Henrik API, team est souvent "blue" ou "red" ou "t1"..."t8"
+        const tId = String(p.team || `team-${Math.floor(pIdx / 2) + 1}`).toLowerCase();
+        if (!teamGroups[tId]) {
+          teamGroups[tId] = { teamId: tId, kills: 0, score: 0, players: [] };
+        }
+        teamGroups[tId].kills += p.kills;
+        teamGroups[tId].score += (p.score || 0);
+        teamGroups[tId].players.push(p);
+      });
+
+      const sortedDuos = Object.values(teamGroups).sort((a, b) => b.kills - a.kills || b.score - a.score);
+      const myDuoRank = sortedDuos.findIndex((d) => d.teamId === myTeamKey) + 1;
+      won = myDuoRank === 1;
+      scoreStr = `#${myDuoRank > 0 ? myDuoRank : 1} (${kills} frags)`;
+
+      myTeam.length = 0;
+      enemyTeam.length = 0;
+      const myDuo = teamGroups[myTeamKey];
+      if (myDuo) {
+        myTeam.push(...myDuo.players);
+      }
+      sortedDuos.forEach((d, dIdx) => {
+        d.rank = dIdx + 1;
+        d.isMyTeam = d.teamId === myTeamKey;
+        if (d.teamId !== myTeamKey) {
+          enemyTeam.push(...d.players);
+        }
+      });
+      duoTeams = sortedDuos;
     }
 
     if (won) totalWins++;
@@ -433,10 +509,12 @@ export async function fetchHenrikPlayerData(
       mode: gameModeInfo.id,
       modeIcon: gameModeInfo.icon,
       agent: agentName,
-      agentIcon: agentDisp.iconUrl,
-      rank: rankName,
-      rankUrl,
-      rankTier: rankTier,
+      agentIcon: agentDisp.iconUrl || defaultAgentIcon,
+      rank: gameModeInfo.isRanked ? rankName : "Non classé",
+      rankUrl: gameModeInfo.isRanked ? rankUrl : "",
+      rankTier: gameModeInfo.isRanked ? rankTier : 0,
+      isRanked: gameModeInfo.isRanked,
+      teamFormat: gameModeInfo.teamFormat || "standard",
       won,
       score: scoreStr,
       kills,
@@ -455,6 +533,7 @@ export async function fetchHenrikPlayerData(
       date: startedAt,
       myTeam,
       enemyTeam,
+      allTeams: duoTeams,
       timeline,
       duels,
     });
@@ -464,13 +543,20 @@ export async function fetchHenrikPlayerData(
   let mainAgentName = "";
   let maxGames = 0;
   for (const [name, data] of Object.entries(agentPlayCounts)) {
-    if (data.games > maxGames) {
+    if (name !== "Robo-Agent" && name !== "AbilityDraftAgent" && name !== "Inconnu" && data.games > maxGames) {
       maxGames = data.games;
       mainAgentName = name;
     }
   }
-  if (!mainAgentName && parsedMatches.length > 0) {
-    mainAgentName = parsedMatches[0].agent;
+  if (!mainAgentName) {
+    const realAgentMatch = parsedMatches.find(
+      (m) => m.agent && m.agent !== "Robo-Agent" && m.agent !== "AbilityDraftAgent" && m.agent !== "Inconnu"
+    );
+    if (realAgentMatch) {
+      mainAgentName = realAgentMatch.agent;
+    } else if (parsedMatches.length > 0) {
+      mainAgentName = parsedMatches[0].agent;
+    }
   }
 
   const mainAgentDisp = resolveAgentDisplay(mainAgentName);

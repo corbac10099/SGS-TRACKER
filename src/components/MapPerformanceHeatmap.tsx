@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { sounds } from "@/lib/soundEffects";
 import { IconTrophy, IconScale, IconGamepad, IconCrosshair } from "./icons/SpyIcons";
+import { getMapInfo } from "@/lib/valorant/mapsCatalog";
 
 export interface MapPerformanceHeatmapProps {
   matches: any[];
@@ -263,9 +264,10 @@ export default function MapPerformanceHeatmap({
       {/* Grid of Map Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4">
         {mapStats.map((item) => {
+          const mapInfo = getMapInfo(item.mapName);
           const theme = MAP_THEMES[item.mapName] || {
-            gradient: "from-neutral-900/40 via-[#0a0e13] to-[#0a0e13]",
-            accent: "#ffffff",
+            gradient: mapInfo.bgGradient || "from-neutral-900/40 via-[#0a0e13] to-[#0a0e13]",
+            accent: mapInfo.accent || "#ffffff",
           };
           const badge = getHeatBadge(item.winRate);
           const isSelected = selectedMap?.mapName === item.mapName;

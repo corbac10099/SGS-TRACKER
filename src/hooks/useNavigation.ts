@@ -21,6 +21,8 @@ export interface NavigationState {
   setLobbiesView: (v: boolean) => void;
   leaderboardView: boolean;
   setLeaderboardView: (v: boolean) => void;
+  downloadView: boolean;
+  setDownloadView: (v: boolean) => void;
   settingsOpen: boolean;
   setSettingsOpen: (v: boolean) => void;
   targetNewsId: string | null;
@@ -73,6 +75,7 @@ export interface PushUrlOptions {
     | "settings"
     | "lobbies"
     | "leaderboard"
+    | "download"
     | null;
   agentSlug?: string | null;
   settingsTab?: string | null;
@@ -90,6 +93,7 @@ export function useNavigation(
   const [leaderboardView, setLeaderboardView] = useState(
     initialLeaderboardView
   );
+  const [downloadView, setDownloadView] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [targetNewsId, setTargetNewsId] = useState<string | null>(null);
   const [showHotkeysModal, setShowHotkeysModal] = useState(false);
@@ -170,6 +174,8 @@ export function useNavigation(
 
       if (view === "leaderboard") {
         path = "/leaderboard";
+      } else if (view === "download") {
+        path = "/download";
       } else if (view === "lobbies") {
         path = "/salons";
       } else if (view === "news") {
@@ -227,6 +233,8 @@ export function useNavigation(
       const pageTitle =
         view === "leaderboard"
           ? "Classement Valorant"
+          : view === "download"
+          ? "Télécharger l'Application Desktop"
           : view === "lobbies"
           ? "Salons LFG & Vocal"
           : view === "news"
@@ -284,6 +292,7 @@ export function useNavigation(
     setAgentsView(false);
     setLobbiesView(false);
     setLeaderboardView(false);
+    setDownloadView(false);
     setSettingsOpen(false);
   }, []);
 
@@ -298,6 +307,8 @@ export function useNavigation(
     setLobbiesView,
     leaderboardView,
     setLeaderboardView,
+    downloadView,
+    setDownloadView,
     settingsOpen,
     setSettingsOpen,
     targetNewsId,

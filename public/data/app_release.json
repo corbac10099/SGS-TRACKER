@@ -1,0 +1,16 @@
+{
+  "version": "1.0.1",
+  "releaseName": "SGS Tracker Desktop v1.0.1 (Official)",
+  "releaseDate": "2026-09-29",
+  "fileSize": "2.33 MB",
+  "minWindowsVersion": "Windows 10 / 11 (64-bit)",
+  "isPublished": true,
+  "downloadUrl": "/installers/SGS-Tracker-Setup.exe",
+  "filename": "SGS-Tracker-Setup.exe",
+  "changelog": [
+    "Intégration du catalogue complet de 21 cartes Valorant avec vues 2D",
+    "Statistiques de performance détaillées par agent, arme et carte",
+    "Overlay natif basse latence et alertes vocales IA d'entraînement",
+    "Synchronisation automatique du profil SGS et des défis quotidiens"
+  ]
+}

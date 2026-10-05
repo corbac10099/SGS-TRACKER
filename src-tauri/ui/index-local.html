@@ -142,30 +142,14 @@
     <h1>SGS-Tracker (Local)</h1>
     <p class="sub" id="subText">Tentative de liaison avec http://localhost:3000...</p>
 
-    <button class="btn btn-retry" id="btnRetry" onclick="tryConnect()">🔄 Réessayer la connexion</button>
-    <p class="hint" id="hintText">💡 Astuce : Démarrez le tracker via AppControl ("⚡ Démarrer Tracker") puis cliquez sur Réessayer.</p>
+    <button class="btn btn-retry" id="btnRetry" onclick="connectLocal()">🔄 Réessayer la connexion</button>
+    <p class="hint" id="hintText">💡 Astuce : Démarrez le tracker via AppControl ("⚡ Démarrer Tracker") ou avec la commande "npm run dev", puis cliquez sur Réessayer.</p>
   </div>
 
   <script>
     var LOCAL_URL = "http://localhost:3000";
 
-    async function checkServer() {
-      try {
-        var controller = new AbortController();
-        var timer = setTimeout(function() { controller.abort(); }, 800);
-        await fetch(LOCAL_URL + "/manifest.webmanifest", {
-          signal: controller.signal,
-          mode: 'no-cors',
-          cache: 'no-store'
-        });
-        clearTimeout(timer);
-        return true;
-      } catch (_) {
-        return false;
-      }
-    }
-
-    async function tryConnect() {
+    function connectLocal() {
       var badge = document.getElementById('statusBadge');
       var spinner = document.getElementById('spinner');
       var statusText = document.getElementById('statusText');
@@ -176,28 +160,26 @@
       badge.classList.remove('offline');
       spinner.style.display = 'block';
       statusText.textContent = "Connexion au serveur local...";
-      subText.textContent = "Vérification de http://localhost:3000...";
+      subText.textContent = "Lancement de http://localhost:3000...";
       btnRetry.style.display = 'none';
       hintText.style.display = 'none';
 
-      var isUp = await checkServer();
-      if (isUp) {
-        statusText.textContent = "Serveur local actif";
-        subText.textContent = "Chargement de vos modifications locales...";
-        setTimeout(function() {
-          window.location.replace(LOCAL_URL);
-        }, 500);
-      } else {
+      // Redirection immédiate vers le serveur local
+      window.location.replace(LOCAL_URL);
+
+      // Si le serveur local n'est pas allumé, afficher l'aide après 3.5 secondes
+      setTimeout(function() {
         badge.classList.add('offline');
         spinner.style.display = 'none';
-        statusText.textContent = "Serveur local éteint";
-        subText.textContent = "Impossible de joindre le port 3000. Assurez-vous que le tracker local est démarré.";
+        statusText.textContent = "Serveur local éteint (Port 3000)";
+        subText.textContent = "Impossible de joindre http://localhost:3000. Lancez le tracker local via AppControl ou 'npm run dev' pour continuer.";
         btnRetry.style.display = 'block';
         hintText.style.display = 'block';
-      }
+      }, 3500);
     }
 
-    tryConnect();
+    // Lancement direct
+    connectLocal();
   </script>
 </body>
 </html>

@@ -36,67 +36,8 @@ export interface MapData {
 
 type SortOption = "winRate" | "games" | "kd" | "acs";
 
-// Splash arts officiels Valorant-API ou thèmes pour chaque carte
-export const MAP_INFO: Record<
-  string,
-  { splash: string; accent: string; bgGradient: string }
-> = {
-  Ascent: {
-    splash: "https://media.valorant-api.com/maps/7eaecc1b-4337-bbf6-6ab9-04b8f06b3319/splash.png",
-    accent: "#38bdf8",
-    bgGradient: "from-sky-900/40 via-[#0a0e13] to-[#0a0e13]",
-  },
-  Bind: {
-    splash: "https://media.valorant-api.com/maps/2c9d57ec-4431-9c5e-2939-8f9ef6dd5cba/splash.png",
-    accent: "#f59e0b",
-    bgGradient: "from-amber-900/40 via-[#0a0e13] to-[#0a0e13]",
-  },
-  Haven: {
-    splash: "https://media.valorant-api.com/maps/2bee0dc9-4da5-3a78-9403-bc8fad77b0d0/splash.png",
-    accent: "#10b981",
-    bgGradient: "from-emerald-900/40 via-[#0a0e13] to-[#0a0e13]",
-  },
-  Split: {
-    splash: "https://media.valorant-api.com/maps/d960549e-485c-e861-8d71-aa9d1aed12a2/splash.png",
-    accent: "#a855f7",
-    bgGradient: "from-purple-900/40 via-[#0a0e13] to-[#0a0e13]",
-  },
-  Sunset: {
-    splash: "https://media.valorant-api.com/maps/92584fbe-486a-b1b2-9faa-39b0f486b498/splash.png",
-    accent: "#f43f5e",
-    bgGradient: "from-rose-900/40 via-[#0a0e13] to-[#0a0e13]",
-  },
-  Lotus: {
-    splash: "https://media.valorant-api.com/maps/2fe4ed3a-450a-948b-6d6b-e89a78e680a9/splash.png",
-    accent: "#14b8a6",
-    bgGradient: "from-teal-900/40 via-[#0a0e13] to-[#0a0e13]",
-  },
-  Abyss: {
-    splash: "https://media.valorant-api.com/maps/224b0a95-48b9-f703-1bd8-67aca101a61f/splash.png",
-    accent: "#06b6d4",
-    bgGradient: "from-cyan-900/40 via-[#0a0e13] to-[#0a0e13]",
-  },
-  Icebox: {
-    splash: "https://media.valorant-api.com/maps/e2ad5c54-4114-a870-9641-8ea21279579a/splash.png",
-    accent: "#7dd3fc",
-    bgGradient: "from-blue-900/40 via-[#0a0e13] to-[#0a0e13]",
-  },
-  Breeze: {
-    splash: "https://media.valorant-api.com/maps/2fb9a4fd-47b8-4e7d-a969-74b4046ebd53/splash.png",
-    accent: "#84cc16",
-    bgGradient: "from-lime-900/40 via-[#0a0e13] to-[#0a0e13]",
-  },
-  Fracture: {
-    splash: "https://media.valorant-api.com/maps/b52973d4-454b-cad4-8da6-c683b759f72e/splash.png",
-    accent: "#ea580c",
-    bgGradient: "from-orange-900/40 via-[#0a0e13] to-[#0a0e13]",
-  },
-  Pearl: {
-    splash: "https://media.valorant-api.com/maps/fd2679d4-43f1-fdc3-70ae-910a9a19c158/splash.png",
-    accent: "#6366f1",
-    bgGradient: "from-indigo-900/40 via-[#0a0e13] to-[#0a0e13]",
-  },
-};
+import { MAP_INFO, getMapInfo } from "@/lib/valorant/mapsCatalog";
+export { MAP_INFO, getMapInfo };
 
 export default function MapsStatsTab({
   matches = [],
@@ -366,11 +307,7 @@ export default function MapsStatsTab({
       <div className="space-y-3 w-full">
         {sortedMaps.map((map) => {
           const isExpanded = expandedMap === map.name;
-          const info = MAP_INFO[map.name] || {
-            splash: "",
-            accent: "#ff4655",
-            bgGradient: "from-zinc-900/40 via-[#0a0e13] to-[#0a0e13]",
-          };
+          const info = getMapInfo(map.name);
 
           const topAgents = Object.entries(map.agentBreakdown).sort(
             (a, b) => b[1].games - a[1].games
@@ -396,6 +333,7 @@ export default function MapsStatsTab({
                 {info.splash && (
                   <div className="absolute inset-0 z-0 pointer-events-none opacity-20 group-hover:opacity-30 transition-opacity">
                     <img
+                      referrerPolicy="no-referrer"
                       src={info.splash}
                       alt={map.name}
                       className="w-full h-full object-cover object-center filter blur-[1px]"
@@ -410,11 +348,17 @@ export default function MapsStatsTab({
                     className="w-12 h-12 rounded-xl border-2 flex items-center justify-center font-black text-sm tracking-wider uppercase shadow-md flex-shrink-0 bg-black/70 overflow-hidden"
                     style={{ borderColor: `${info.accent}80` }}
                   >
-                    {info.splash ? (
+                    {info.listViewIcon || info.splash ? (
                       <img
-                        src={info.splash}
+                        referrerPolicy="no-referrer"
+                        src={info.listViewIcon || info.splash}
                         alt={map.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        onError={(e) => {
+                          if (info.splash && e.currentTarget.src !== info.splash) {
+                            e.currentTarget.src = info.splash;
+                          }
+                        }}
                       />
                     ) : (
                       map.name.slice(0, 3)

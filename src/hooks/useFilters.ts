@@ -108,11 +108,7 @@ export function useFilters(
       const modeKey = resolveGameMode(m.mode).id;
       const modeMatch =
         gameMode === "all" ||
-        (gameMode === "competitive" && modeKey === "competitive") ||
-        (gameMode === "unrated" && modeKey === "unrated") ||
-        (gameMode === "deathmatch" && modeKey === "deathmatch") ||
-        (gameMode === "swiftplay" && modeKey === "swiftplay") ||
-        (gameMode === "team_deathmatch" && modeKey === "team_deathmatch") ||
+        modeKey === gameMode ||
         (gameMode === "other" &&
           !["competitive", "unrated", "deathmatch", "swiftplay", "team_deathmatch"].includes(modeKey));
 

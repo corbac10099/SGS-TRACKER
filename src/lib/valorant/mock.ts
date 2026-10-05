@@ -37,6 +37,8 @@ export const AGENTS_CATALOG: Record<string, { uuid: string; role: string }> = {
   Miks: { uuid: "7c8a4701-4de6-9355-b254-e09bc2a34b72", role: "Controller" },
   Veto: { uuid: "92eeef5d-43b5-1d4a-8d03-b3927a09034b", role: "Sentinel" },
   Waylay: { uuid: "df1cb487-4902-002e-5c17-d28e83e78588", role: "Duelist" },
+  "Robo-Agent": { uuid: "773f0c78-4486-752b-68ef-4585d7f4b848", role: "Flex" },
+  AbilityDraftAgent: { uuid: "773f0c78-4486-752b-68ef-4585d7f4b848", role: "Flex" },
 };
 
 export const MAPS = ["Ascent", "Haven", "Bind", "Split", "Sunset", "Lotus", "Abyss"];

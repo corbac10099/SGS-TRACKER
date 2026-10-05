@@ -14,14 +14,14 @@ export async function GET(req: NextRequest) {
     const currentVersion = searchParams.get("current_version") || "1.0.0";
     const target = searchParams.get("target") || "windows-x86_64";
 
-    // Chemin du fichier manifest de mise à jour officiel stocké dans public/updates/
-    const manifestPath = path.join(process.cwd(), "public", "updates", "latest-online.json");
+    // 1. Chercher un manifest Tauri officiel
+    const targetFile = target.includes("local") ? "latest-local.json" : "latest-online.json";
+    const manifestPath = path.join(process.cwd(), "public", "updates", targetFile);
 
     if (fs.existsSync(manifestPath)) {
       const content = fs.readFileSync(manifestPath, "utf-8");
       const data = JSON.parse(content);
 
-      // Si la version courante est déjà la plus récente, retourner 204 (Aucune mise à jour requise)
       if (data.version === currentVersion) {
         return new NextResponse(null, { status: 204 });
       }
@@ -33,7 +33,36 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Si aucun fichier manifest n'est encore publié, l'application est considérée à jour
+    // 2. Fallback dynamique vers public/data/app_release.json
+    const releasePath = path.join(process.cwd(), "public", "data", "app_release.json");
+    if (fs.existsSync(releasePath)) {
+      const relContent = fs.readFileSync(releasePath, "utf-8");
+      const release = JSON.parse(relContent);
+
+      if (release.version && release.version !== currentVersion && release.isPublished !== false) {
+        const downloadUrl = release.r2DownloadUrl || release.r2Url || release.downloadUrl || "/installers/SGS-Tracker-Setup.exe";
+        const changelogNotes = Array.isArray(release.changelog)
+          ? release.changelog.join("\n• ")
+          : (release.changelog || release.notes || "Mise à jour disponible");
+
+        return NextResponse.json({
+          version: release.version,
+          notes: changelogNotes,
+          pub_date: release.releaseDate ? `${release.releaseDate}T00:00:00Z` : new Date().toISOString(),
+          downloadUrl: downloadUrl,
+          platforms: {
+            "windows-x86_64": {
+              url: downloadUrl,
+            }
+          }
+        }, {
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          },
+        });
+      }
+    }
+
     return new NextResponse(null, { status: 204 });
   } catch (err: any) {
     console.error("[Updater Manifest Error]", err);

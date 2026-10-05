@@ -180,6 +180,25 @@ export function useKeyboardShortcuts(
         sounds.playClick();
         settings.setSettingsTab("shortcuts");
         nav.setSettingsOpen(true);
+      } else if (
+        (() => {
+          const targetShortcut = (shortcutsMap.overlay || (typeof window !== "undefined" ? localStorage.getItem("spycam_overlay_shortcut") : null) || "F9").toUpperCase();
+          const parts: string[] = [];
+          if (e.ctrlKey) parts.push("CTRL");
+          if (e.altKey) parts.push("ALT");
+          if (e.shiftKey) parts.push("SHIFT");
+          const k = e.key.toUpperCase();
+          if (!["CONTROL", "ALT", "SHIFT", "META"].includes(k)) {
+            parts.push(k);
+          }
+          const currentCombo = parts.join("+");
+          return currentCombo === targetShortcut.replace("CONTROL", "CTRL") || k === targetShortcut;
+        })()
+      ) {
+        e.preventDefault();
+        if (typeof window !== "undefined" && (window as any).__TAURI__?.core) {
+          (window as any).__TAURI__.core.invoke("toggle_overlay");
+        }
       } else if (e.key === "Escape") {
         nav.setSettingsOpen(false);
         nav.setShowHotkeysModal(false);

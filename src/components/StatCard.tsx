@@ -179,7 +179,7 @@ function StatCardComponent({
       className={`glass-panel-interactive group rounded-xl sm:rounded-2xl flex flex-col transition-all duration-300 ${
         isExp
           ? "absolute top-0 left-0 right-0 z-50 min-h-full bg-[#121824] border border-[var(--color-val-red)]/70 shadow-[0_25px_60px_rgba(0,0,0,0.95)] ring-1 ring-[var(--color-val-red)]/40 p-3 sm:p-4"
-          : "relative w-full h-full justify-between p-2.5 xs:p-3 sm:p-4"
+          : "relative w-full h-full justify-between p-2.5 xs:p-3 sm:p-4 hover:z-30 focus-within:z-30"
       } ${colSpan ? `col-span-${colSpan}` : ""} ${ratingClass} ${liveContourClass} ${className}`}
     >
       {/* Header : Label & Bouton de comparaison avec les amis */}

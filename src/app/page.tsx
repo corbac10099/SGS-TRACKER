@@ -42,9 +42,17 @@ import LandingPage from "@/components/landing/LandingPage";
 import LoginModal from "@/components/LoginModal";
 import { IconSword } from "@/components/icons/SpyIcons";
 
+import dynamic from "next/dynamic";
+import { preloadCriticalDataForOffline } from "@/lib/offlineCache";
+
 // Orchestrateurs modulaires (avec Code-Splitting next/dynamic intégré)
 import ViewRouter from "@/components/ViewRouter";
 import GlobalModals from "@/components/GlobalModals";
+
+const DynamicLiveMatchOverlay = dynamic(
+  () => import("@/components/LiveMatchOverlayComponent"),
+  { ssr: false }
+);
 
 function DebugPanel() {
   return null;
@@ -121,10 +129,15 @@ export function HomeContent({
   // ─── États Locaux Légers ──────────────────────────────────
   const [showCompareModal, setShowCompareModal] = useState<boolean>(false);
   const [showFriendsModal, setShowFriendsModal] = useState<boolean>(false);
+  const [showLiveMatchModal, setShowLiveMatchModal] = useState<boolean>(false);
   const [isDirectComparing, setIsDirectComparing] = useState<boolean>(false);
   const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(
     null
   );
+
+  useEffect(() => {
+    preloadCriticalDataForOffline();
+  }, []);
 
   const lobbyInvites = useLobbyInvites((_lobbyId, lobby) => {
     nav.setSettingsOpen(false);
@@ -192,7 +205,7 @@ export function HomeContent({
     player.riotId.toLowerCase() === player.myRiotId.toLowerCase();
 
   const navigateToView = (
-    view: "news" | "agents" | "lobbies" | "leaderboard",
+    view: "news" | "agents" | "lobbies" | "leaderboard" | "download",
     newsId?: string
   ) => {
     nav.resetToProfile();
@@ -204,6 +217,7 @@ export function HomeContent({
     if (view === "agents") nav.setAgentsView(true);
     if (view === "lobbies") nav.setLobbiesView(true);
     if (view === "leaderboard") nav.setLeaderboardView(true);
+    if (view === "download") nav.setDownloadView(true);
     nav.pushUrl({
       view,
       playerId: player.riotId || player.myRiotId,
@@ -532,9 +546,12 @@ export function HomeContent({
           newsView={nav.newsView}
           agentsView={nav.agentsView}
           lobbiesView={nav.lobbiesView}
+          downloadView={nav.downloadView}
+          onOpenLiveMatch={() => setShowLiveMatchModal(true)}
           settingsOpen={nav.settingsOpen}
           onOpenLeaderboard={() => navigateToView("leaderboard")}
           leaderboardOpen={nav.leaderboardView}
+          onOpenDownload={() => navigateToView("download")}
           onGoHome={() => {
             nav.resetToProfile();
             player.goHome();
@@ -764,6 +781,13 @@ export function HomeContent({
               }}
             />
           )}
+
+        {showLiveMatchModal && (
+          <DynamicLiveMatchOverlay
+            isOpen={showLiveMatchModal}
+            onClose={() => setShowLiveMatchModal(false)}
+          />
+        )}
       </main>
 
       {/* Footer Légal SGS & Riot Games */}
