@@ -205,7 +205,7 @@ export function HomeContent({
     player.riotId.toLowerCase() === player.myRiotId.toLowerCase();
 
   const navigateToView = (
-    view: "news" | "agents" | "lobbies" | "leaderboard" | "download",
+    view: "news" | "agents" | "lobbies" | "leaderboard" | "download" | "aimtraining",
     newsId?: string
   ) => {
     nav.resetToProfile();
@@ -218,6 +218,7 @@ export function HomeContent({
     if (view === "lobbies") nav.setLobbiesView(true);
     if (view === "leaderboard") nav.setLeaderboardView(true);
     if (view === "download") nav.setDownloadView(true);
+    if (view === "aimtraining") nav.setAimTrainingView(true);
     nav.pushUrl({
       view,
       playerId: player.riotId || player.myRiotId,
@@ -551,6 +552,8 @@ export function HomeContent({
           settingsOpen={nav.settingsOpen}
           onOpenLeaderboard={() => navigateToView("leaderboard")}
           leaderboardOpen={nav.leaderboardView}
+          onOpenAimTraining={() => navigateToView("aimtraining")}
+          aimTrainingOpen={nav.aimTrainingView}
           onOpenDownload={() => navigateToView("download")}
           onGoHome={() => {
             nav.resetToProfile();

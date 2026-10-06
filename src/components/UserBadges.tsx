@@ -121,7 +121,7 @@ export const BADGES_REGISTRY: Record<string, BadgeDefinition> = {
   },
   veteran: {
     id: "veteran",
-    label: "Vétéran Spycam",
+    label: "Vétéran SGS",
     description: "Distinction d'honneur accordée aux agents expérimentés et fidèles (Niveau Tracker 4+).",
     icon: IconBadgeVeteran,
     colorClass: "text-amber-400",
@@ -131,7 +131,7 @@ export const BADGES_REGISTRY: Record<string, BadgeDefinition> = {
   },
   badge_veteran: {
     id: "badge_veteran",
-    label: "Vétéran Spycam",
+    label: "Vétéran SGS",
     description: "Distinction d'honneur accordée aux agents expérimentés et fidèles (Niveau Tracker 4+).",
     icon: IconBadgeVeteran,
     colorClass: "text-amber-400",

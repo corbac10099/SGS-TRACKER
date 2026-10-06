@@ -61,6 +61,14 @@ const DynamicDownloadAppView = dynamic(
   }
 );
 
+const DynamicAimTrainingView = dynamic(
+  () => import("@/components/AimTrainingView"),
+  {
+    ssr: false,
+    loading: () => <ViewLoadingSkeleton message="Chargement de SGS AIM..." />,
+  }
+);
+
 export interface ViewRouterProps {
   nav: {
     settingsOpen: boolean;
@@ -69,11 +77,13 @@ export interface ViewRouterProps {
     newsView: boolean;
     agentsView: boolean;
     downloadView?: boolean;
+    aimTrainingView?: boolean;
     targetNewsId?: string | null;
     setSettingsOpen: (v: boolean) => void;
     setLeaderboardView: (v: boolean) => void;
     setLobbiesView: (v: boolean) => void;
     setDownloadView?: (v: boolean) => void;
+    setAimTrainingView?: (v: boolean) => void;
     pushUrl: (opts: any) => void;
   };
   settings: any;
@@ -167,6 +177,14 @@ export default function ViewRouter({
     return (
       <div key="download" className="animate-page-in w-full">
         <DynamicDownloadAppView onClose={() => nav.setDownloadView && nav.setDownloadView(false)} />
+      </div>
+    );
+  }
+
+  if (nav.aimTrainingView) {
+    return (
+      <div key="aimtraining" className="animate-page-in w-full">
+        <DynamicAimTrainingView />
       </div>
     );
   }

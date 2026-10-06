@@ -1405,7 +1405,7 @@ export default function SettingsView({
                       Raccourcis Clavier Personnalisables
                     </h3>
                     <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5">
-                      Contrôlez et naviguez dans Spycam à la vitesse de l&apos;éclair. Vos touches sont enregistrées sur votre compte Neon.
+                      Contrôlez et naviguez dans SGS Tracker à la vitesse de l&apos;éclair. Vos touches sont enregistrées sur votre compte Neon.
                     </p>
                   </div>
                 </div>
@@ -1884,7 +1884,7 @@ export default function SettingsView({
                 // Badges de niveau encore verrouillés pour ce niveau Tracker
                 const lockedLevelBadges = [
                   { id: "recrue", minLvl: 1, label: "Recrue Tracker" },
-                  { id: "veteran", minLvl: 4, label: "Vétéran Spycam" },
+                  { id: "veteran", minLvl: 4, label: "Vétéran SGS" },
                   { id: "radiant", minLvl: 15, label: "Radiant Master" },
                 ].filter((lb) => currentLvl < lb.minLvl);
 

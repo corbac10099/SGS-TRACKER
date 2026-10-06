@@ -23,6 +23,8 @@ export interface NavigationState {
   setLeaderboardView: (v: boolean) => void;
   downloadView: boolean;
   setDownloadView: (v: boolean) => void;
+  aimTrainingView: boolean;
+  setAimTrainingView: (v: boolean) => void;
   settingsOpen: boolean;
   setSettingsOpen: (v: boolean) => void;
   targetNewsId: string | null;
@@ -76,6 +78,7 @@ export interface PushUrlOptions {
     | "lobbies"
     | "leaderboard"
     | "download"
+    | "aimtraining"
     | null;
   agentSlug?: string | null;
   settingsTab?: string | null;
@@ -94,6 +97,7 @@ export function useNavigation(
     initialLeaderboardView
   );
   const [downloadView, setDownloadView] = useState(false);
+  const [aimTrainingView, setAimTrainingView] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [targetNewsId, setTargetNewsId] = useState<string | null>(null);
   const [showHotkeysModal, setShowHotkeysModal] = useState(false);
@@ -293,6 +297,7 @@ export function useNavigation(
     setLobbiesView(false);
     setLeaderboardView(false);
     setDownloadView(false);
+    setAimTrainingView(false);
     setSettingsOpen(false);
   }, []);
 
@@ -309,6 +314,8 @@ export function useNavigation(
     setLeaderboardView,
     downloadView,
     setDownloadView,
+    aimTrainingView,
+    setAimTrainingView,
     settingsOpen,
     setSettingsOpen,
     targetNewsId,

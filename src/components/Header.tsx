@@ -23,6 +23,7 @@ import {
   IconClock,
   IconStar,
   IconSword,
+  IconCrosshair,
 } from "./icons/SpyIcons";
 
 export interface HeaderProps {
@@ -46,6 +47,8 @@ export interface HeaderProps {
   onToggleSettings: () => void;
   onOpenLeaderboard?: () => void;
   leaderboardOpen?: boolean;
+  onOpenAimTraining?: () => void;
+  aimTrainingOpen?: boolean;
   onOpenCompare?: () => void;
   onOpenDailyQuests?: () => void;
   dailyQuests?: DailyQuest[];
@@ -65,7 +68,7 @@ export interface HeaderProps {
   lobbyActionLoading?: boolean;
 }
 
-type NavId = "profile" | "news" | "agents" | "lobbies" | "leaderboard";
+type NavId = "profile" | "news" | "agents" | "lobbies" | "leaderboard" | "aimtraining";
 
 export default function Header({
   session,
@@ -88,6 +91,8 @@ export default function Header({
   onToggleSettings,
   onOpenLeaderboard,
   leaderboardOpen = false,
+  onOpenAimTraining,
+  aimTrainingOpen = false,
   onOpenCompare,
   onOpenDailyQuests,
   dailyQuests = [],
@@ -160,23 +165,26 @@ export default function Header({
     agents: null,
     lobbies: null,
     leaderboard: null,
+    aimtraining: null,
   });
   const [pillStyle, setPillStyle] = useState({ left: 0, width: 0, opacity: 0 });
 
   // Derive active nav id from props
   const activeNavId: NavId | null = settingsOpen
     ? null
-    : leaderboardOpen
-      ? "leaderboard"
-      : lobbiesView
-        ? "lobbies"
-        : agentsView
-          ? "agents"
-          : newsView
-            ? "news"
-            : myRiotId
-              ? "profile"
-              : null;
+    : aimTrainingOpen
+      ? "aimtraining"
+      : leaderboardOpen
+        ? "leaderboard"
+        : lobbiesView
+          ? "lobbies"
+          : agentsView
+            ? "agents"
+            : newsView
+              ? "news"
+              : myRiotId
+                ? "profile"
+                : null;
 
   // Measure active button and position the sliding pill
   useLayoutEffect(() => {
@@ -309,6 +317,13 @@ export default function Header({
       icon: <IconTrophy size={15} />,
       onClick: () => onOpenLeaderboard?.(),
       show: !!onOpenLeaderboard,
+    },
+    {
+      id: "aimtraining",
+      label: "Aim Training",
+      icon: <IconCrosshair size={15} />,
+      onClick: () => onOpenAimTraining?.(),
+      show: desktop.isDesktop && !!onOpenAimTraining,
     },
   ];
 

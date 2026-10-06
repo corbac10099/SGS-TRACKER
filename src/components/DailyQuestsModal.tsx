@@ -65,11 +65,11 @@ const LEVEL_REWARDS_PREVIEW = [
   { level: 1, type: "badge", title: "Badge Recrue Tracker", description: "Badge officiel de recrue sur votre profil", icon: "🎖️" },
   { level: 2, type: "banner_effect", title: "Effet Cyber Glow", description: "Aura lumineuse pulsante sur votre bannière de profil", icon: "⚡" },
   { level: 3, type: "banner_effect", title: "Effet Scanlines Rétro", description: "Lignes d'écran cathodique arcade sur votre bannière", icon: "📺" },
-  { level: 4, type: "badge", title: "Badge Vétéran Spycam", description: "Badge de fidélité affiché sur votre profil", icon: "🛡️" },
+  { level: 4, type: "badge", title: "Badge Vétéran SGS", description: "Badge de fidélité affiché sur votre profil", icon: "🛡️" },
   { level: 5, type: "banner_effect", title: "Effet Matrix Rain", description: "Pluie de code digital vert animé sur votre bannière", icon: "🟩" },
   { level: 7, type: "banner_effect", title: "Effet Stardust", description: "Particules d'étoiles scintillantes sur votre bannière", icon: "✨" },
   { level: 10, type: "banner_border", title: "Bordure Tournante Conic RGB", description: "Bordure rotative animée ultra-stylée", icon: "👑" },
-  { level: 15, type: "badge", title: "Badge Radiant Master", description: "Badge d'élite suprême Spycam Tracker", icon: "💎" },
+  { level: 15, type: "badge", title: "Badge Radiant Master", description: "Badge d'élite suprême SGS Tracker", icon: "💎" },
 ];
 
 export default function DailyQuestsModal({
