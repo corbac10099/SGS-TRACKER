@@ -8,6 +8,7 @@ import { resolveGameMode } from "@/lib/valorant/gameModes";
 import PerformanceStarBadge from "./PerformanceStarBadge";
 import { IconCamera, IconLightbulb } from "./icons/SpyIcons";
 import KillmapView from "./KillmapView";
+import AdBanner from "./AdBanner";
 
 export interface MatchHistoryProps {
   matches: any[];
@@ -858,7 +859,7 @@ function MatchHistoryComponent({
 
   return (
     <div className="w-full space-y-3 animate-in fade-in duration-500">
-      {matches.slice(0, visibleCount).map((match: any) => {
+      {matches.slice(0, visibleCount).map((match: any, idx: number) => {
         const mId = match.matchId || match.id;
         const isTargeted =
           activeHighlightId === match.matchId ||
@@ -875,10 +876,10 @@ function MatchHistoryComponent({
           tier: currentPlayerRankTier,
         });
         return (
-          <div
-            key={mId}
-            id={`match-${mId}`}
-            className={`w-full flex flex-col gap-2 rounded-2xl transition-all duration-500 ${
+          <React.Fragment key={mId}>
+            <div
+              id={`match-${mId}`}
+              className={`w-full flex flex-col gap-2 rounded-2xl transition-all duration-500 ${
               isTargeted
                 ? "ring-2 ring-[var(--color-val-red)] shadow-[0_0_25px_rgba(255,70,85,0.7)] p-1 bg-[var(--color-val-red)]/10 animate-pulse"
                 : ""
@@ -1015,8 +1016,19 @@ function MatchHistoryComponent({
               </div>
             </div>
           </div>
-        );
-      })}
+
+          {/* Ad Banner after 5th match */}
+          {idx === 4 && (
+            <AdBanner format="horizontal" minHeight={95} className="my-3" />
+          )}
+        </React.Fragment>
+      );
+    })}
+
+      {/* Discreet bottom Ad Banner if more than 3 matches */}
+      {matches.length > 3 && (
+        <AdBanner format="horizontal" minHeight={95} className="mt-4" />
+      )}
 
       {/* Bouton Charger Plus */}
       {visibleCount < matches.length && (

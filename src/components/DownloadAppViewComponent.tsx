@@ -13,6 +13,7 @@ import {
   IconFileText,
   IconGamepad,
 } from "@/components/icons/SpyIcons";
+import AdBanner from "./AdBanner";
 
 interface AppReleaseInfo {
   version: string;
@@ -244,6 +245,11 @@ export default function DownloadAppViewComponent({ onClose }: DownloadAppViewPro
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Discreet bottom Ad Banner */}
+      <div className="mt-8">
+        <AdBanner format="horizontal" minHeight={110} />
       </div>
     </div>
   );

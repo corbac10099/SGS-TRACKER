@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import AbilityCard from "./AbilityCard";
+import AdBanner from "./AdBanner";
 import { t, Locale } from "@/lib/i18n";
 import { getAgentInfo } from "@/lib/valorant/agentsCatalog";
 
@@ -612,6 +613,11 @@ export default function AgentsWikiComponent({
           })}
         </div>
       )}
+
+      {/* Discreet Bottom Ad Banner */}
+      <div className="mt-10">
+        <AdBanner format="horizontal" minHeight={110} />
+      </div>
     </div>
   );
 }

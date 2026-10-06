@@ -16,6 +16,7 @@ import {
 import { LeaderboardPlayerEntry } from "@/lib/valorant/types";
 import { getPlayerAvatar } from "./LobbiesView";
 import { sounds } from "@/lib/soundEffects";
+import AdBanner from "./AdBanner";
 
 export interface LeaderboardViewProps {
   onSelectPlayer?: (riotId: string) => void;
@@ -689,6 +690,11 @@ export default function LeaderboardViewComponent({ onSelectPlayer }: Leaderboard
             </table>
           </div>
         )}
+
+        {/* Discreet Non-Intrusive Ad Banner */}
+        <div className="mt-8">
+          <AdBanner format="horizontal" minHeight={110} />
+        </div>
       </div>
     </div>
   );

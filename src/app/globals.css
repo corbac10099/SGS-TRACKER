@@ -954,4 +954,31 @@ body:has(.overlay-window-root) {
   overflow: hidden !important;
 }
 
+/* === Google AdSense Anti-Flash & Dark System === */
+.adsbygoogle {
+  background-color: #0a0e13 !important;
+  color-scheme: dark !important;
+}
+
+.adsbygoogle iframe {
+  background-color: #0a0e13 !important;
+  color-scheme: dark !important;
+}
+
+.ad-card-wrapper {
+  background: rgba(15, 25, 35, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.ad-card-wrapper:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+
 

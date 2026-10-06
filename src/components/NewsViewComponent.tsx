@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import RichTextRenderer from "./RichTextRenderer";
+import AdBanner from "./AdBanner";
 
 export interface NewsViewComponentProps {
   newsItems: any[];
@@ -127,38 +128,48 @@ export default function NewsViewComponent({ newsItems, setNewsItems, targetNewsI
           const isTargeted = highlightedId === item.id || targetNewsId === item.id;
 
           return (
-            <div
-              key={item.id}
-              id={`news-card-${item.id}`}
-              className={`glass-panel rounded-2xl p-6 transition-all duration-500 animate-page-in ${
-                isTargeted
-                  ? "ring-2 ring-[var(--color-val-red)] shadow-[0_0_35px_rgba(255,70,85,0.4)] bg-[var(--color-surface-hover)] scale-[1.01]"
-                  : "hover:bg-[var(--color-surface-hover)]"
-              }`}
-              style={{ animationDelay: `${index * 80}ms` }}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{item.title}</h3>
-                <span className="text-[10px] text-[var(--color-text-secondary)] ml-auto font-semibold">
-                  {item.createdAt
-                    ? new Date(item.createdAt).toLocaleDateString("fr-FR", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : ""}
-                </span>
-              </div>
-              {activeNode && (
-                <div className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                  <RichTextRenderer content={activeNode.content || ""} />
+            <React.Fragment key={item.id}>
+              <div
+                id={`news-card-${item.id}`}
+                className={`glass-panel rounded-2xl p-6 transition-all duration-500 animate-page-in ${
+                  isTargeted
+                    ? "ring-2 ring-[var(--color-val-red)] shadow-[0_0_35px_rgba(255,70,85,0.4)] bg-[var(--color-surface-hover)] scale-[1.01]"
+                    : "hover:bg-[var(--color-surface-hover)]"
+                }`}
+                style={{ animationDelay: `${index * 80}ms` }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{item.title}</h3>
+                  <span className="text-[10px] text-[var(--color-text-secondary)] ml-auto font-semibold">
+                    {item.createdAt
+                      ? new Date(item.createdAt).toLocaleDateString("fr-FR", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : ""}
+                  </span>
                 </div>
+                {activeNode && (
+                  <div className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
+                    <RichTextRenderer content={activeNode.content || ""} />
+                  </div>
+                )}
+              </div>
+
+              {/* Discreet Ad Banner after every 3 articles */}
+              {(index + 1) % 3 === 0 && index < sortedNews.length - 1 && (
+                <AdBanner format="horizontal" minHeight={100} />
               )}
-            </div>
+            </React.Fragment>
           );
         })}
+
+        {sortedNews.length > 0 && (
+          <AdBanner format="horizontal" minHeight={110} />
+        )}
       </div>
     </div>
   );
