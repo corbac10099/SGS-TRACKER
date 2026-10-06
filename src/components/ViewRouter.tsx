@@ -184,7 +184,10 @@ export default function ViewRouter({
   if (nav.aimTrainingView) {
     return (
       <div key="aimtraining" className="animate-page-in w-full">
-        <DynamicAimTrainingView />
+        <DynamicAimTrainingView
+          theme={settings.theme}
+          user={player.playerData?.player || player.playerData || null}
+        />
       </div>
     );
   }

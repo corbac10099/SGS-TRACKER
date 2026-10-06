@@ -1,38 +1,49 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useDesktopApp } from "@/hooks/useDesktopApp";
+import { useSession } from "next-auth/react";
 
-/**
- * AimTrainingView - Loads the SGS-AIM platform inside the Tracker Desktop app.
- * In the local version, it attempts to connect to local SGS-AIM (http://localhost:3005)
- * and seamlessly falls back to the online production instance (https://sgs-aim-three.vercel.app).
- * Also passes the current theme dynamically so SGS-AIM matches the Tracker's appearance.
- */
+interface AimTrainingViewProps {
+  theme?: string;
+  user?: any;
+}
 
 const LOCAL_AIM_URL = "http://localhost:3005";
 const ONLINE_AIM_URL = "https://sgs-aim-three.vercel.app";
 
-export default function AimTrainingView() {
+export default function AimTrainingView({ theme: propTheme, user: propUser }: AimTrainingViewProps) {
   const { isDesktop } = useDesktopApp();
+  const { data: session } = useSession();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
   const [aimUrl, setAimUrl] = useState<string>(ONLINE_AIM_URL);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [iframeError, setIframeError] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState("dark");
+  const [activeTheme, setActiveTheme] = useState(propTheme || "dark");
 
-  // Detect active theme
+  const currentUser = propUser || session?.user || {
+    id: "guest",
+    name: "Agent",
+  };
+
+  // Sync active theme
   useEffect(() => {
+    if (propTheme) {
+      setActiveTheme(propTheme);
+      return;
+    }
     if (typeof window !== "undefined") {
-      const theme =
-        document.documentElement.getAttribute("data-theme") ||
+      const stored =
         localStorage.getItem("tracker_theme") ||
         localStorage.getItem("spycam_theme") ||
+        document.documentElement.getAttribute("data-theme") ||
         "dark";
-      setCurrentTheme(theme);
+      setActiveTheme(stored);
     }
-  }, []);
+  }, [propTheme]);
 
-  // In local tracker: check if local dev server (port 3005) is running
+  // Check if local dev server on 3005 is alive
   useEffect(() => {
     let active = true;
     const checkLocal = async () => {
@@ -48,9 +59,7 @@ export default function AimTrainingView() {
             return;
           }
         }
-      } catch {
-        // Local server not running, use online production instance
-      }
+      } catch {}
       if (active) {
         setAimUrl(ONLINE_AIM_URL);
       }
@@ -61,7 +70,96 @@ export default function AimTrainingView() {
     };
   }, []);
 
-  // Web version: show promo card
+  // Handle bidirectional postMessage communication with SGS-AIM
+  useEffect(() => {
+    const handleMessage = async (e: MessageEvent) => {
+      if (!e.data || typeof e.data !== "object") return;
+
+      // 1. SGS-AIM announces it is ready -> send initial context sync
+      if (e.data.type === "SGS_AIM_READY") {
+        if (iframeRef.current?.contentWindow) {
+          // Fetch existing Neon DB aim profile if available
+          let aimProfile = null;
+          if (currentUser?.id && currentUser.id !== "guest") {
+            try {
+              const res = await fetch(`/api/aim/profile?userId=${encodeURIComponent(currentUser.id)}`);
+              if (res.ok) {
+                const data = await res.json();
+                aimProfile = data.profile;
+              }
+            } catch {}
+          }
+
+          iframeRef.current.contentWindow.postMessage(
+            {
+              type: "SGS_USER_SYNC",
+              user: {
+                id: currentUser.id || "guest",
+                name: currentUser.name || "Agent",
+                email: currentUser.email,
+                trackerLevel: currentUser.trackerLevel || 1,
+              },
+              theme: activeTheme,
+              aimRank: aimProfile?.userRank,
+              adaptiveDifficulty: aimProfile?.adaptiveDifficulty,
+            },
+            "*"
+          );
+        }
+      }
+
+      // 2. SGS-AIM completed a session -> save to Neon DB and reward XP
+      if (e.data.type === "SGS_AIM_SAVE_SCORE" && e.data.record) {
+        try {
+          await fetch("/api/aim/save-score", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...e.data.record,
+              userId: currentUser?.id,
+              userName: currentUser?.name,
+            }),
+          });
+        } catch (err) {
+          console.warn("Failed to persist aim score to Neon DB:", err);
+        }
+      }
+
+      // 3. SGS-AIM completed calibration test -> save to Neon DB
+      if (e.data.type === "SGS_AIM_CALIBRATION_SAVED" && e.data.calibration) {
+        try {
+          await fetch("/api/aim/profile", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: currentUser?.id,
+              calibration: e.data.calibration,
+            }),
+          });
+        } catch (err) {
+          console.warn("Failed to persist calibration to Neon DB:", err);
+        }
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [currentUser, activeTheme]);
+
+  // Live propagate theme changes to iframe
+  useEffect(() => {
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        {
+          type: "SGS_THEME_CHANGE",
+          theme: activeTheme,
+        },
+        "*"
+      );
+    }
+  }, [activeTheme]);
+
+  // Desktop check
   if (!isDesktop) {
     return (
       <div className="w-full min-h-[70vh] flex items-center justify-center p-8">
@@ -74,10 +172,10 @@ export default function AimTrainingView() {
             </svg>
           </div>
           <div>
-            <h2 className="text-xl font-black text-[var(--color-text-primary)]">SGS AIM Training</h2>
+            <h2 className="text-xl font-black text-[var(--color-text-primary)]">SGS AIM Training 3D</h2>
             <p className="text-sm text-[var(--color-text-secondary)] mt-2 leading-relaxed">
-              L&apos;entra&icirc;nement de tir int&eacute;gr&eacute; est disponible exclusivement sur l&apos;application bureau SGS Tracker.
-              T&eacute;l&eacute;chargez l&apos;application pour acc&eacute;der aux sc&eacute;narios Gridshot, Microshot, Tracking et 3D.
+              L&apos;entra&icirc;nement de tir 3D calibré pour Valorant est disponible exclusivement sur l&apos;application bureau SGS Tracker.
+              Téléchargez l&apos;application pour accéder aux arènes 3D, au stand The Range et à la calibration adaptative.
             </p>
           </div>
           <div className="pt-2">
@@ -91,9 +189,10 @@ export default function AimTrainingView() {
     );
   }
 
-  const iframeSrc = `${aimUrl}?theme=${encodeURIComponent(currentTheme)}&app=tracker_desktop`;
+  const iframeSrc = `${aimUrl}?theme=${encodeURIComponent(activeTheme)}&userId=${encodeURIComponent(
+    currentUser?.id || ""
+  )}&userName=${encodeURIComponent(currentUser?.name || "Agent")}&app=tracker_desktop`;
 
-  // Desktop: render SGS-AIM iframe
   return (
     <div className="w-full h-[calc(100vh-56px)] relative bg-[#0a0e13]">
       {/* Loading overlay while iframe initializes */}
@@ -103,7 +202,7 @@ export default function AimTrainingView() {
             <div className="w-5 h-5 border-2 border-[var(--color-val-red)] border-t-transparent rounded-full animate-spin" />
           </div>
           <p className="text-sm font-bold uppercase tracking-widest text-[var(--color-text-secondary)]">
-            Connexion &agrave; SGS AIM ({aimUrl === LOCAL_AIM_URL ? "Local :3005" : "En Ligne"})...
+            Connexion &agrave; SGS AIM ({aimUrl === LOCAL_AIM_URL ? "Serveur Local :3005" : "Serveur Dédié 3D"})...
           </p>
         </div>
       )}
@@ -122,11 +221,14 @@ export default function AimTrainingView() {
             <div>
               <h3 className="text-base font-black text-white">Service SGS AIM Indisponible</h3>
               <p className="text-xs text-[var(--color-text-secondary)] mt-1">
-                Impossible de charger la plateforme d&apos;entra&icirc;nement ({aimUrl}). V&eacute;rifiez votre connexion ou relancez l&apos;application.
+                Impossible de charger le stand de tir 3D ({aimUrl}). V&eacute;rifiez votre connexion ou relancez l&apos;application.
               </p>
             </div>
             <button
-              onClick={() => { setIframeError(false); setIframeLoaded(false); }}
+              onClick={() => {
+                setIframeError(false);
+                setIframeLoaded(false);
+              }}
               className="px-6 py-2.5 rounded-xl bg-[var(--color-val-red)] text-white text-xs font-bold cursor-pointer hover:brightness-110 transition-all"
             >
               R&eacute;essayer
@@ -136,11 +238,12 @@ export default function AimTrainingView() {
       )}
 
       <iframe
+        ref={iframeRef}
         src={iframeSrc}
         className="w-full h-full border-0"
         allow="pointer-lock; fullscreen; autoplay"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock"
-        title="SGS AIM Training"
+        title="SGS AIM Training 3D"
         onLoad={() => setIframeLoaded(true)}
         onError={() => setIframeError(true)}
       />

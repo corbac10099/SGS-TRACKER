@@ -391,3 +391,49 @@ model LevelReward {
   @@index([level])
 }
 
+// ==========================================
+// Système SGS AIM Training & Calibration
+// ==========================================
+
+model AimSession {
+  id              String   @id @default(cuid())
+  userId          String
+  userName        String   @default("Agent")
+  scenarioId      String
+  score           Int
+  accuracy        Float
+  headshotRate    Float    @default(0)
+  avgTimeToHitMs  Int      @default(0)
+  targetsHit      Int      @default(0)
+  totalShots      Int      @default(0)
+  maxCombo        Int      @default(0)
+  difficulty      Float    @default(1.0)
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+  @@index([scenarioId])
+  @@index([createdAt])
+}
+
+model AimProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  userRank            String   @default("gold")
+  calibrationDone     Boolean  @default(false)
+  adaptiveDifficulty  Float    @default(1.0)
+  overallScore        Int      @default(0)
+  flickScore          Float    @default(0)
+  microScore          Float    @default(0)
+  trackingScore       Float    @default(0)
+  reactionTimeMs      Float    @default(215)
+  accuracyAvg         Float    @default(85)
+  playerProfile       String   @default("balanced")
+  recommendedSens     Float    @default(0.35)
+  recommendedDpi      Int      @default(800)
+  updatedAt           DateTime @updatedAt
+  createdAt           DateTime @default(now())
+
+  @@index([userId])
+}
+
+
