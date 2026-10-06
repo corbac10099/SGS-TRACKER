@@ -16,36 +16,36 @@ export interface SgsLegalData {
 }
 
 export const DEFAULT_SGS_LEGAL: SgsLegalData = {
-  companyName: "SGS (Smart Gaming Suite)",
+  companyName: "Start Gaming Studio (SGS)",
   contactEmail: "contact@sgs.gg",
   contactAddress: "Paris, France",
   hostName: "Vercel Inc.",
   hostAddress: "440 N Barranca Ave #4133, Covina, CA 91723, USA",
   dbHost: "Neon Tech Inc., San Francisco, CA, USA",
   storageHost: "Cloudflare Inc., San Francisco, CA, USA",
-  riotDisclaimer: `« Spycam et tout l’écosystème SGS » est un projet indépendant qui n’est pas approuvé par Riot Games et ne reflète pas les opinions ou les avis de Riot Games ou de toute personne officiellement impliquée dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques ou des marques déposées de Riot Games, Inc.`,
+  riotDisclaimer: `« SGS Tracker et tout l’écosystème Start Gaming Studio » est un projet indépendant qui n’est pas approuvé par Riot Games et ne reflète pas les opinions ou les avis de Riot Games ou de toute personne officiellement impliquée dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques ou des marques déposées de Riot Games, Inc.`,
   mentionsLegales: `## 1. Éditeur de la Plateforme
-Le site web et les services de l'écosystème SGS (Smart Gaming Suite), incluant l'application **Spycam** (Valorant Performance Tracker), sont édités par l'équipe **SGS**.
+Le site web et les services de l'écosystème Start Gaming Studio (SGS), incluant l'application **SGS Tracker** (Valorant Performance Tracker), sont édités par l'équipe **Start Gaming Studio**.
 - **Contact électronique** : contact@sgs.gg
 - **Responsable de la publication** : Équipe de développement SGS
 
 ## 2. Hébergement & Infrastructures Cloud
-Les services SGS et Spycam sont hébergés et propulsés par des infrastructures internationales hautement sécurisées :
+Les services SGS Tracker sont hébergés et propulsés par des infrastructures internationales hautement sécurisées :
 - **Hébergeur d'application Web & Edge** : Vercel Inc. (440 N Barranca Ave #4133, Covina, CA 91723, USA)
 - **Base de Données Serverless** : Neon Tech Inc. (San Francisco, CA, USA)
 - **Réseau CDN & Stockage Média** : Cloudflare Inc. (101 Townsend St, San Francisco, CA 94107, USA)
 - **Passerelle Temps Réel & WebSockets** : Pusher Ltd (Londres, Royaume-Uni)
 
 ## 3. Propriété Intellectuelle
-L'ensemble des éléments originaux constituant la plateforme SGS et l'application Spycam (code source, architecture logicielle, algorithmes de performance, interface graphique, design et fonctionnalités exclusives) sont la propriété exclusive de SGS.
+L'ensemble des éléments originaux constituant la plateforme SGS Tracker (code source, architecture logicielle, algorithmes de performance SPI, interface graphique, design et fonctionnalités exclusives) sont la propriété exclusive de Start Gaming Studio.
 Les ressources relatives au jeu VALORANT (logos, icônes d'agents, maps, sons officiels) sont la propriété intellectuelle de Riot Games, Inc.`,
   cguText: `## 1. Objet et Acceptation des Conditions
-Les présentes Conditions Générales d'Utilisation (ci-après "CGU") régissent l'accès et l'utilisation de l'écosystème **SGS (Smart Gaming Suite)** et de l'ensemble de ses applications et services connectés, incluant **Spycam** (Valorant Performance Tracker).
+Les présentes Conditions Générales d'Utilisation (ci-après "CGU") régissent l'accès et l'utilisation de l'écosystème **Start Gaming Studio (SGS)** et de l'ensemble de ses applications et services connectés, incluant **SGS Tracker** (Valorant Performance Tracker).
 En accédant au service, en créant un compte SGS ou en utilisant le mode invité, l'utilisateur accepte sans réserve l'intégralité des présentes CGU.
 
 ## 2. Services Proposés
-SGS met à disposition des joueurs d'e-sport et de jeux compétitifs des outils d'analyse statistique, de suivi de performance, de recherche de coéquipiers (LFG - Looking For Group) et de salons vocaux et écrits en temps réel.
-L'accès aux fonctionnalités principales de Spycam et de SGS est gratuit.
+SGS met à disposition des joueurs d'e-sport et de jeux compétitifs des outils d'analyse statistique, de suivi de performance, de recherche de coéquipiers (LFG - Looking For Group), d'entraînement au tir (SGS AIM) et de salons vocaux et écrits en temps réel.
+L'accès aux fonctionnalités principales de SGS Tracker est gratuit.
 
 ## 3. Comptes Utilisateurs et Centralisation
 - L'utilisateur peut créer un compte centralisé SGS par email/mot de passe, connexion Google OAuth ou liaison de son Riot ID.
@@ -53,7 +53,7 @@ L'accès aux fonctionnalités principales de Spycam et de SGS est gratuit.
 - L'utilisateur est responsable de la confidentialité de ses identifiants de connexion et de toute activité effectuée depuis son compte.
 
 ## 4. Règles de Conduite & Tolérance Zéro Anti-Toxicité
-La communauté SGS et Spycam repose sur le respect, le fair-play et la convivialité.
+La communauté SGS Tracker repose sur le respect, le fair-play et la convivialité.
 Sont strictement prohibés dans l'ensemble des espaces publics, salons de recherche, messages de chat et canaux vocaux :
 - Les propos haineux, discriminatoires, racistes, sexistes, homophobes, xénophobes ou injurieux ;
 - Le harcèlement, l'intimidation, les menaces ou le chantage sous toutes leurs formes ;
@@ -71,24 +71,29 @@ SGS s'efforce de maintenir un accès continu à ses services 24h/24. Toutefois, 
 ## 7. Modifications des CGU & Droit Applicable
 SGS se réserve le droit de modifier les présentes CGU à tout moment afin de les adapter aux évolutions des services et de la réglementation. Les présentes conditions sont soumises au droit français et européen.`,
   privacyPolicy: `## 1. Collecte et Nature des Données
-Dans le cadre de l'utilisation de SGS et Spycam, nous collectons un minimum de données strictement nécessaires au bon fonctionnement des services :
+Dans le cadre de l'utilisation de SGS Tracker, nous collectons un minimum de données strictement nécessaires au bon fonctionnement des services :
 - **Données de Compte** : Adresse email, nom d'affichage, mot de passe chiffré (pour les comptes locaux), identifiant unique de compte.
 - **Données de Jeu Publiques** : Riot ID (Pseudo#Tag), PUUID Riot, statistiques publiques de matchs et rangs obtenus via les API officielles.
-- **Préférences Techniques** : Préférences de thème (sombre/clair), réglages audio (micro, sortie, suppression de bruit Krisp/RNNoise), stockées en base et/ou localement.
+- **Préférences Techniques** : Préférences de thème (sombre/clair), réglages audio (micro, sortie, suppression de bruit), stockées en base et/ou localement.
 - **Données d'Audit Temporaires** : Messages de salon et transcriptions vocales aux fins de modération anti-toxicité.
 
 ## 2. Utilisation & Finalités des Données
 Les données collectées sont utilisées exclusivement pour :
-- Fournir les statistiques de jeu et calculer les indicateurs de performance personnalisés ;
+- Fournir les statistiques de jeu et calculer les indicateurs de performance personnalisés (SPI) ;
 - Assurer le fonctionnement des salons LFG, de l'audio WebRTC et de la communication entre joueurs ;
 - Préserver la sécurité de la communauté par la modération automatisée ;
 - Personnaliser l'expérience utilisateur (bannières, widgets, disposition du dashboard).
 
-## 3. Partage & Tiers
-SGS ne vend, ne loue et ne commercialise **AUCUNE** donnée personnelle à des tiers ou régies publicitaires.
-Les données techniques transitent uniquement via nos partenaires d'infrastructure certifiés (Vercel, Neon DB, Cloudflare, Pusher).
+## 3. Partage & Tiers Techniques
+Les données techniques transitent uniquement via nos partenaires d'infrastructure certifiés nécessaires à la fourniture du service (Vercel, Neon DB, Cloudflare, Pusher). SGS Tracker ne vend ni ne commercialise aucune donnée personnelle nominative.
 
-## 4. Vos Droits (Conformité RGPD)
+## 4. Cookies & Régie Publicitaire (Google AdSense)
+Ce site utilise Google AdSense pour afficher des annonces publicitaires.
+- Des fournisseurs tiers, y compris Google, utilisent des cookies pour diffuser des annonces pertinentes en fonction des visites antérieures des internautes sur ce site ou d'autres sites web.
+- Grâce aux cookies publicitaires, Google et ses partenaires adaptent les annonces diffusées auprès des visiteurs en fonction de leur navigation sur ce site et/ou d'autres sites du Web.
+- Les utilisateurs peuvent choisir de désactiver la publicité personnalisée à tout moment dans les Paramètres des annonces Google : https://www.google.com/settings/ads ou sur https://www.aboutads.info.
+
+## 5. Vos Droits (Conformité RGPD)
 Conformément au Règlement Général sur la Protection des Données (RGPD), vous disposez à tout moment des droits suivants :
 - **Droit d'accès et d'exportation** de vos données ;
 - **Droit de rectification** de votre email, mot de passe ou Riot ID lié ;
