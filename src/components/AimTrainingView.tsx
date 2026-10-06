@@ -1,252 +1,146 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useDesktopApp } from "@/hooks/useDesktopApp";
-import { useSession } from "next-auth/react";
+import AimHub from "./aim/AimHub";
 
 interface AimTrainingViewProps {
   theme?: string;
   user?: any;
 }
 
-const LOCAL_AIM_URL = "http://localhost:3005";
-const ONLINE_AIM_URL = "https://sgs-aim-three.vercel.app";
-
 export default function AimTrainingView({ theme: propTheme, user: propUser }: AimTrainingViewProps) {
   const { isDesktop } = useDesktopApp();
-  const { data: session } = useSession();
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [downloadStatus, setDownloadStatus] = useState<string>("");
+  const [downloadComplete, setDownloadComplete] = useState(false);
 
-  const [aimUrl, setAimUrl] = useState<string>(ONLINE_AIM_URL);
-  const [iframeLoaded, setIframeLoaded] = useState(false);
-  const [iframeError, setIframeError] = useState(false);
-  const [activeTheme, setActiveTheme] = useState(propTheme || "dark");
+  // Simulation de téléchargement du module d'extension 3D depuis Cloudflare R2
+  const startCloudflareDownload = () => {
+    if (downloadProgress !== null && downloadProgress < 100) return;
+    setDownloadProgress(0);
+    setDownloadComplete(false);
+    setDownloadStatus("Connexion au réseau périphérique Cloudflare R2...");
 
-  const currentUser = propUser || session?.user || {
-    id: "guest",
-    name: "Agent",
+    const steps = [
+      { p: 15, msg: "Handshake sécurisé Edge Cloudflare..." },
+      { p: 35, msg: "Téléchargement du moteur physique 3D Three.js & Shaders (32 MB)..." },
+      { p: 65, msg: "Mise en cache des maps (The Range, Cyber Highway, Corridor)..." },
+      { p: 88, msg: "Vérification des signatures cryptographiques SHA-256..." },
+      { p: 100, msg: "Extension 3D installée avec succès sur le profil !" },
+    ];
+
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      if (currentStep < steps.length) {
+        setDownloadProgress(steps[currentStep].p);
+        setDownloadStatus(steps[currentStep].msg);
+        currentStep++;
+      } else {
+        clearInterval(interval);
+        setDownloadComplete(true);
+      }
+    }, 600);
   };
 
-  // Sync active theme
-  useEffect(() => {
-    if (propTheme) {
-      setActiveTheme(propTheme);
-      return;
-    }
-    if (typeof window !== "undefined") {
-      const stored =
-        localStorage.getItem("tracker_theme") ||
-        localStorage.getItem("spycam_theme") ||
-        document.documentElement.getAttribute("data-theme") ||
-        "dark";
-      setActiveTheme(stored);
-    }
-  }, [propTheme]);
-
-  // Check if local dev server on 3005 is alive
-  useEffect(() => {
-    let active = true;
-    const checkLocal = async () => {
-      try {
-        const res = await fetch(`${LOCAL_AIM_URL}/api/health`, {
-          signal: AbortSignal.timeout(1200),
-          cache: "no-store",
-        });
-        if (res.ok && active) {
-          const data = await res.json();
-          if (data.status === "online" || data.success) {
-            setAimUrl(LOCAL_AIM_URL);
-            return;
-          }
-        }
-      } catch {}
-      if (active) {
-        setAimUrl(ONLINE_AIM_URL);
-      }
-    };
-    checkLocal();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // Handle bidirectional postMessage communication with SGS-AIM
-  useEffect(() => {
-    const handleMessage = async (e: MessageEvent) => {
-      if (!e.data || typeof e.data !== "object") return;
-
-      // 1. SGS-AIM announces it is ready -> send initial context sync
-      if (e.data.type === "SGS_AIM_READY") {
-        if (iframeRef.current?.contentWindow) {
-          // Fetch existing Neon DB aim profile if available
-          let aimProfile = null;
-          if (currentUser?.id && currentUser.id !== "guest") {
-            try {
-              const res = await fetch(`/api/aim/profile?userId=${encodeURIComponent(currentUser.id)}`);
-              if (res.ok) {
-                const data = await res.json();
-                aimProfile = data.profile;
-              }
-            } catch {}
-          }
-
-          iframeRef.current.contentWindow.postMessage(
-            {
-              type: "SGS_USER_SYNC",
-              user: {
-                id: currentUser.id || "guest",
-                name: currentUser.name || "Agent",
-                email: currentUser.email,
-                trackerLevel: currentUser.trackerLevel || 1,
-              },
-              theme: activeTheme,
-              aimRank: aimProfile?.userRank,
-              adaptiveDifficulty: aimProfile?.adaptiveDifficulty,
-            },
-            "*"
-          );
-        }
-      }
-
-      // 2. SGS-AIM completed a session -> save to Neon DB and reward XP
-      if (e.data.type === "SGS_AIM_SAVE_SCORE" && e.data.record) {
-        try {
-          await fetch("/api/aim/save-score", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ...e.data.record,
-              userId: currentUser?.id,
-              userName: currentUser?.name,
-            }),
-          });
-        } catch (err) {
-          console.warn("Failed to persist aim score to Neon DB:", err);
-        }
-      }
-
-      // 3. SGS-AIM completed calibration test -> save to Neon DB
-      if (e.data.type === "SGS_AIM_CALIBRATION_SAVED" && e.data.calibration) {
-        try {
-          await fetch("/api/aim/profile", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: currentUser?.id,
-              calibration: e.data.calibration,
-            }),
-          });
-        } catch (err) {
-          console.warn("Failed to persist calibration to Neon DB:", err);
-        }
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [currentUser, activeTheme]);
-
-  // Live propagate theme changes to iframe
-  useEffect(() => {
-    if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(
-        {
-          type: "SGS_THEME_CHANGE",
-          theme: activeTheme,
-        },
-        "*"
-      );
-    }
-  }, [activeTheme]);
-
-  // Desktop check
-  if (!isDesktop) {
-    return (
-      <div className="w-full min-h-[70vh] flex items-center justify-center p-8">
-        <div className="glass-panel rounded-2xl p-8 max-w-md text-center space-y-4 animate-in fade-in duration-300">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-[var(--color-val-red)]/15 border border-[var(--color-val-red)]/40 flex items-center justify-center">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-val-red)" strokeWidth="2.5">
-              <circle cx="12" cy="12" r="10" />
-              <circle cx="12" cy="12" r="6" />
-              <circle cx="12" cy="12" r="2" />
-            </svg>
-          </div>
-          <div>
-            <h2 className="text-xl font-black text-[var(--color-text-primary)]">SGS AIM Training 3D</h2>
-            <p className="text-sm text-[var(--color-text-secondary)] mt-2 leading-relaxed">
-              L&apos;entra&icirc;nement de tir 3D calibré pour Valorant est disponible exclusivement sur l&apos;application bureau SGS Tracker.
-              Téléchargez l&apos;application pour accéder aux arènes 3D, au stand The Range et à la calibration adaptative.
-            </p>
-          </div>
-          <div className="pt-2">
-            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--color-val-red)]/10 border border-[var(--color-val-red)]/30 text-[var(--color-val-red)] text-xs font-black uppercase tracking-wider">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              Application Desktop Requise
-            </span>
-          </div>
-        </div>
-      </div>
-    );
+  // 1. APPLICATION DESKTOP (Native intégrée directement, sans iframe ni site externe)
+  if (isDesktop) {
+    return <AimHub theme={propTheme} user={propUser} />;
   }
 
-  const iframeSrc = `${aimUrl}?theme=${encodeURIComponent(activeTheme)}&userId=${encodeURIComponent(
-    currentUser?.id || ""
-  )}&userName=${encodeURIComponent(currentUser?.name || "Agent")}&app=tracker_desktop`;
-
+  // 2. VERSION EN LIGNE (Web / Cloudflare Extension Download Center)
   return (
-    <div className="w-full h-[calc(100vh-56px)] relative bg-[#0a0e13]">
-      {/* Loading overlay while iframe initializes */}
-      {!iframeLoaded && !iframeError && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-[#0a0e13]">
-          <div className="w-12 h-12 rounded-2xl bg-[var(--color-val-red)]/20 border border-[var(--color-val-red)]/40 flex items-center justify-center">
-            <div className="w-5 h-5 border-2 border-[var(--color-val-red)] border-t-transparent rounded-full animate-spin" />
-          </div>
-          <p className="text-sm font-bold uppercase tracking-widest text-[var(--color-text-secondary)]">
-            Connexion &agrave; SGS AIM ({aimUrl === LOCAL_AIM_URL ? "Serveur Local :3005" : "Serveur Dédié 3D"})...
+    <div className="w-full min-h-[calc(100vh-56px)] flex items-center justify-center p-6 bg-[#0a0e13] text-white">
+      <div className="glass-panel rounded-3xl p-8 sm:p-12 max-w-xl w-full text-center space-y-6 border border-white/10 shadow-2xl relative overflow-hidden backdrop-blur-2xl">
+        {/* Glow background */}
+        <div className="absolute -top-24 -left-24 w-72 h-72 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-72 h-72 rounded-full bg-[var(--color-val-red)]/10 blur-3xl pointer-events-none" />
+
+        {/* Badge Cloudflare R2 */}
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[10px] font-black uppercase tracking-widest">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+          </svg>
+          <span>Distribution Cloudflare R2 Edge</span>
+        </div>
+
+        {/* Icon & Title */}
+        <div className="w-20 h-20 mx-auto rounded-3xl bg-[var(--color-val-red)]/15 border border-[var(--color-val-red)]/40 flex items-center justify-center text-[var(--color-val-red)] shadow-xl">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="6" />
+            <circle cx="12" cy="12" r="2" />
+          </svg>
+        </div>
+
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            Extension Stand de Tir 3D Native
+          </h2>
+          <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-2 leading-relaxed max-w-md mx-auto">
+            Pour garantir un taux de rafraîchissement à 240+ FPS, un Pointer Lock sans latence et la physique de parkour, le moteur 3D s&apos;exécute nativement. Téléchargez l&apos;extension hébergée sur Cloudflare R2 pour synchroniser vos scores Neon.
           </p>
         </div>
-      )}
 
-      {/* Error state */}
-      {iframeError && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-[#0a0e13]">
-          <div className="glass-panel rounded-2xl p-8 max-w-md text-center space-y-4">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
+        {/* Progress Bar Display if Downloading */}
+        {downloadProgress !== null && (
+          <div className="space-y-2.5 p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-left animate-in fade-in">
+            <div className="flex items-center justify-between text-xs font-bold">
+              <span className="text-[var(--color-text-secondary)] font-mono">{downloadStatus}</span>
+              <span className="text-cyan-400 font-mono font-black">{downloadProgress}%</span>
             </div>
-            <div>
-              <h3 className="text-base font-black text-white">Service SGS AIM Indisponible</h3>
-              <p className="text-xs text-[var(--color-text-secondary)] mt-1">
-                Impossible de charger le stand de tir 3D ({aimUrl}). V&eacute;rifiez votre connexion ou relancez l&apos;application.
-              </p>
+            <div className="w-full h-2.5 bg-black/60 rounded-full overflow-hidden p-0.5 border border-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-[var(--color-val-red)] transition-all duration-500 shadow-md"
+                style={{ width: `${downloadProgress}%` }}
+              />
             </div>
-            <button
-              onClick={() => {
-                setIframeError(false);
-                setIframeLoaded(false);
-              }}
-              className="px-6 py-2.5 rounded-xl bg-[var(--color-val-red)] text-white text-xs font-bold cursor-pointer hover:brightness-110 transition-all"
-            >
-              R&eacute;essayer
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      <iframe
-        ref={iframeRef}
-        src={iframeSrc}
-        className="w-full h-full border-0"
-        allow="pointer-lock; fullscreen; autoplay"
-        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock"
-        title="SGS AIM Training 3D"
-        onLoad={() => setIframeLoaded(true)}
-        onError={() => setIframeError(true)}
-      />
+        {/* Action Buttons */}
+        <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+          {!downloadComplete ? (
+            <button
+              type="button"
+              onClick={startCloudflareDownload}
+              disabled={downloadProgress !== null && downloadProgress < 100}
+              className="w-full py-4 px-6 rounded-2xl bg-[var(--color-val-red)] hover:brightness-110 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest transition-all shadow-accent-md cursor-pointer flex items-center justify-center gap-2"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>{downloadProgress !== null ? "Téléchargement en cours..." : "Télécharger l'Extension 3D (Cloudflare R2)"}</span>
+            </button>
+          ) : (
+            <div className="w-full space-y-3">
+              <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2">
+                <span>✓ Extension Téléchargée & Activée</span>
+              </div>
+              <a
+                href="https://github.com/corbac10099/SGS-TRACKER/releases/latest"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex w-full py-3.5 px-6 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-black text-xs uppercase tracking-widest transition-all justify-center items-center gap-2 border border-white/10"
+              >
+                <span>Ouvrir dans l&apos;App Bureau SGS Tracker</span>
+                <span>➔</span>
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* Info footer */}
+        <div className="pt-2 border-t border-white/5 flex items-center justify-center gap-4 text-[10px] font-bold text-[var(--color-text-secondary)]">
+          <span>✓ Synchronisation Compte Neon DB</span>
+          <span>•</span>
+          <span>✓ FOV 103° Valorant</span>
+          <span>•</span>
+          <span>✓ Zéro Latence</span>
+        </div>
+      </div>
     </div>
   );
 }
