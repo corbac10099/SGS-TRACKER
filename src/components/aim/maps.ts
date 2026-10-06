@@ -15,6 +15,9 @@ export interface CollisionBox {
   rampEndY?: number;
   rampZStart?: number;
   rampZEnd?: number;
+  isJumpPad?: boolean;
+  jumpBoostY?: number;
+  jumpBoostZ?: number;
 }
 
 export interface MapEnvironmentResult {
@@ -302,8 +305,55 @@ export function buildMapEnvironment(
       if (type === "gap") {
         // Gouffre dans le vide à sauter avec Space !
         // Afficher des balises d'avertissement laser
-        const leftPillar = addSolidBlock(`gap-L-${centerZ}`, 0.6, 3, 0.6, new THREE.Vector3(-highwayWidth / 2, height + 1.5, zStart), 0x111827, 0xf59e0b);
-        const rightPillar = addSolidBlock(`gap-R-${centerZ}`, 0.6, 3, 0.6, new THREE.Vector3(highwayWidth / 2, height + 1.5, zStart), 0x111827, 0xf59e0b);
+        addSolidBlock(`gap-L-${centerZ}`, 0.6, 3, 0.6, new THREE.Vector3(-highwayWidth / 2, height + 1.5, zStart), 0x111827, 0xf59e0b);
+        addSolidBlock(`gap-R-${centerZ}`, 0.6, 3, 0.6, new THREE.Vector3(highwayWidth / 2, height + 1.5, zStart), 0x111827, 0xf59e0b);
+
+        // Tremplin de Propulsion Néon (Jump Pad) situé 2m avant le bord du vide
+        const padWidth = 8;
+        const padLength = 3.5;
+        const padZ = zStart + 2.0;
+
+        // Socle Jump Pad
+        const padBaseGeo = new THREE.BoxGeometry(padWidth, 0.12, padLength);
+        const padBaseMat = new THREE.MeshStandardMaterial({
+          color: 0x0f172a,
+          roughness: 0.3,
+          metalness: 0.8,
+        });
+        const padBase = new THREE.Mesh(padBaseGeo, padBaseMat);
+        padBase.position.set(0, height + 0.06, padZ);
+        scene.add(padBase);
+        createdObjects.push(padBase);
+
+        // Surface lumineuse Cyan
+        const padGlowGeo = new THREE.BoxGeometry(padWidth - 0.4, 0.06, padLength - 0.4);
+        const padGlowMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+        const padGlow = new THREE.Mesh(padGlowGeo, padGlowMat);
+        padGlow.position.set(0, height + 0.14, padZ);
+        scene.add(padGlow);
+        createdObjects.push(padGlow);
+
+        // Chevrons néon indicateurs de propulsion vers l'avant (-Z)
+        for (let a = -1.0; a <= 1.0; a += 1.0) {
+          const arrowGeo = new THREE.ConeGeometry(0.5, 0.9, 3);
+          const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+          const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+          arrow.rotation.x = -Math.PI / 2;
+          arrow.position.set(0, height + 0.18, padZ + a);
+          scene.add(arrow);
+          createdObjects.push(arrow);
+        }
+
+        // Enregistrement de la zone de déclenchement du Jump Pad
+        collisionBoxes.push({
+          id: `jump-pad-${centerZ}`,
+          min: new THREE.Vector3(-padWidth / 2, height - 0.2, padZ - padLength / 2),
+          max: new THREE.Vector3(padWidth / 2, height + 1.5, padZ + padLength / 2),
+          isJumpPad: true,
+          jumpBoostY: 8.5,
+          jumpBoostZ: 14.0,
+        });
+
         return;
       }
 
@@ -395,9 +445,9 @@ export function buildMapEnvironment(
         spawnHighwayChunk(currentZ, currentZ - 35, currentY, "flat");
         currentZ -= 35;
 
-        // 5. Gouffre (vide de 12m à sauter !)
-        spawnHighwayChunk(currentZ, currentZ - 12, currentY, "gap");
-        currentZ -= 12;
+        // 5. Gouffre (vide franchissable de 5.5m avec Tremplin Jump Pad)
+        spawnHighwayChunk(currentZ, currentZ - 5.5, currentY, "gap");
+        currentZ -= 5.5;
 
         // 6. Plateforme après saut
         spawnHighwayChunk(currentZ, currentZ - 40, currentY, "crates");

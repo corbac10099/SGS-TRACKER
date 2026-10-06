@@ -567,7 +567,7 @@ export default function Range3DCanvas({
 
         // Jump impulse
         if (keys["Space"] && isGroundedRef.current) {
-          playerVelocityRef.current.y = 5.5;
+          playerVelocityRef.current.y = 6.8;
           isGroundedRef.current = false;
           aimSounds.playJump();
         }
@@ -590,6 +590,29 @@ export default function Range3DCanvas({
 
         // Collision pass against all collision boxes
         for (const box of collisionBoxesRef.current) {
+          // 0. Déclencheur Tremplin Jump Pad
+          if (box.isJumpPad) {
+            const minX = box.min.x - playerRadius;
+            const maxX = box.max.x + playerRadius;
+            const minZ = box.min.z - playerRadius;
+            const maxZ = box.max.z + playerRadius;
+            const pFeet = testY - eyeHeight;
+            if (
+              resolvedX >= minX &&
+              resolvedX <= maxX &&
+              testZ >= minZ &&
+              testZ <= maxZ &&
+              pFeet <= box.max.y + 0.5 &&
+              pFeet >= box.min.y - 0.5
+            ) {
+              playerVelocityRef.current.y = box.jumpBoostY || 8.5;
+              playerVelocityRef.current.z = -(Math.abs(box.jumpBoostZ || 14.0));
+              isGroundedRef.current = false;
+              aimSounds.playJump();
+            }
+            continue;
+          }
+
           if (box.isRamp && box.rampZStart !== undefined && box.rampZEnd !== undefined) {
             // Ramp interpolation
             const minZ = Math.min(box.rampZStart, box.rampZEnd);

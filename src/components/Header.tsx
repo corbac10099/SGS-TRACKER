@@ -320,7 +320,7 @@ export default function Header({
     },
     {
       id: "aimtraining",
-      label: "Aim Training",
+      label: "Aim 3D",
       icon: <IconCrosshair size={15} />,
       onClick: () => onOpenAimTraining?.(),
       show: desktop.isDesktop && !!onOpenAimTraining,
@@ -328,12 +328,12 @@ export default function Header({
   ];
 
   return (
-    <header className="w-full z-30 border-b border-[var(--color-border)] bg-[var(--color-surface)]/80 backdrop-blur-2xl sticky top-0 mb-6 sm:mb-8 flex flex-col shadow-lg shadow-black/20">
+    <header className={`w-full z-30 border-b border-[var(--color-border)] bg-[var(--color-surface)]/80 backdrop-blur-2xl sticky top-0 ${aimTrainingOpen ? "mb-0" : "mb-6 sm:mb-8"} flex flex-col shadow-lg shadow-black/20`}>
       {/* Top Navbar */}
-      <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 sm:py-3.5 w-full gap-2 lg:gap-4">
+      <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 sm:py-3 w-full gap-2 lg:gap-3 flex-nowrap">
 
         {/* ═══ LEFT GROUP: Logo on far left + Nav Pill centered between Logo & Search ═══ */}
-        <div className="flex items-center flex-none md:flex-1 min-w-0">
+        <div className="flex items-center flex-shrink-0 gap-2 min-w-0">
           {/* Logo */}
           <div
             onClick={onGoHome}
@@ -353,10 +353,10 @@ export default function Header({
           </div>
 
           {/* Centered Nav Pill Container in space between Logo and Search Bar */}
-          <div className="hidden md:flex flex-1 items-center justify-center min-w-0 px-1">
+          <div className="hidden md:flex flex-shrink-0 items-center justify-center min-w-0 px-1">
             <div
               ref={navContainerRef}
-              className="relative flex items-center gap-0.5 p-1 rounded-2xl glass-pill"
+              className="relative flex items-center gap-0.5 p-1 rounded-2xl glass-pill flex-shrink-0"
             >
               {/* Animated Sliding Dynamic Accent Pill Background */}
               <div
@@ -383,7 +383,7 @@ export default function Header({
                         item.onClick();
                       }}
                       onMouseEnter={() => sounds.playHover()}
-                      className={`relative z-10 flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer select-none transition-colors duration-200 active:scale-95 whitespace-nowrap ${
+                      className={`relative z-10 flex items-center gap-1.5 px-2.5 2xl:px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer select-none transition-colors duration-200 active:scale-95 whitespace-nowrap ${
                         isActive
                           ? "text-[var(--color-accent-contrast,#ffffff)] font-black"
                           : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
@@ -404,7 +404,7 @@ export default function Header({
         </div>
 
         {/* ═══ CENTER: Search Bar (proportional — shrinks to fit between logo & bell) ═══ */}
-        <div className="flex-1 min-w-0 max-w-xs sm:max-w-sm mx-1 lg:mx-2">
+        <div className="flex-1 min-w-[140px] max-w-[200px] xl:max-w-[240px] 2xl:max-w-[300px] mx-1 sm:mx-2 flex-shrink">
           <div ref={searchContainerRef} className="relative w-full">
             <form onSubmit={handleSubmit} className="relative w-full">
               <input
@@ -414,7 +414,7 @@ export default function Header({
                 value={riotId}
                 onChange={(e) => setRiotId(e.target.value)}
                 onFocus={() => setIsFocused(true)}
-                className={`w-full bg-[var(--color-surface)] text-[var(--color-text-primary)] border border-[var(--color-border)] placeholder:text-[var(--color-text-secondary)] font-medium px-3.5 sm:px-6 py-2 rounded-full text-xs sm:text-sm outline-none transition-all duration-300 pr-3 sm:pr-16 ${
+                className={`w-full bg-[var(--color-surface)] text-[var(--color-text-primary)] border border-[var(--color-border)] placeholder:text-[var(--color-text-secondary)] font-medium px-3.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm outline-none transition-all duration-300 pr-3 sm:pr-14 ${
                   isFocused ? "shadow-accent-md ring-2 ring-[var(--color-val-red)] border-[var(--color-val-red)]" : ""
                 }`}
                 required
@@ -524,7 +524,7 @@ export default function Header({
         </div>
 
         {/* ═══ RIGHT: Clean Glass Capsules ═══ */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-none md:flex-1 justify-end">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 justify-end">
 
           {/* ── Capsule Outils : Défis & Amis ── */}
           <div className="hidden md:flex items-center gap-1 p-1 rounded-2xl bg-black/30 border border-white/10 backdrop-blur-md">
