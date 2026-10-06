@@ -63,6 +63,7 @@ export default function AimHub({ theme: propTheme, user: propUser }: Props) {
   const [userRank, setUserRank] = useState<AimRankId>("gold");
   const [adaptiveDifficulty, setAdaptiveDifficulty] = useState<number>(1.0);
   const [themeAccent, setThemeAccent] = useState<string>("#ff4655");
+  const [themeBg, setThemeBg] = useState<string>("#0a0e13");
   const [recentScores, setRecentScores] = useState<any[]>([]);
 
   // Crosshair state
@@ -89,20 +90,26 @@ export default function AimHub({ theme: propTheme, user: propUser }: Props) {
 
   const [settingsTab, setSettingsTab] = useState<"crosshair" | "sensitivity">("crosshair");
 
-  // Derive theme accent from active theme
+  // Derive theme accent & background from active tracker theme
   useEffect(() => {
     const th = propTheme || "dark";
     if (th === "crimson" || th === "red") {
       setThemeAccent("#ff2a44");
+      setThemeBg("#12080a");
     } else if (th === "midnight" || th === "blue") {
       setThemeAccent("#8c64ff");
+      setThemeBg("#0b0820");
     } else if (th === "ocean" || th === "cyan") {
       setThemeAccent("#32c8b4");
+      setThemeBg("#041316");
     } else if (th.startsWith("custom:")) {
-      const match = th.match(/accent=([^,]+)/);
-      if (match) setThemeAccent(match[1]);
+      const matchAccent = th.match(/accent=([^,]+)/);
+      const matchBg = th.match(/bg=([^,]+)/);
+      if (matchAccent) setThemeAccent(matchAccent[1]);
+      if (matchBg) setThemeBg(matchBg[1]);
     } else {
       setThemeAccent("#ff4655");
+      setThemeBg("#0a0e13");
     }
   }, [propTheme]);
 
@@ -243,7 +250,10 @@ export default function AimHub({ theme: propTheme, user: propUser }: Props) {
   );
 
   return (
-    <div className="w-full min-h-[calc(100vh-56px)] flex flex-col bg-[#0a0e13] text-[var(--color-text-primary)]">
+    <div
+      className="w-full min-h-[calc(100vh-56px)] flex flex-col text-[var(--color-text-primary)] transition-colors duration-300"
+      style={{ backgroundColor: themeBg }}
+    >
       {/* Top Navigation Bar */}
       {view !== "training" && (
         <header className="flex-shrink-0 h-16 border-b border-white/[0.08] bg-black/40 backdrop-blur-xl flex items-center justify-between px-6 sm:px-10 z-30">
@@ -369,6 +379,7 @@ export default function AimHub({ theme: propTheme, user: propUser }: Props) {
               crosshair={crosshair}
               sensitivity={sensitivity}
               themeAccent={themeAccent}
+              themeBg={themeBg}
               adaptiveConfig={{
                 targetScale: Math.max(0.7, 1.3 - adaptiveDifficulty * 0.25),
                 spawnRateMs: 800,
@@ -440,6 +451,7 @@ export default function AimHub({ theme: propTheme, user: propUser }: Props) {
         crosshair={crosshair}
         sensitivity={sensitivity}
         themeAccent={themeAccent}
+        themeBg={themeBg}
         onCalibrationComplete={handleCalibrationComplete}
       />
     </div>

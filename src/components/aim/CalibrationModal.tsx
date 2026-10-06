@@ -17,6 +17,7 @@ interface Props {
   crosshair: CrosshairSettings;
   sensitivity: ValorantSensSettings;
   themeAccent?: string;
+  themeBg?: string;
   onCalibrationComplete: (result: CalibrationResult) => void;
 }
 
@@ -61,6 +62,7 @@ export default function CalibrationModal({
   crosshair,
   sensitivity,
   themeAccent = "#ff4655",
+  themeBg = "#0a0e13",
   onCalibrationComplete,
 }: Props) {
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
@@ -176,6 +178,7 @@ export default function CalibrationModal({
             crosshair={crosshair}
             sensitivity={sensitivity}
             themeAccent={themeAccent}
+            themeBg={themeBg}
             isCalibrationMode={true}
             adaptiveConfig={liveAdaptiveConfigRef.current}
             onAdaptiveUpdate={handleAdaptiveUpdate}
