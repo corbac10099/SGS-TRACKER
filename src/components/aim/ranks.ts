@@ -118,3 +118,87 @@ export function calculateRankFromScore(score: number): AimRankTier {
   }
   return AIM_RANKS.iron;
 }
+
+/**
+ * Retourne le rang supérieur immédiat pour le système de promotion 1er de rang
+ */
+export function getNextRank(currentRank: AimRankId): AimRankTier | null {
+  const currentIndex = RANK_ORDER.indexOf(currentRank);
+  if (currentIndex >= 0 && currentIndex < RANK_ORDER.length - 1) {
+    return AIM_RANKS[RANK_ORDER[currentIndex + 1]];
+  }
+  return null;
+}
+
+/**
+ * Calcule le niveau d'EXP Aim Trainer, la progression et le titre de prestige
+ */
+export function getAimLevelInfo(totalXp: number): import("./types").AimLevelInfo {
+  const safeXp = Math.max(0, totalXp || 0);
+  const xpPerLevel = 750;
+  const level = Math.floor(safeXp / xpPerLevel) + 1;
+  const currentLevelXp = safeXp % xpPerLevel;
+  const progressPercent = Math.min(100, Math.round((currentLevelXp / xpPerLevel) * 100));
+
+  let title = "Novice de Visée";
+  let badgeColor = "#94a3b8";
+
+  if (level >= 60) {
+    title = "Légende Radiant Aim";
+    badgeColor = "#f59e0b";
+  } else if (level >= 45) {
+    title = "Sniper d'Élite";
+    badgeColor = "#ef4444";
+  } else if (level >= 30) {
+    title = "Cyber Duelliste";
+    badgeColor = "#10b981";
+  } else if (level >= 20) {
+    title = "Maître du Flick";
+    badgeColor = "#a855f7";
+  } else if (level >= 12) {
+    title = "Spécialiste Headshot";
+    badgeColor = "#06b6d4";
+  } else if (level >= 6) {
+    title = "Tireur Confirmé";
+    badgeColor = "#eab308";
+  }
+
+  return {
+    level,
+    totalXp: safeXp,
+    currentLevelXp,
+    nextLevelXp: xpPerLevel,
+    progressPercent,
+    title,
+    badgeColor,
+  };
+}
+
+/**
+ * Calcule les métadonnées de la saison mensuelle en cours et le décompte de fin de mois
+ */
+export function getCurrentMonthlySeason(): import("./types").MonthlySeasonInfo {
+  const now = new Date();
+  const year = now.getFullYear();
+  const monthIndex = now.getMonth();
+
+  const monthNames = [
+    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+  ];
+  const monthName = monthNames[monthIndex] || "Mois";
+
+  // Dernier jour du mois courant
+  const lastDayOfMonth = new Date(year, monthIndex + 1, 0);
+  const diffTime = lastDayOfMonth.getTime() - now.getTime();
+  const daysRemaining = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
+  return {
+    monthName,
+    year,
+    seasonName: `Saison Mensuelle — ${monthName} ${year}`,
+    daysRemaining,
+    totalContenders: 248,
+  };
+}
+

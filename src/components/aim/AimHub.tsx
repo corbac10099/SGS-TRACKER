@@ -10,7 +10,10 @@ import type {
   AimScoreRecord,
   AimRankId,
   CalibrationResult,
+  AimLevelInfo,
 } from "./types";
+import { AIM_RANKS, getAimLevelInfo, getNextRank } from "./ranks";
+import { aimSounds } from "./sounds";
 import ScenarioSelector from "./ScenarioSelector";
 import CrosshairEditor from "./CrosshairEditor";
 import SensitivityPanel from "./SensitivityPanel";
@@ -65,6 +68,8 @@ export default function AimHub({ theme: propTheme, user: propUser }: Props) {
   const [themeAccent, setThemeAccent] = useState<string>("#ff4655");
   const [themeBg, setThemeBg] = useState<string>("#0a0e13");
   const [recentScores, setRecentScores] = useState<any[]>([]);
+  const [aimLevelInfo, setAimLevelInfo] = useState<AimLevelInfo>(() => getAimLevelInfo(4500));
+  const [promotionModal, setPromotionModal] = useState<{ previousRank: AimRankId; newRank: AimRankId } | null>(null);
 
   // Crosshair state
   const [crosshair, setCrosshair] = useState<CrosshairSettings>(() => {
@@ -150,6 +155,9 @@ export default function AimHub({ theme: propTheme, user: propUser }: Props) {
                 }));
               }
             }
+            if (data.aimLevelInfo) {
+              setAimLevelInfo(data.aimLevelInfo);
+            }
             if (Array.isArray(data.recentSessions)) {
               setRecentScores(data.recentSessions);
             }
@@ -208,11 +216,33 @@ export default function AimHub({ theme: propTheme, user: propUser }: Props) {
       };
 
       try {
-        await fetch("/api/aim/save-score", {
+        const res = await fetch("/api/aim/save-score", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+
+        if (res.ok) {
+          const result = await res.json();
+          if (result.aimLevelInfo) {
+            setAimLevelInfo(result.aimLevelInfo);
+          } else if (result.currentXp) {
+            setAimLevelInfo(getAimLevelInfo(result.currentXp));
+          }
+          if (result.promoted && result.newRank) {
+            setUserRank(result.newRank);
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.setItem("sgs_aim_rank", result.newRank);
+              } catch {}
+            }
+            setPromotionModal({
+              previousRank: result.previousRank || userRank,
+              newRank: result.newRank,
+            });
+            aimSounds.playCountdownGo();
+          }
+        }
       } catch (err) {
         console.warn("Neon DB score save error:", err);
       }
@@ -288,6 +318,35 @@ export default function AimHub({ theme: propTheme, user: propUser }: Props) {
             </div>
           </div>
 
+          {/* Aim XP & Level Pill in Hub Header */}
+          <div className="hidden md:flex items-center gap-3 px-3.5 py-1.5 rounded-2xl bg-white/[0.04] border border-white/10">
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs border shadow-sm"
+              style={{
+                backgroundColor: AIM_RANKS[userRank]?.bgColor || "rgba(255,255,255,0.05)",
+                borderColor: AIM_RANKS[userRank]?.borderColor || "rgba(255,255,255,0.15)",
+                color: AIM_RANKS[userRank]?.color || "#fff",
+              }}
+            >
+              {AIM_RANKS[userRank]?.name.charAt(0) || "G"}
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-black text-white">
+                <span>Niveau {aimLevelInfo.level}</span>
+                <span className="text-[10px] text-gray-400 font-bold">• {aimLevelInfo.title}</span>
+              </div>
+              <div className="w-28 h-1.5 rounded-full bg-white/10 overflow-hidden mt-1">
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${aimLevelInfo.progressPercent}%`,
+                    backgroundColor: themeAccent,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
           <nav className="flex items-center gap-2">
             <button
               type="button"
@@ -338,6 +397,7 @@ export default function AimHub({ theme: propTheme, user: propUser }: Props) {
               adaptiveMultiplier={adaptiveDifficulty}
               userName={currentUser?.name || "Agent"}
               themeAccent={themeAccent}
+              aimLevelInfo={aimLevelInfo}
             />
 
             {/* Recent Sessions */}
@@ -395,7 +455,11 @@ export default function AimHub({ theme: propTheme, user: propUser }: Props) {
 
         {view === "leaderboard" && (
           <div className="p-6 sm:p-10">
-            <AimLeaderboard />
+            <AimLeaderboard
+              userRank={userRank}
+              userName={currentUser?.name || "Agent"}
+              themeAccent={themeAccent}
+            />
           </div>
         )}
 
@@ -454,6 +518,64 @@ export default function AimHub({ theme: propTheme, user: propUser }: Props) {
         themeBg={themeBg}
         onCalibrationComplete={handleCalibrationComplete}
       />
+
+      {/* Promotion Modal Celebration */}
+      {promotionModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-md p-8 rounded-3xl bg-gradient-to-b from-[#162130] to-[#0a0e13] border-2 border-amber-400/60 shadow-[0_0_50px_rgba(251,191,36,0.3)] text-center space-y-6">
+            <div className="w-20 h-20 mx-auto rounded-2xl bg-amber-400/20 border-2 border-amber-400/50 flex items-center justify-center text-4xl shadow-[0_0_30px_rgba(251,191,36,0.4)] animate-bounce">
+              👑
+            </div>
+
+            <div className="space-y-2">
+              <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                PROMOTION MENSUELLE #1 !
+              </span>
+              <h2 className="text-3xl font-black text-white tracking-tight">FÉLICITATIONS !</h2>
+              <p className="text-xs text-[#8b97a3]">
+                Vous avez pris la 1ère place du mois de votre rang ! Vous êtes immédiatement promu au rang supérieur.
+              </p>
+            </div>
+
+            {/* Transition ranks */}
+            <div className="flex items-center justify-center gap-4 py-3 px-4 rounded-2xl bg-white/[0.04] border border-white/10">
+              <div className="text-center">
+                <div className="text-[10px] uppercase font-bold text-[#8b97a3]">Ancien Rang</div>
+                <div
+                  className="text-base font-black uppercase mt-0.5"
+                  style={{ color: AIM_RANKS[promotionModal.previousRank]?.color || "#8b97a3" }}
+                >
+                  {AIM_RANKS[promotionModal.previousRank]?.name || promotionModal.previousRank}
+                </div>
+              </div>
+
+              <div className="text-amber-400 font-black text-2xl">➔</div>
+
+              <div className="text-center">
+                <div className="text-[10px] uppercase font-bold text-amber-300">Nouveau Rang</div>
+                <div
+                  className="text-xl font-black uppercase mt-0.5 tracking-wide drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]"
+                  style={{ color: AIM_RANKS[promotionModal.newRank]?.color || "#ffd700" }}
+                >
+                  {AIM_RANKS[promotionModal.newRank]?.name || promotionModal.newRank}
+                </div>
+              </div>
+            </div>
+
+            <div className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl py-2 px-3">
+              🎉 Bonus promotion : +500 EXP accordé sur votre profil !
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPromotionModal(null)}
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-110 text-black font-black text-xs uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(245,158,11,0.4)] cursor-pointer"
+            >
+              C&apos;est parti pour le rang supérieur !
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -23,7 +23,38 @@ import {
   IconX,
   IconUsers,
 } from "@/components/icons/SpyIcons";
+import dynamic from "next/dynamic";
 import { BASE_AGENTS_CATALOG, AgentCatalogEntry } from "@/lib/valorant/agentsCatalog";
+import type {
+  AimScenarioId,
+  CrosshairSettings,
+  ValorantSensSettings,
+  AimScoreRecord,
+} from "@/components/aim/types";
+
+const Range3DCanvas = dynamic(() => import("@/components/aim/Range3DCanvas"), { ssr: false });
+
+const DEFAULT_CROSSHAIR: CrosshairSettings = {
+  color: "#00ff80",
+  showCenterDot: true,
+  centerDotSize: 2,
+  innerLinesLength: 6,
+  innerLinesThickness: 2,
+  innerLinesOffset: 3,
+  innerLinesOpacity: 1,
+  outerLines: false,
+  outerLinesLength: 4,
+  outerLinesThickness: 2,
+  outerLinesOffset: 10,
+  outerLinesOpacity: 0.5,
+};
+
+const DEFAULT_SENS: ValorantSensSettings = {
+  sens: 0.35,
+  dpi: 800,
+  scopedSensMultiplier: 1.0,
+  fov: 103,
+};
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -66,7 +97,7 @@ interface LiveMatchData {
   players?: LivePlayer[];
 }
 
-type OverlayTab = "match" | "agents" | "history";
+type OverlayTab = "match" | "agents" | "history" | "aim";
 
 // ─── Extraction de la couleur d'accentuation ────────────────────────────────
 
@@ -96,6 +127,33 @@ export default function OverlayPage() {
   const [selectedAgentDetail, setSelectedAgentDetail] = useState<AgentCatalogEntry | null>(null);
   const [shortcutKey, setShortcutKey] = useState("F9");
 
+  // ─── Aim Trainer Overlay State ──────────────────────────────────────────────
+  const [aimScenarioId, setAimScenarioId] = useState<AimScenarioId>("gridshot_3d");
+  const [aimPaused, setAimPaused] = useState(false);
+  const [interRoundTimer, setInterRoundTimer] = useState<number | null>(null);
+  const [aimNotice, setAimNotice] = useState<string | null>(null);
+  const prevRoundRef = useRef<number | null>(null);
+
+  const [crosshair, setCrosshair] = useState<CrosshairSettings>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("sgs_aim_crosshair");
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return DEFAULT_CROSSHAIR;
+  });
+
+  const [sensitivity, setSensitivity] = useState<ValorantSensSettings>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("sgs_aim_sensitivity");
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return DEFAULT_SENS;
+  });
+
   // Initialisation du thème sauvegardé sur le compte SGS
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -103,11 +161,80 @@ export default function OverlayPage() {
       setThemeName(savedTheme);
       const savedShortcut = localStorage.getItem("sgs_overlay_shortcut") || "F9";
       setShortcutKey(savedShortcut);
+
+      const savedCross = localStorage.getItem("sgs_aim_crosshair");
+      if (savedCross) {
+        try { setCrosshair(JSON.parse(savedCross)); } catch {}
+      }
+      const savedSens = localStorage.getItem("sgs_aim_sensitivity");
+      if (savedSens) {
+        try { setSensitivity(JSON.parse(savedSens)); } catch {}
+      }
     }
   }, []);
 
   const accentColor = useMemo(() => extractThemeAccent(themeName), [themeName]);
   const bgColor = useMemo(() => getThemeBackgroundColor(themeName), [themeName]);
+
+  // Détection du cycle de manche pour l'Aim Trainer inter-manche
+  useEffect(() => {
+    if (!data) return;
+
+    const currentRound = data.round ?? (data.score ? data.score.ally + data.score.enemy + 1 : 1);
+
+    // Initialisation
+    if (prevRoundRef.current === null) {
+      prevRoundRef.current = currentRound;
+      if (data.status === "INGAME") {
+        setInterRoundTimer(30);
+      }
+      return;
+    }
+
+    // Nouveau round détecté !
+    if (currentRound > prevRoundRef.current) {
+      prevRoundRef.current = currentRound;
+      setInterRoundTimer(30);
+      setAimPaused(false);
+      setAimNotice("🟢 Nouvelle manche : Stand de tir actif pendant la phase d'achat (30s) !");
+      setTimeout(() => setAimNotice(null), 4000);
+    }
+  }, [data?.round, data?.score?.ally, data?.score?.enemy, data?.status]);
+
+  // Décompte de la phase d'achat (inter-round timer)
+  useEffect(() => {
+    if (interRoundTimer === null) return;
+    if (interRoundTimer <= 0) {
+      // Fin de phase d'achat -> la manche commence -> pause automatique !
+      setAimPaused(true);
+      if (typeof document !== "undefined" && document.pointerLockElement) {
+        document.exitPointerLock?.();
+      }
+      setAimNotice("⏸️ Manche commencée : Stand de tir mis en pause. Focus sur la manche !");
+      setTimeout(() => setAimNotice(null), 5000);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setInterRoundTimer((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [interRoundTimer]);
+
+  const handleAimFinish = async (
+    record: Omit<AimScoreRecord, "id" | "userId" | "userName" | "verified">
+  ) => {
+    try {
+      await fetch("/api/aim/save-score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(record),
+      });
+    } catch (e) {
+      console.warn("Erreur sauvegarde score aim overlay:", e);
+    }
+  };
 
   // Récupération des données du match en direct
   const fetchLiveMatch = async () => {
@@ -391,6 +518,29 @@ export default function OverlayPage() {
               <IconClock size={12} />
               <span>Historique</span>
             </button>
+
+            <button
+              onClick={() => {
+                setActiveTab("aim");
+                setInspectedPlayer(null);
+              }}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-all ${
+                activeTab === "aim"
+                  ? "text-white shadow-sm"
+                  : "text-white/50 hover:text-white/80"
+              }`}
+              style={{
+                backgroundColor: activeTab === "aim" ? accentColor : "transparent",
+              }}
+            >
+              <IconCrosshair size={12} />
+              <span>Stand 3D</span>
+              {interRoundTimer !== null && interRoundTimer > 0 && (
+                <span className="px-1 py-0.2 rounded text-[8px] font-black bg-amber-400 text-black ml-0.5">
+                  {interRoundTimer}s
+                </span>
+              )}
+            </button>
           </div>
 
           {/* Contrôles : Clics Traversants, Tailles & Refresh */}
@@ -450,6 +600,21 @@ export default function OverlayPage() {
             <kbd className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[9px] font-bold">
               F10
             </kbd>
+          </div>
+        )}
+
+        {/* Bannière de notification automatique de l'Aim Trainer (Changement de manche / Pause) */}
+        {aimNotice && (
+          <div className="bg-gradient-to-r from-amber-500/20 to-red-500/20 border border-amber-500/40 rounded-lg px-2.5 py-1 flex items-center justify-between text-[10px] text-amber-200 animate-in fade-in">
+            <span className="flex items-center gap-1.5 font-bold">
+              <span>{aimNotice}</span>
+            </span>
+            <button
+              onClick={() => setAimNotice(null)}
+              className="text-white/40 hover:text-white ml-2 text-xs font-black cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
         )}
 
@@ -761,6 +926,90 @@ export default function OverlayPage() {
               <p className="text-[11px] text-white/40 mt-1 max-w-xs">
                 Vos parties récentes se synchronisent automatiquement après chaque match terminé.
               </p>
+            </div>
+          )}
+
+          {/* ─────────────────────────────────────────────────────────────
+              ONGLET 4 : STAND DE TIR 3D (INTER-MANCHE & AUTO-PAUSE)
+          ───────────────────────────────────────────────────────────── */}
+          {activeTab === "aim" && (
+            <div className="flex-1 flex flex-col min-h-0 relative rounded-xl overflow-hidden bg-black/60 border border-white/10">
+              {/* Barre de contrôle du stand d'entraînement */}
+              <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-black/80 border-b border-white/10 flex-shrink-0 z-10">
+                {/* Sélecteur compact de scénario */}
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                  {[
+                    { id: "gridshot_3d", label: "Gridshot" },
+                    { id: "floating_orbs", label: "Sphères" },
+                    { id: "headshot_range", label: "Headshot" },
+                    { id: "spider_3d", label: "Spider" },
+                    { id: "microflick_3d", label: "Micro" },
+                    { id: "cyber_assault_runner", label: "Highway" },
+                  ].map((sc) => (
+                    <button
+                      key={sc.id}
+                      onClick={() => setAimScenarioId(sc.id as AimScenarioId)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                        aimScenarioId === sc.id
+                          ? "text-white shadow-sm"
+                          : "text-white/40 hover:text-white/80 bg-white/5"
+                      }`}
+                      style={{
+                        backgroundColor: aimScenarioId === sc.id ? accentColor : undefined,
+                      }}
+                    >
+                      {sc.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Statut manche & bouton Pause / Reprendre */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {interRoundTimer !== null && interRoundTimer > 0 ? (
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-black">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                      <span>ACHAT: {interRoundTimer}s</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-300 text-[10px] font-black">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                      <span>COMBAT</span>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setAimPaused(!aimPaused)}
+                    className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border cursor-pointer ${
+                      aimPaused
+                        ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30"
+                        : "bg-amber-500/20 border-amber-500/40 text-amber-300 hover:bg-amber-500/30"
+                    }`}
+                  >
+                    {aimPaused ? "Reprendre ▶" : "Pause ⏸"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Moteur Three.js Canvas */}
+              <div className="flex-1 w-full h-full relative min-h-[300px]">
+                <Range3DCanvas
+                  scenarioId={aimScenarioId}
+                  crosshair={crosshair}
+                  sensitivity={sensitivity}
+                  themeAccent={accentColor}
+                  themeBg={bgColor}
+                  isPaused={aimPaused}
+                  onTogglePause={(paused) => setAimPaused(paused)}
+                  interRoundTimerSec={interRoundTimer}
+                  roundPhaseLabel={
+                    interRoundTimer !== null && interRoundTimer > 0
+                      ? "PHASE D'ACHAT"
+                      : "MANCHE EN COMBAT"
+                  }
+                  onFinish={handleAimFinish}
+                  onBack={() => setActiveTab("match")}
+                />
+              </div>
             </div>
           )}
         </div>

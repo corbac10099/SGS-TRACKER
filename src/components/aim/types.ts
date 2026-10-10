@@ -90,6 +90,7 @@ export interface ValorantSensSettings {
   sens: number;
   dpi: number;
   fov: number;
+  scopedSensMultiplier?: number;
 }
 
 export interface AimScoreRecord {
@@ -110,6 +111,51 @@ export interface AimScoreRecord {
   distanceTraveled?: number;
   timestamp: number;
   verified: boolean;
+  xpEarned?: number;
+}
+
+export interface AimLevelInfo {
+  level: number;
+  totalXp: number;
+  currentLevelXp: number;
+  nextLevelXp: number;
+  progressPercent: number;
+  title: string;
+  badgeColor: string;
+}
+
+export interface MonthlyLeaderboardEntry {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  userRank: AimRankId;
+  score: number;
+  accuracy: number;
+  headshotRate: number;
+  avgTimeToHitMs: number;
+  aimLevel: number;
+  aimXp: number;
+  rankPosition: number;
+  isFirstInRank: boolean;
+  eligibleForPromotion: boolean;
+  scenarioId: AimScenarioId;
+  timestamp: number;
+}
+
+export interface MonthlySeasonInfo {
+  monthName: string;
+  year: number;
+  seasonName: string;
+  daysRemaining: number;
+  totalContenders: number;
+}
+
+export interface AimPromotionEvent {
+  previousRank: AimRankId;
+  newRank: AimRankId;
+  promotedScore: number;
+  timestamp: number;
 }
 
 export interface CalibrationResult {
@@ -134,3 +180,4 @@ export interface AdaptiveConfig {
   targetDistance: [number, number];
   angleSpread: number;
 }
+

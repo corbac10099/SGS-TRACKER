@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import type { AimRankId, AimScenarioId } from "./types";
+import type { AimRankId, AimScenarioId, AimLevelInfo } from "./types";
 import { SCENARIOS, SCENARIO_CATEGORIES, getScenariosByCategory } from "./scenarios";
-import { AIM_RANKS } from "./ranks";
+import { AIM_RANKS, getNextRank, getAimLevelInfo } from "./ranks";
 import { MAPS } from "./maps";
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   adaptiveMultiplier?: number;
   userName?: string;
   themeAccent?: string;
+  aimLevelInfo?: AimLevelInfo;
 }
 
 const CATEGORY_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
@@ -63,10 +64,13 @@ export default function ScenarioSelector({
   adaptiveMultiplier = 1.0,
   userName = "Agent",
   themeAccent = "#ff4655",
+  aimLevelInfo,
 }: Props) {
   const [selectedCat, setSelectedCat] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const rankTier = AIM_RANKS[userRank] || AIM_RANKS.gold;
+  const nextRankTier = getNextRank(userRank);
+  const effectiveLevelInfo = aimLevelInfo || getAimLevelInfo(4500);
 
   const filteredScenarios = SCENARIOS.filter((s) => {
     const matchesCat = selectedCat === "all" || s.category === selectedCat;
@@ -81,11 +85,11 @@ export default function ScenarioSelector({
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 animate-in fade-in pb-12">
       {/* Top Hero Card (Style Tracker Profil & Agents) */}
-      <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-r from-black/80 via-white/[0.03] to-black/80 border border-white/10 shadow-2xl overflow-hidden backdrop-blur-xl">
+      <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-r from-black/85 via-white/[0.04] to-black/85 border border-white/10 shadow-2xl overflow-hidden backdrop-blur-xl">
         <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full blur-3xl opacity-20 pointer-events-none" style={{ backgroundColor: themeAccent }} />
         
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
             <div
               className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-3xl sm:text-4xl font-black border shadow-xl flex-shrink-0"
               style={{
@@ -96,28 +100,66 @@ export default function ScenarioSelector({
             >
               {rankTier.name.charAt(0)}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
                   Stand de Tir 3D Valorant
                 </span>
                 <span
-                  className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border"
+                  className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border font-bold"
                   style={{
                     color: rankTier.color,
                     borderColor: rankTier.borderColor,
                     backgroundColor: rankTier.bgColor,
                   }}
                 >
-                  {rankTier.name}
+                  Rang {rankTier.name}
+                </span>
+
+                {/* Badge Niveau d'Aim */}
+                <span
+                  className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/10 border border-white/15 text-white flex items-center gap-1.5"
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: effectiveLevelInfo.badgeColor }} />
+                  <span>Niveau {effectiveLevelInfo.level} • {effectiveLevelInfo.title}</span>
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-4xl font-black text-white mt-1 tracking-tight">
+
+              <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
                 {userName}
               </h1>
-              <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-1 max-w-xl leading-relaxed">
-                Entraînement de visée natif SGS Tracker : FOV 103°, sensibilité synchronisée, moteur physique 3D et progression Neon DB.
-              </p>
+
+              {/* Barre de progression XP Aim */}
+              <div className="pt-1.5 max-w-md w-full">
+                <div className="flex items-center justify-between text-[10px] font-black text-gray-300 uppercase tracking-wider mb-1">
+                  <span>EXP Stand de Tir</span>
+                  <span className="text-amber-300 font-mono">
+                    {effectiveLevelInfo.currentLevelXp} / {effectiveLevelInfo.nextLevelXp} XP ({effectiveLevelInfo.progressPercent}%)
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden border border-white/5 p-0.5">
+                  <div
+                    className="h-full rounded-full transition-all duration-500 shadow-sm"
+                    style={{
+                      width: `${effectiveLevelInfo.progressPercent}%`,
+                      backgroundColor: themeAccent,
+                      boxShadow: `0 0 10px ${themeAccent}80`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Bannière Objectif Promotion de Rang */}
+              {nextRankTier && (
+                <div className="pt-2 flex items-center gap-2 text-xs font-bold text-amber-300">
+                  <span>👑</span>
+                  <span>
+                    Objectif Promotion : <strong>1ère place du mois en {rankTier.name}</strong> pour passer{" "}
+                    <strong className="underline decoration-emerald-400 decoration-2">{nextRankTier.name}</strong> !
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -296,6 +338,9 @@ export default function ScenarioSelector({
                   </span>
 
                   <div className="flex items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-400/15 border border-amber-400/30 text-amber-300">
+                      +120 XP
+                    </span>
                     <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-white/5 border border-white/10 text-gray-300">
                       {s.difficulty}
                     </span>

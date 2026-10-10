@@ -27,6 +27,10 @@ interface Props {
   themeAccent?: string;
   themeBg?: string;
   isCalibrationMode?: boolean;
+  isPaused?: boolean;
+  onTogglePause?: (paused: boolean) => void;
+  roundPhaseLabel?: string;
+  interRoundTimerSec?: number | null;
   onAdaptiveUpdate?: (newConfig: AdaptiveConfig) => void;
   onFinish: (record: Omit<AimScoreRecord, "id" | "userId" | "userName" | "verified">) => void;
   onBack: () => void;
@@ -57,6 +61,10 @@ export default function Range3DCanvas({
   themeAccent = "#ff4655",
   themeBg = "#0a0e13",
   isCalibrationMode = false,
+  isPaused = false,
+  onTogglePause,
+  roundPhaseLabel,
+  interRoundTimerSec,
   onAdaptiveUpdate,
   onFinish,
   onBack,
@@ -136,6 +144,12 @@ export default function Range3DCanvas({
         ? Math.round(hitTimesRef.current.reduce((a, b) => a + b, 0) / hitTimesRef.current.length)
         : 0;
 
+    const baseHitXp = hitsRef.current * 4;
+    const scoreFactorXp = Math.round(scoreRef.current / 450);
+    const comboBonusXp = maxComboRef.current >= 15 ? 50 : maxComboRef.current >= 8 ? 25 : 10;
+    const hsBonusXp = Math.round((hsRate / 100) * hitsRef.current * 3);
+    const xpEarned = Math.min(350, Math.max(40, baseHitXp + scoreFactorXp + comboBonusXp + hsBonusXp));
+
     const stats = {
       scenarioId,
       score: scoreRef.current,
@@ -153,6 +167,7 @@ export default function Range3DCanvas({
       difficulty: adaptiveScaleRef.current,
       distanceTraveled: Math.round(Math.abs(playerPositionRef.current.z)),
       timestamp: Date.now(),
+      xpEarned,
     };
 
     setFinalStats(stats);
@@ -320,7 +335,7 @@ export default function Range3DCanvas({
 
   // Shoot raycast
   const shootRaycast = useCallback(() => {
-    if (!isPlayingRef.current || !cameraRef.current || !sceneRef.current) return;
+    if (!isPlayingRef.current || isPaused || !cameraRef.current || !sceneRef.current) return;
 
     aimSounds.playShoot();
     shotsRef.current += 1;
@@ -536,7 +551,7 @@ export default function Range3DCanvas({
       lastTime = now;
 
       // Player Movement & Solid Collision Engine
-      if (scenario.allowMovement && isPlayingRef.current) {
+      if (scenario.allowMovement && isPlayingRef.current && !isPaused) {
         const keys = keysDownRef.current;
         const isSprinting = Boolean(keys["ShiftLeft"] || keys["ShiftRight"]);
         const baseSpeed = scenario.isRunnerMode ? 9.5 : 6.0;
@@ -815,9 +830,19 @@ export default function Range3DCanvas({
     return () => clearInterval(countInterval);
   }, [scenarioId, scenario, spawnTarget]);
 
+  // Synchronisation de l'état Pause (Manche Valorant ou déclencheur utilisateur)
+  useEffect(() => {
+    if (isPaused) {
+      isPlayingRef.current = false;
+      releasePointerLock();
+    } else if (phase === "playing") {
+      isPlayingRef.current = true;
+    }
+  }, [isPaused, phase, releasePointerLock]);
+
   // Session timer
   useEffect(() => {
-    if (phase !== "playing" || scenarioId === "reaction_3d") return;
+    if (phase !== "playing" || scenarioId === "reaction_3d" || isPaused) return;
 
     const sessionInterval = setInterval(() => {
       timerRef.current -= 1;
@@ -830,7 +855,7 @@ export default function Range3DCanvas({
     }, 1000);
 
     return () => clearInterval(sessionInterval);
-  }, [phase, scenarioId, finishSession]);
+  }, [phase, scenarioId, finishSession, isPaused]);
 
   // Stable refs for input listeners
   const sensitivityRef = useRef(sensitivity);
@@ -1082,8 +1107,15 @@ export default function Range3DCanvas({
               )}
             </div>
 
-            {/* Right: Accuracy & Live Score */}
+            {/* Right: Accuracy & Live Score + Inter-Round status */}
             <div className="flex items-center gap-3">
+              {interRoundTimerSec !== undefined && interRoundTimerSec !== null && (
+                <div className="px-3.5 py-1.5 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-black uppercase tracking-wider backdrop-blur-md flex items-center gap-1.5 shadow-lg">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span>Achat : {interRoundTimerSec}s</span>
+                </div>
+              )}
+
               <div className="px-4 py-2 rounded-2xl bg-black/70 backdrop-blur-md border border-white/15 text-right shadow-lg">
                 <div className="text-[10px] font-bold text-gray-400 uppercase">Précision</div>
                 <div className={`text-lg font-black ${liveAccuracy >= 80 ? "text-emerald-400" : liveAccuracy >= 50 ? "text-amber-400" : "text-red-400"}`}>
@@ -1107,6 +1139,16 @@ export default function Range3DCanvas({
                   {liveScore.toLocaleString()}
                 </div>
               </div>
+
+              {onTogglePause && (
+                <button
+                  type="button"
+                  onClick={() => onTogglePause(!isPaused)}
+                  className="pointer-events-auto px-3.5 py-2 rounded-2xl bg-black/70 hover:bg-black/90 border border-white/20 text-white text-xs font-black uppercase transition-all shadow-lg cursor-pointer"
+                >
+                  {isPaused ? "Reprendre ▶" : "Pause ⏸️"}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1125,6 +1167,53 @@ export default function Range3DCanvas({
           </div>
         )}
 
+        {/* Pause Overlay (Déclenché automatiquement lors du lancement d'une manche) */}
+        {isPaused && phase === "playing" && (
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-40 p-4 animate-in fade-in">
+            <div className="glass-panel rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-4 border border-white/10 shadow-2xl">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 mx-auto flex items-center justify-center text-2xl font-black shadow-lg">
+                ⏸️
+              </div>
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-amber-400">
+                  {roundPhaseLabel || "Manche Valorant en cours"}
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-white mt-1">Stand de Tir en Pause</h3>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1.5 leading-relaxed">
+                  Votre entraînement est sauvegardé à la seconde exacte. Le stand sera de nouveau actif dès la fin de la manche.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-around text-center">
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-secondary)] font-bold">Chrono restant</div>
+                  <div className="text-lg font-black text-white font-mono">{liveTimer}s</div>
+                </div>
+                <div className="w-px h-8 bg-white/10" />
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-secondary)] font-bold">Score actuel</div>
+                  <div className="text-lg font-black text-[#ff4655] font-mono">{liveScore}</div>
+                </div>
+                <div className="w-px h-8 bg-white/10" />
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-secondary)] font-bold">Combo</div>
+                  <div className="text-lg font-black text-amber-400 font-mono">x{combo}</div>
+                </div>
+              </div>
+
+              {onTogglePause && (
+                <button
+                  type="button"
+                  onClick={() => onTogglePause(false)}
+                  className="w-full py-3 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white font-black text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                >
+                  Reprendre Immédiatement ▶
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Countdown Overlay */}
         {phase === "countdown" && (
           <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center z-30 pointer-events-none">
@@ -1138,7 +1227,7 @@ export default function Range3DCanvas({
         )}
 
         {/* Pointer Lock Help prompt */}
-        {phase === "playing" && !isLocked && (
+        {phase === "playing" && !isLocked && !isPaused && (
           <div
             className="absolute bottom-6 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-2xl bg-black/85 border text-white text-xs font-black uppercase tracking-wider backdrop-blur-md z-30 pointer-events-none animate-pulse shadow-xl"
             style={{ borderColor: themeAccent }}
@@ -1166,6 +1255,17 @@ export default function Range3DCanvas({
                   Session Terminée
                 </span>
                 <h2 className="text-3xl font-black text-white mt-2">{scenario.name}</h2>
+              </div>
+
+              {/* Badge Expérience Gagnée */}
+              <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-between text-amber-300">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">⚡</span>
+                  <span className="text-xs font-black uppercase tracking-wider">Expérience Gagnée</span>
+                </div>
+                <div className="text-xl font-black font-mono">
+                  +{finalStats.xpEarned || 120} XP
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-left">

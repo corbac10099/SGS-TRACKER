@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
 
     let profile = null;
     let recentSessions: any[] = [];
+    let userXp = 0;
 
     try {
       profile = await (prisma as any).aimProfile.findUnique({
@@ -30,13 +31,60 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         take: 15,
       });
+
+      const userRecord = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { xp: true },
+      });
+      userXp = userRecord?.xp || 0;
     } catch (e) {
       console.warn("Neon DB aimProfile query error:", e);
     }
 
+    // Calcul de l'Aim XP et du Niveau d'Aim
+    const sessionCount = recentSessions.length;
+    const computedAimXp = Math.max(userXp, sessionCount * 120);
+    const xpPerLevel = 750;
+    const aimLevel = Math.floor(computedAimXp / xpPerLevel) + 1;
+    const currentLevelXp = computedAimXp % xpPerLevel;
+    const progressPercent = Math.min(100, Math.round((currentLevelXp / xpPerLevel) * 100));
+
+    let title = "Novice de Visée";
+    let badgeColor = "#94a3b8";
+    if (aimLevel >= 60) {
+      title = "Légende Radiant Aim";
+      badgeColor = "#f59e0b";
+    } else if (aimLevel >= 45) {
+      title = "Sniper d'Élite";
+      badgeColor = "#ef4444";
+    } else if (aimLevel >= 30) {
+      title = "Cyber Duelliste";
+      badgeColor = "#10b981";
+    } else if (aimLevel >= 20) {
+      title = "Maître du Flick";
+      badgeColor = "#a855f7";
+    } else if (aimLevel >= 12) {
+      title = "Spécialiste Headshot";
+      badgeColor = "#06b6d4";
+    } else if (aimLevel >= 6) {
+      title = "Tireur Confirmé";
+      badgeColor = "#eab308";
+    }
+
+    const aimLevelInfo = {
+      level: aimLevel,
+      totalXp: computedAimXp,
+      currentLevelXp,
+      nextLevelXp: xpPerLevel,
+      progressPercent,
+      title,
+      badgeColor,
+    };
+
     return NextResponse.json({
       success: true,
       profile,
+      aimLevelInfo,
       recentSessions,
     });
   } catch (err: any) {

@@ -43,13 +43,64 @@ export async function POST(req: NextRequest) {
       console.warn("Neon DB aimSession insert fallback:", dbErr);
     }
 
-    // 2. Attribution d'XP et progression niveau si utilisateur connecté
-    let xpGained = Math.min(150, Math.max(30, Math.round(score / 800)));
+    // 2. Attribution d'XP avancée (Tirs au but, Headshots, Combo, Performance)
+    const baseHitXp = targetsHit * 4;
+    const scoreFactorXp = Math.round(score / 450);
+    const comboBonusXp = maxCombo >= 15 ? 50 : maxCombo >= 8 ? 25 : 10;
+    const hsBonusXp = Math.round((headshotRate / 100) * targetsHit * 3);
+    let xpGained = Math.min(350, Math.max(40, baseHitXp + scoreFactorXp + comboBonusXp + hsBonusXp));
+
     let currentXp = 0;
     let currentLevel = 1;
+    let promoted = false;
+    let previousRank = body.userRank || "gold";
+    let newRank = body.userRank || "gold";
+
+    const RANK_STEPS: Record<string, string> = {
+      iron: "bronze",
+      bronze: "silver",
+      silver: "gold",
+      gold: "platinum",
+      platinum: "diamond",
+      diamond: "ascendant",
+      ascendant: "immortal",
+      immortal: "radiant_aim",
+    };
 
     if (userId !== "anonymous") {
       try {
+        // Récupérer le profil actuel
+        const existingProfile = await (prisma as any).aimProfile.findUnique({
+          where: { userId },
+        });
+
+        if (existingProfile?.userRank) {
+          previousRank = existingProfile.userRank;
+          newRank = existingProfile.userRank;
+        }
+
+        // Vérification de la 1ère place du mois pour la promotion
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        // Score max actuel de ce rang ce mois-ci
+        const topRankSession = await (prisma as any).aimSession.findFirst({
+          where: {
+            createdAt: { gte: startOfMonth },
+            userId: { not: userId },
+          },
+          orderBy: { score: "desc" },
+        });
+
+        const thresholdToBeat = topRankSession ? topRankSession.score : 65000;
+
+        // Si le score dépasse le 1er du rang et qu'un rang supérieur existe
+        if (score > thresholdToBeat && RANK_STEPS[previousRank]) {
+          newRank = RANK_STEPS[previousRank];
+          promoted = true;
+          xpGained += 500; // Bonus de promotion +500 XP
+        }
+
         const user = await prisma.user.findUnique({
           where: { id: userId },
           select: { id: true, xp: true, trackerLevel: true },
@@ -71,19 +122,20 @@ export async function POST(req: NextRequest) {
           currentLevel = newLevel;
         }
 
-        // 3. Mise à jour de l'AimProfile de l'utilisateur
+        // 3. Mise à jour de l'AimProfile de l'utilisateur (avec promotion si éligible)
         await (prisma as any).aimProfile.upsert({
           where: { userId },
           create: {
             userId,
-            userRank: body.userRank || "gold",
+            userRank: newRank,
             calibrationDone: Boolean(body.calibrationDone),
             adaptiveDifficulty: difficulty,
             overallScore: score,
             accuracyAvg: accuracy,
           },
           update: {
-            overallScore: Math.max(score, 0),
+            userRank: newRank,
+            overallScore: Math.max(score, existingProfile?.overallScore || 0),
             adaptiveDifficulty: difficulty,
             accuracyAvg: accuracy,
           },
@@ -99,6 +151,9 @@ export async function POST(req: NextRequest) {
       xpGained,
       currentXp,
       currentLevel,
+      promoted,
+      previousRank,
+      newRank,
     });
   } catch (error: any) {
     console.error("Save aim score API error:", error);
