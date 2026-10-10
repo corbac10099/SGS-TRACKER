@@ -123,13 +123,29 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
     const content = fs.readFileSync(logPath, "utf-8");
     const lines = content.split("\n");
 
-    let startIdx = 0;
+    // Détection précise du début du match actuel
+    let startIdx = -1;
     if (matchId) {
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes(matchId)) startIdx = i;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (lines[i].includes(matchId)) {
+          startIdx = i;
+          break;
+        }
       }
-    } else {
-      startIdx = Math.max(0, lines.length - 3000);
+    }
+    if (startIdx === -1) {
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (
+          lines[i].includes("Gameplay started at local time 0.078125") ||
+          (lines[i].includes("Game/Maps/") && lines[i].includes("Gameplay started at local time"))
+        ) {
+          startIdx = i;
+          break;
+        }
+      }
+    }
+    if (startIdx === -1) {
+      startIdx = Math.max(0, lines.length - 4000);
     }
 
     const matchLines = lines.slice(startIdx);
@@ -140,53 +156,100 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
     }
 
     let detectedRound = 0;
+    const deadThisRound = new Set<string>();
 
-    for (const line of matchLines) {
+    for (let i = 0; i < matchLines.length; i++) {
+      const line = matchLines[i];
+
       const roundMatch = line.match(/OnRoundEnded for round '(\d+)'/);
       if (roundMatch) {
         detectedRound = parseInt(roundMatch[1], 10) + 1;
+        deadThisRound.clear();
+        continue;
       }
 
-      // Morts détectées
-      const deathMatch = line.match(/([a-zA-Z0-9]+)_PostDeath/i);
-      if (deathMatch) {
-        const rawCode = deathMatch[1].toLowerCase();
-        const agentName = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase();
-        if (agentName && agentStats[agentName]) {
-          agentStats[agentName].deaths += 1;
-        }
-      }
+      // Identification de la victime
+      let victimPawn = "";
+      let victimAgent = "";
 
-      // Assists détectées
-      if (line.includes("Buff_Assist_") || line.includes("Buff_AssistTail_")) {
-        const assistTarget = line.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_Assist_/i);
-        if (assistTarget) {
-          const rawCode = assistTarget[1].toLowerCase();
-          const agentName = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase();
-          if (agentName && agentStats[agentName]) {
-            agentStats[agentName].assists += 1;
+      // 1. Dégâts fatals réels (Debuff_GrievousWounds_C)
+      const gwMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+Debuff_GrievousWounds_C/i);
+      if (gwMatch) {
+        const rawCode = gwMatch[1].toLowerCase();
+        victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
+        victimPawn = `${gwMatch[1]}_PC_C_${gwMatch[2]}`;
+      } else {
+        // 2. Équipement désactivé suite à la mort du propriétaire (Cypher, Chamber, Killjoy)
+        const odMatch = line.match(/GameObject_([a-zA-Z0-9]+)_.+Debuff_Disabled_OwnerDead_C/i);
+        if (odMatch) {
+          const rawCode = odMatch[1].toLowerCase();
+          victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
+          victimPawn = `${rawCode}_owner_dead`;
+        } else {
+          // 3. PostDeath de compétences
+          const pdMatch = line.match(/([a-zA-Z0-9]+)_PostDeath/i);
+          if (pdMatch) {
+            const rawCode = pdMatch[1].toLowerCase();
+            victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
+            victimPawn = `${rawCode}_postdeath`;
           }
         }
       }
 
-      // Kills détectés (points d'ultime de frag)
-      if (line.includes("Buff_DelayDeathUltPointReward_C")) {
-        const ultReward = line.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_DelayDeathUltPointReward_C/i);
-        if (ultReward) {
-          const rawCode = ultReward[1].toLowerCase();
-          const agentName = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase();
-          if (agentName && agentStats[agentName]) {
-            agentStats[agentName].kills += 1;
-            agentStats[agentName].score += 200;
+      // Traitement de l'élimination (au plus 1 mort par manche par joueur)
+      if (victimAgent && victimPawn && !deadThisRound.has(victimPawn)) {
+        deadThisRound.add(victimPawn);
+
+        if (agentStats[victimAgent]) {
+          agentStats[victimAgent].deaths += 1;
+        }
+
+        // Attribution du kill et de l'assist via la fenêtre d'action précédant l'élimination (20 lignes)
+        let killerAgent: string | null = null;
+        const assisters = new Set<string>();
+
+        for (let j = Math.max(0, i - 20); j < i; j++) {
+          const prevLine = matchLines[j];
+
+          // Détection d'un buff d'assist utilitaire actif sur l'action
+          const assistMatch = prevLine.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_Assist_/i);
+          if (assistMatch) {
+            const aRaw = assistMatch[1].toLowerCase();
+            const aName = AGENT_INTERNAL_TO_NAME[aRaw]?.toLowerCase();
+            if (aName && aName !== victimAgent) {
+              assisters.add(aName);
+            }
+          }
+
+          // Détection de l'agent infligeant le tir / compétence létale
+          const killerMatch = prevLine.match(
+            /(?:1P_([a-zA-Z0-9]+)_Mat|Gun_([a-zA-Z0-9]+)_|([a-zA-Z0-9]+)_PC_C_\d+.*(?:Buff_|Debuff_|Equippable))/i
+          );
+          if (killerMatch) {
+            const kRaw = (killerMatch[1] || killerMatch[2] || killerMatch[3]).toLowerCase();
+            const kName = AGENT_INTERNAL_TO_NAME[kRaw]?.toLowerCase();
+            if (kName && kName !== victimAgent) {
+              killerAgent = kName;
+            }
+          }
+        }
+
+        if (killerAgent && agentStats[killerAgent]) {
+          agentStats[killerAgent].kills += 1;
+        }
+
+        for (const aName of assisters) {
+          if (aName !== killerAgent && agentStats[aName]) {
+            agentStats[aName].assists += 1;
           }
         }
       }
     }
 
-    // Calcul du score de combat (ACS)
+    // Calcul du score de combat ACS
     for (const key of Object.keys(agentStats)) {
       const s = agentStats[key];
-      s.score = Math.max(s.score, s.kills * 190 + s.assists * 65 + detectedRound * 75);
+      s.score = s.kills * 200 + s.assists * 75;
     }
 
     return { detectedRound, agentStats };
@@ -194,81 +257,6 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
     console.warn("[LiveCombat] Erreur parsing log:", err);
     return null;
   }
-}
-
-// ─── Cache & Extraction des Statistiques Récentes de Carrière ────────────────
-
-interface PlayerRecentCareerStats {
-  kills: number;
-  deaths: number;
-  assists: number;
-  score: number;
-  spi: number;
-  cachedAt: number;
-}
-
-const PLAYER_CAREER_CACHE = new Map<string, PlayerRecentCareerStats>();
-const CAREER_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
-async function getPlayerCareerStats(
-  puuid: string,
-  pdShard: string,
-  tokens: { accessToken: string; token: string },
-  clientVersion: string,
-  rankTier: number
-): Promise<PlayerRecentCareerStats> {
-  const cached = PLAYER_CAREER_CACHE.get(puuid);
-  if (cached && Date.now() - cached.cachedAt < CAREER_CACHE_TTL) {
-    return cached;
-  }
-
-  try {
-    const historyData = await queryRemoteRiotApi(
-      `https://pd.${pdShard}.a.pvp.net/match-history/v1/history/${puuid}?startIndex=0&endIndex=3`,
-      tokens.accessToken,
-      tokens.token,
-      clientVersion
-    );
-
-    if (historyData?.History && Array.isArray(historyData.History) && historyData.History.length > 0) {
-      const matchId = historyData.History[0].MatchID;
-      const details = await queryRemoteRiotApi(
-        `https://pd.${pdShard}.a.pvp.net/match-details/v1/matches/${matchId}`,
-        tokens.accessToken,
-        tokens.token,
-        clientVersion
-      );
-
-      const pStats = details?.players?.find((p: any) => p.subject === puuid)?.stats;
-      if (pStats && typeof pStats.kills === "number") {
-        const stats: PlayerRecentCareerStats = {
-          kills: pStats.kills,
-          deaths: Math.max(1, pStats.deaths),
-          assists: pStats.assists || 0,
-          score: pStats.score || (pStats.kills * 180 + 100),
-          spi: rankTier > 0 ? Math.min(100, Math.max(15, Math.round((rankTier / 27) * 80 + (pStats.kills / Math.max(1, pStats.deaths)) * 15))) : 50,
-          cachedAt: Date.now(),
-        };
-        PLAYER_CAREER_CACHE.set(puuid, stats);
-        return stats;
-      }
-    }
-  } catch {}
-
-  // Fallback réaliste calibré par palier de rang
-  const baseKills = rankTier > 15 ? 16 : rankTier > 9 ? 13 : rankTier > 3 ? 10 : 8;
-  const baseDeaths = 11;
-  const baseAssists = 4;
-  const fallbackStats: PlayerRecentCareerStats = {
-    kills: baseKills,
-    deaths: baseDeaths,
-    assists: baseAssists,
-    score: baseKills * 180 + baseAssists * 50 + 120,
-    spi: rankTier > 0 ? Math.min(100, Math.max(15, Math.round((rankTier / 27) * 90))) : 40,
-    cachedAt: Date.now(),
-  };
-  PLAYER_CAREER_CACHE.set(puuid, fallbackStats);
-  return fallbackStats;
 }
 
 // ─── Lockfile ───────────────────────────────────────────────────────────────
@@ -766,21 +754,7 @@ export async function GET(request: Request) {
             ).catch(() => null)
           );
 
-          // Récupération en parallèle des statistiques récentes de carrière
-          const careerPromises = rawPlayers.map((p: any) =>
-            getPlayerCareerStats(
-              p.Subject,
-              pdShard,
-              tokensData,
-              clientVersion,
-              0
-            ).catch(() => null)
-          );
-
-          const [mmrResults, careerResults] = await Promise.all([
-            Promise.all(mmrPromises),
-            Promise.all(careerPromises),
-          ]);
+          const mmrResults = await Promise.all(mmrPromises);
 
           // Analyse des événements de combat en direct depuis ShooterGame.log
           liveCombat = parseLiveGameEvents(targetMatchId);
@@ -826,38 +800,16 @@ export async function GET(request: Request) {
             const characterId = p.CharacterID || p.CharacterSelectionResponse || "";
             const agentDetails = getAgentInfo(characterId);
 
-            const computedSpi = tier > 0 ? Math.min(100, Math.max(10, Math.round((tier / 27) * 100))) : 0;
-
-            const career = careerResults[i] || {
-              kills: tier > 9 ? 14 : 10,
-              deaths: 11,
-              assists: 4,
-              score: tier > 0 ? tier * 18 + 120 : 150,
-              spi: computedSpi || 45,
-            };
-
             const agentKey = (agentDetails.name || "").toLowerCase();
-            const liveStats = liveCombat?.agentStats?.[agentKey];
-            const hasLiveCombat = Boolean(
-              liveStats && (liveStats.kills > 0 || liveStats.deaths > 0 || liveStats.assists > 0)
-            );
+            const liveStats = liveCombat?.agentStats?.[agentKey] || { kills: 0, deaths: 0, assists: 0, score: 0 };
 
-            const finalKills = hasLiveCombat ? liveStats!.kills : career.kills;
-            const finalDeaths = hasLiveCombat ? liveStats!.deaths : career.deaths;
-            const finalAssists = hasLiveCombat ? liveStats!.assists : career.assists;
-            const finalScore = hasLiveCombat ? liveStats!.score : career.score;
-            const finalSpi = hasLiveCombat
-              ? Math.min(
-                  100,
-                  Math.max(
-                    15,
-                    Math.round(
-                      ((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 25 +
-                        (tier * 1.5)
-                    )
-                  )
-                )
-              : (career.spi || computedSpi);
+            const finalKills = liveStats.kills;
+            const finalDeaths = liveStats.deaths;
+            const finalAssists = liveStats.assists;
+            const finalScore = liveStats.score;
+            const finalSpi = tier > 0
+              ? Math.min(100, Math.max(15, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 20 + (tier / 27) * 40)))
+              : Math.min(100, Math.max(20, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 30)));
 
             allPlayers.push({
               puuid,
@@ -933,17 +885,15 @@ export async function GET(request: Request) {
               const agentDetails = getAgentInfo(characterId);
 
               const agentKey = (agentDetails.name || "").toLowerCase();
-              const liveStats = liveCombat?.agentStats?.[agentKey];
-              const hasLive = Boolean(liveStats && (liveStats.kills > 0 || liveStats.deaths > 0 || liveStats.assists > 0));
+              const liveStats = liveCombat?.agentStats?.[agentKey] || { kills: 0, deaths: 0, assists: 0, score: 0 };
 
-              const baseK = tier > 9 ? 13 : 9;
-              const kills = hasLive ? liveStats!.kills : baseK;
-              const deaths = hasLive ? liveStats!.deaths : 10;
-              const assists = hasLive ? liveStats!.assists : 4;
-              const score = hasLive ? liveStats!.score : kills * 180 + assists * 60 + 100;
-              const spi = hasLive
-                ? Math.min(100, Math.max(15, Math.round(((kills * 2 + assists) / Math.max(1, deaths)) * 25 + tier * 1.5)))
-                : (tier > 0 ? Math.min(100, Math.max(10, Math.round((tier / 27) * 100))) : 40);
+              const kills = liveStats.kills;
+              const deaths = liveStats.deaths;
+              const assists = liveStats.assists;
+              const score = liveStats.score;
+              const spi = tier > 0
+                ? Math.min(100, Math.max(15, Math.round(((kills * 2 + assists) / Math.max(1, deaths)) * 20 + (tier / 27) * 40)))
+                : Math.min(100, Math.max(20, Math.round(((kills * 2 + assists) / Math.max(1, deaths)) * 30)));
 
               allPlayers.push({
                 puuid,
@@ -980,16 +930,15 @@ export async function GET(request: Request) {
         const myAgentDetails = getAgentInfo(myPresenceData?.characterId || "");
 
         const myAgentKey = (myAgentDetails.name || "").toLowerCase();
-        const myLive = liveCombat?.agentStats?.[myAgentKey];
-        const hasMyLive = Boolean(myLive && (myLive.kills > 0 || myLive.deaths > 0 || myLive.assists > 0));
+        const myLive = liveCombat?.agentStats?.[myAgentKey] || { kills: 0, deaths: 0, assists: 0, score: 0 };
 
-        const myKills = hasMyLive ? myLive!.kills : (myTier > 9 ? 14 : 10);
-        const myDeaths = hasMyLive ? myLive!.deaths : 10;
-        const myAssists = hasMyLive ? myLive!.assists : 4;
-        const myScore = hasMyLive ? myLive!.score : (myKills * 180 + myAssists * 60 + 120);
-        const mySpi = hasMyLive
-          ? Math.min(100, Math.max(15, Math.round(((myKills * 2 + myAssists) / Math.max(1, myDeaths)) * 25 + myTier * 1.5)))
-          : (myTier > 0 ? Math.min(100, Math.max(10, Math.round((myTier / 27) * 100))) : 45);
+        const myKills = myLive.kills;
+        const myDeaths = myLive.deaths;
+        const myAssists = myLive.assists;
+        const myScore = myLive.score;
+        const mySpi = myTier > 0
+          ? Math.min(100, Math.max(15, Math.round(((myKills * 2 + myAssists) / Math.max(1, myDeaths)) * 20 + (myTier / 27) * 40)))
+          : Math.min(100, Math.max(20, Math.round(((myKills * 2 + myAssists) / Math.max(1, myDeaths)) * 30)));
 
         allPlayers.unshift({
           puuid: localPuuid,
