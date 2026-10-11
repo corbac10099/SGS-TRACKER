@@ -32,16 +32,25 @@ export async function POST(request: Request) {
       );
     }
 
-    const { language, theme, isPublic } = body;
+    const { language, theme, isPublic, dataRetentionPolicy, dataRetentionDays } = body;
+
+    // Construire les données de mise à jour conditionnellement
+    // pour ne pas écraser les champs existants (thème, langue, etc.)
+    // quand seuls les champs de rétention sont envoyés (ex: DesktopRgpdModal)
+    const updateData: Record<string, unknown> = {
+      dataRetentionPolicy: dataRetentionPolicy || '1_season',
+      dataRetentionDays: typeof dataRetentionDays === 'number' ? dataRetentionDays : 90,
+      dataRetentionAcceptedAt: new Date(),
+      onboardingDone: true,
+    };
+
+    if (language !== undefined) updateData.language = language;
+    if (theme !== undefined) updateData.theme = theme;
+    if (isPublic !== undefined) updateData.isPublic = isPublic === true;
 
     const updatedUser = await prisma.user.update({
       where: { email: targetEmail },
-      data: {
-        language: language || 'fr',
-        theme: theme || 'dark',
-        isPublic: isPublic === true,
-        onboardingDone: true,
-      },
+      data: updateData,
     });
 
     return NextResponse.json({
@@ -50,6 +59,8 @@ export async function POST(request: Request) {
         language: updatedUser.language,
         theme: updatedUser.theme,
         isPublic: updatedUser.isPublic,
+        dataRetentionPolicy: updatedUser.dataRetentionPolicy,
+        dataRetentionDays: updatedUser.dataRetentionDays,
         onboardingDone: updatedUser.onboardingDone,
       },
     });

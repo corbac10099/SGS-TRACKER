@@ -17,7 +17,12 @@ export type AimScenarioId =
   // 3D Scenarios — Élimination
   | "speed_arena"
   // 3D Scenarios — Mode Course / Parkour Infini avec Tir
-  | "assault_runner_3d";
+  | "assault_runner_3d"
+  // Nouvelles fonctionnalités Aim Trainer (39, 40, 43, 63)
+  | "spray_control_3d"
+  | "crosshair_placement_3d"
+  | "spatial_audio_flick_3d"
+  | "disappearing_targets_flick";
 
 export type AimRankId =
   | "iron"

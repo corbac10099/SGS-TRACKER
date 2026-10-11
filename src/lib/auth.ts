@@ -319,6 +319,9 @@ export const authOptions: NextAuthOptions = {
             token.enforcePublicStats = (dbUser as any).enforcePublicStats ?? false;
             token.equippedBannerAnimation = (dbUser as any).equippedBannerAnimation || null;
             token.equippedBannerBorder = (dbUser as any).equippedBannerBorder || null;
+            token.dataRetentionPolicy = (dbUser as any).dataRetentionPolicy || null;
+            token.dataRetentionDays = (dbUser as any).dataRetentionDays || null;
+            token.dataRetentionAcceptedAt = (dbUser as any).dataRetentionAcceptedAt || null;
 
             // Auto-set riotGameName for known users
             const gameNameMap: Record<string, string> = {
@@ -343,6 +346,9 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.id;
         (session.user as any).onboardingDone = token.onboardingDone;
+        (session.user as any).dataRetentionPolicy = token.dataRetentionPolicy;
+        (session.user as any).dataRetentionDays = token.dataRetentionDays;
+        (session.user as any).dataRetentionAcceptedAt = token.dataRetentionAcceptedAt;
         (session.user as any).theme = token.theme;
         (session.user as any).language = token.language;
         (session.user as any).firstName = token.firstName;

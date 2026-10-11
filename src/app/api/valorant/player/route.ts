@@ -335,7 +335,49 @@ async function handlePlayerRequest(
       }
     }
 
-    // 2. Fallback déterministe si aucun profil réel n'a pu être extrait
+    // 2. Fallback Neon DB : Si l'API en direct n'a pas pu répondre, vérifier si des données synchronisées existent sur Neon
+    if (!profileData) {
+      try {
+        const neonTracked = await (prisma as any).trackedValorantProfile.findFirst({
+          where: {
+            OR: [
+              { riotId: { equals: `${cleanGameName}#${cleanTagLine}`, mode: "insensitive" } },
+              {
+                AND: [
+                  { gameName: { equals: cleanGameName, mode: "insensitive" } },
+                  { tagLine: { equals: cleanTagLine, mode: "insensitive" } },
+                ],
+              },
+            ],
+            cachedData: { not: null },
+          },
+          orderBy: { lastSyncAt: "desc" },
+        });
+
+        if (neonTracked?.cachedData) {
+          const parsedCached = JSON.parse(neonTracked.cachedData);
+          if (parsedCached && parsedCached.player) {
+            profileData = parsedCached as ValorantProfileResponse;
+            profileData.player.isOwner = isOwner;
+            profileData.player.canEdit = isOwner;
+            profileData.isMock = false;
+            profileData.apiStatus = {
+              connected: true,
+              verified: true,
+              accountVerified: true,
+              isDevKey: true,
+              matchSource: "neon_autosync_db",
+              puuid: profileData.player.puuid || neonTracked.id,
+              message: `Données réelles synchronisées depuis Neon DB (dernière sync : ${neonTracked.lastSyncAt ? new Date(neonTracked.lastSyncAt).toLocaleString("fr-FR") : "récente"}).`,
+            };
+          }
+        }
+      } catch (neonFallbackErr) {
+        console.warn("[Neon DB Fallback Warning]:", neonFallbackErr);
+      }
+    }
+
+    // 3. Fallback déterministe mock uniquement si aucune donnée réelle ni locale Neon n'existe
     if (!profileData) {
       profileData = generateDeterministicProfile(cleanGameName, cleanTagLine, undefined, region);
       profileData.player.isOwner = isOwner;

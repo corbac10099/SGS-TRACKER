@@ -52,6 +52,7 @@ export const DEFAULT_SHORTCUTS: Record<string, string> = {
   eco: "e",
   leaderboard: "l",
   overlay: "F9",
+  retro_clip: "F10",
 };
 
 export const SHORTCUT_DEFINITIONS = [
@@ -64,6 +65,7 @@ export const SHORTCUT_DEFINITIONS = [
   { id: "eco", label: "Basculer le Mode Éco (Basse consommation)", defaultKey: "e" },
   { id: "leaderboard", label: "Afficher le Classement Régional", defaultKey: "l" },
   { id: "overlay", label: "Afficher / Masquer l'Overlay en Jeu (Superposition)", defaultKey: "F9" },
+  { id: "retro_clip", label: "Sauvegarder le Replay Rétroactif (Clip 30s)", defaultKey: "F10" },
 ];
 
 export interface SettingsViewProps {
@@ -244,6 +246,67 @@ export default function SettingsView({
   });
   const [draftDiscordRpc, setDraftDiscordRpc] = useState<boolean>(() => isDiscordRpcEnabled());
   const [draftDiscordRpcMode, setDraftDiscordRpcMode] = useState<"full" | "discrete">(() => getDiscordRpcMode());
+
+  // Desktop Overlay & Hardware Integration State
+  const [draftOverlayOpacity, setDraftOverlayOpacity] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("spycam_overlay_opacity");
+      if (stored !== null) return parseFloat(stored);
+    }
+    return 0.90;
+  });
+  const [draftOverlayMonitor, setDraftOverlayMonitor] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("spycam_overlay_monitor") || "primary";
+    }
+    return "primary";
+  });
+  const [draftAutoEcoOnGame, setDraftAutoEcoOnGame] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("spycam_auto_eco_on_game") === "true";
+    }
+    return true;
+  });
+  const [draftRgbSyncEnabled, setDraftRgbSyncEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("spycam_rgb_sync_enabled") === "true";
+    }
+    return false;
+  });
+  const [draftDiscordWebhookUrl, setDraftDiscordWebhookUrl] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("spycam_discord_webhook_url") || "";
+    }
+    return "";
+  });
+  const [webhookTestStatus, setWebhookTestStatus] = useState<string | null>(null);
+
+  // Rétention des données (RGPD) — chargé depuis Neon
+  const [draftRetentionPolicy, setDraftRetentionPolicy] = useState<string>("1_season");
+  const [draftRetentionDays, setDraftRetentionDays] = useState<number>(90);
+  const [draftRetentionCustomDays, setDraftRetentionCustomDays] = useState<number>(90);
+  const [retentionSaving, setRetentionSaving] = useState(false);
+  const [retentionLoaded, setRetentionLoaded] = useState(false);
+
+  useEffect(() => {
+    // Charger la politique de rétention actuelle depuis Neon
+    const guestId = typeof window !== "undefined" ? sessionStorage.getItem("spycam_guest_id") : null;
+    const headers: Record<string, string> = {};
+    if (guestId) headers["x-guest-id"] = guestId;
+    fetch(`/api/user/settings${guestId ? `?guestId=${guestId}` : ""}`, { headers })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) {
+          if (data.user.dataRetentionPolicy) setDraftRetentionPolicy(data.user.dataRetentionPolicy);
+          if (data.user.dataRetentionDays != null) {
+            setDraftRetentionDays(data.user.dataRetentionDays);
+            setDraftRetentionCustomDays(data.user.dataRetentionDays);
+          }
+          setRetentionLoaded(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Customizable Keyboard Shortcuts State
   const [draftShortcutsEnabled, setDraftShortcutsEnabled] = useState<boolean>(() => {
@@ -530,11 +593,16 @@ export default function SettingsView({
         localStorage.setItem("spycam_disable_animations", String(draftDisableAnimations));
         localStorage.setItem("spycam_eco_mode", String(draftEcoMode));
         localStorage.setItem("spycam_force_my_theme", String(draftForceMyTheme));
-        if (typeof document !== "undefined") {
-          document.documentElement.classList.toggle("mode-eco", draftEcoMode);
+        localStorage.setItem("spycam_overlay_opacity", String(draftOverlayOpacity));
+        localStorage.setItem("spycam_overlay_monitor", draftOverlayMonitor);
+        localStorage.setItem("spycam_auto_eco_on_game", String(draftAutoEcoOnGame));
+        localStorage.setItem("spycam_rgb_sync_enabled", String(draftRgbSyncEnabled));
+        localStorage.setItem("spycam_discord_webhook_url", draftDiscordWebhookUrl);
+        if (draftShortcuts.retro_clip) {
+          localStorage.setItem("spycam_retro_clip_shortcut", draftShortcuts.retro_clip);
         }
-        setDiscordRpcEnabled(draftDiscordRpc);
-        setDiscordRpcMode(draftDiscordRpcMode);
+        if (setDiscordRpcEnabled) setDiscordRpcEnabled(draftDiscordRpc);
+        if (setDiscordRpcMode) setDiscordRpcMode(draftDiscordRpcMode);
         sounds.setEnabled(draftSoundEnabled);
         sounds.setVolume(draftSoundVolume);
         if (setStreamerMode) setStreamerMode(draftStreamerMode);
@@ -940,6 +1008,139 @@ export default function SettingsView({
                     </div>
                   )}
                 </div>
+
+                {/* Section : Conservation des métriques (Rétention RGPD) */}
+                <div className="pt-4 sm:pt-6 border-t border-[var(--color-border)] space-y-3">
+                  <div>
+                    <h4 className="font-bold text-xs sm:text-base text-[var(--color-text-primary)] flex items-center gap-2">
+                      <IconShield size={18} className="text-[var(--color-val-red)]" />
+                      <span>Conservation des métriques de match</span>
+                    </h4>
+                    <p className="text-[11px] sm:text-xs text-[var(--color-text-secondary)] mt-0.5">
+                      Définissez la durée de conservation de vos données d&apos;analyse (spikes, compétences, ping) sur le cloud.
+                    </p>
+                  </div>
+
+                  {retentionLoaded ? (
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { id: "1_season", label: "1 Saison", sub: "~90 jours", rec: true },
+                          { id: "3_seasons", label: "3 Saisons", sub: "~9 mois" },
+                          { id: "1_year", label: "1 An", sub: "365 jours" },
+                          { id: "forever", label: "Illimité", sub: "Sans purge" },
+                        ].map((opt) => {
+                          const isSelected = draftRetentionPolicy === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => {
+                                sounds.playClick();
+                                setDraftRetentionPolicy(opt.id);
+                                const days = opt.id === "1_season" ? 90 : opt.id === "3_seasons" ? 270 : opt.id === "1_year" ? 365 : 9999;
+                                setDraftRetentionDays(days);
+                              }}
+                              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-[var(--color-val-red)]/15 border-[var(--color-val-red)] shadow-sm"
+                                  : "bg-[var(--color-surface)] border-[var(--color-border)] hover:border-white/20"
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-[var(--color-text-primary)]">{opt.label}</span>
+                                {"rec" in opt && opt.rec && (
+                                  <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-[var(--color-val-red)] text-white">
+                                    Rec.
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-[var(--color-text-secondary)]">{opt.sub}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Durée personnalisée */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sounds.playClick();
+                          setDraftRetentionPolicy("custom");
+                          setDraftRetentionDays(draftRetentionCustomDays);
+                        }}
+                        className={`w-full p-2.5 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
+                          draftRetentionPolicy === "custom"
+                            ? "bg-[var(--color-val-red)]/15 border-[var(--color-val-red)]"
+                            : "bg-[var(--color-surface)] border-[var(--color-border)] hover:border-white/20"
+                        }`}
+                      >
+                        <span className="text-xs font-medium text-[var(--color-text-primary)]">Durée personnalisée</span>
+                        {draftRetentionPolicy === "custom" ? (
+                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="number"
+                              min="7"
+                              max="730"
+                              value={draftRetentionCustomDays}
+                              onChange={(e) => {
+                                const v = Math.max(7, parseInt(e.target.value) || 30);
+                                setDraftRetentionCustomDays(v);
+                                setDraftRetentionDays(v);
+                              }}
+                              className="w-16 px-2 py-0.5 rounded bg-[var(--color-background)] border border-[var(--color-border)] text-xs font-bold text-center text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-val-red)]"
+                            />
+                            <span className="text-[11px] text-[var(--color-text-secondary)]">jours</span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-[var(--color-text-secondary)]">Configurer</span>
+                        )}
+                      </button>
+
+                      {/* Bouton de sauvegarde de la rétention */}
+                      <button
+                        type="button"
+                        disabled={retentionSaving}
+                        onClick={async () => {
+                          setRetentionSaving(true);
+                          try {
+                            const guestId = typeof window !== "undefined" ? sessionStorage.getItem("spycam_guest_id") : null;
+                            const headers: Record<string, string> = { "Content-Type": "application/json" };
+                            if (guestId) headers["x-guest-id"] = guestId;
+                            await fetch("/api/user/settings", {
+                              method: "PUT",
+                              headers,
+                              body: JSON.stringify({
+                                dataRetentionPolicy: draftRetentionPolicy,
+                                dataRetentionDays: draftRetentionDays,
+                                ...(guestId ? { guestId } : {}),
+                              }),
+                            });
+                            sounds.playBreeze();
+                          } catch {
+                            sounds.playCancel();
+                          } finally {
+                            setRetentionSaving(false);
+                          }
+                        }}
+                        className="w-full py-2 rounded-xl bg-[var(--color-val-red)] hover:brightness-110 text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        {retentionSaving ? (
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <IconCheck size={14} />
+                            <span>Enregistrer la durée de rétention</span>
+                          </>
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] text-center">
+                      Chargement de la politique de rétention...
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -996,7 +1197,8 @@ export default function SettingsView({
                   </button>
                 </div>
 
-                {/* Discord Rich Presence (RPC) Toggle */}
+                {/* Discord Rich Presence — Application bureau uniquement */}
+                {desktop.isDesktop && (
                 <div className="flex flex-col gap-3 pt-4 sm:pt-6 border-t border-[var(--color-border)]">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1058,6 +1260,7 @@ export default function SettingsView({
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* SPI Dynamic Chart Color Toggle */}
                 <div className="flex items-center justify-between pt-4 sm:pt-6 border-t border-[var(--color-border)]">
@@ -1188,6 +1391,216 @@ export default function SettingsView({
                     </div>
                   )}
                 </div>
+
+                {/* Fonctionnalités exclusives à l'application bureau */}
+                {desktop.isDesktop && (<>
+
+                {/* Opacité & Flou de l'Overlay en jeu */}
+                <div className="flex flex-col gap-3 pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">
+                        Opacité &amp; Transparence de l&apos;Overlay en jeu
+                      </h3>
+                      <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                        Ajuste le niveau d&apos;opacité du HUD semi-transparent affiché par-dessus Valorant sans gêner la visibilité du crosshair.
+                      </p>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-[var(--color-val-red)] px-2.5 py-1 bg-red-500/10 rounded-lg border border-red-500/20">
+                      {Math.round(draftOverlayOpacity * 100)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 bg-[var(--color-background)]/50 p-3 rounded-xl border border-[var(--color-border)]">
+                    <span className="text-xs text-[var(--color-text-secondary)] font-medium">Transparent (50%)</span>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="1.0"
+                      step="0.05"
+                      value={draftOverlayOpacity}
+                      onChange={(e) => setDraftOverlayOpacity(parseFloat(e.target.value))}
+                      className="flex-1 accent-[var(--color-val-red)] cursor-pointer"
+                    />
+                    <span className="text-xs text-[var(--color-text-secondary)] font-medium">Opaque (100%)</span>
+                  </div>
+                </div>
+
+                {/* Sélecteur Multi-Écrans / Moniteur cible */}
+                <div className="flex flex-col gap-3 pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">
+                        Écran d&apos;Affichage Dédié
+                      </h3>
+                      <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                        Choisit sur quel écran positionner l&apos;overlay ou basculer en mode double moniteur dédié (Second Screen Tracker).
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {[
+                      { id: "primary", label: "Écran Principal (Jeu)", desc: "Superposition directe sur Valorant" },
+                      { id: "secondary", label: "Écran Secondaire", desc: "Tableau de bord permanent 2nd écran" },
+                      { id: "auto", label: "Détection Auto", desc: "Suit la fenêtre active" }
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          sounds.playClick();
+                          setDraftOverlayMonitor(m.id);
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          draftOverlayMonitor === m.id
+                            ? "bg-[var(--color-val-red)]/15 border-[var(--color-val-red)] shadow-sm"
+                            : "bg-[var(--color-surface)] border-[var(--color-border)] hover:border-white/20"
+                        }`}
+                      >
+                        <div className="text-xs font-bold text-[var(--color-text-primary)]">{m.label}</div>
+                        <div className="text-[10px] text-[var(--color-text-secondary)] mt-0.5">{m.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Mode Éco Automatique au Lancement de Valorant */}
+                <div className="flex items-center justify-between pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                  <div>
+                    <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">
+                      Mode Éco Automatique en Plein Jeu
+                    </h3>
+                    <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                      Coupe automatiquement les animations lourdes et réduit la consommation CPU/GPU dès que le processus `VALORANT.exe` est détecté en cours d&apos;exécution.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      setDraftAutoEcoOnGame(!draftAutoEcoOnGame);
+                    }}
+                    className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
+                      draftAutoEcoOnGame ? "bg-[var(--color-val-red)] shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full ${
+                        draftAutoEcoOnGame ? "bg-[var(--color-accent-contrast,#ffffff)]" : "bg-white"
+                      } shadow-md transition-all duration-300 ${
+                        draftAutoEcoOnGame ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                      }`}
+                    ></span>
+                  </button>
+                </div>
+
+                {/* Synchronisation RGB Éclairage Clavier/Souris */}
+                <div className="flex items-center justify-between pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">
+                        Alertes RGB Matériel (Razer Chroma &amp; iCUE)
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase">
+                        RGB Link
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                      Fait flasher votre clavier/souris en Rouge lors de la pose du spike, en Vert lors de la victoire de round, et en Bleu lors d&apos;un Clutch.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      setDraftRgbSyncEnabled(!draftRgbSyncEnabled);
+                    }}
+                    className={`relative inline-flex h-6 w-11 sm:h-7 sm:w-13 items-center rounded-full transition-colors duration-300 flex-shrink-0 ml-2 sm:ml-4 cursor-pointer ${
+                      draftRgbSyncEnabled ? "bg-emerald-500 shadow-accent-sm" : "bg-gray-400 dark:bg-[rgba(255,255,255,0.1)]"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-all duration-300 ${
+                        draftRgbSyncEnabled ? "translate-x-6 sm:translate-x-7" : "translate-x-1"
+                      }`}
+                    ></span>
+                  </button>
+                </div>
+
+                {/* Webhooks Discord & Export Matchs */}
+                <div className="flex flex-col gap-3 pt-4 sm:pt-6 border-t border-[var(--color-border)]">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-sm sm:text-lg text-[var(--color-text-primary)]">
+                        Diffusion Webhook Discord Automatique
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 text-[10px] font-black uppercase">
+                        Public API
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-0.5 sm:mt-1">
+                      Envoie instantanément un résumé visuel complet de vos fin de matchs (Score, KD, Ping, Spikes) sur votre serveur Discord.
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="url"
+                      placeholder="https://discord.com/api/webhooks/..."
+                      value={draftDiscordWebhookUrl}
+                      onChange={(e) => setDraftDiscordWebhookUrl(e.target.value)}
+                      className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl px-3.5 py-2 text-xs font-mono text-[var(--color-text-primary)] focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        sounds.playClick();
+                        setWebhookTestStatus("testing");
+                        try {
+                          const res = await fetch("/api/tracker/webhooks", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              webhookUrl: draftDiscordWebhookUrl,
+                              matchData: {
+                                mapName: "Ascent",
+                                result: "VICTOIRE",
+                                agentName: "Jett",
+                                roundsWon: 13,
+                                roundsLost: 8,
+                                kills: 24,
+                                deaths: 11,
+                                assists: 6,
+                                avgPingMs: 22,
+                                headshotPct: 34,
+                                spikesPlanted: 4,
+                                spikeWins: 3
+                              }
+                            })
+                          });
+                          if (res.ok) {
+                            setWebhookTestStatus("success");
+                          } else {
+                            setWebhookTestStatus("error");
+                          }
+                        } catch {
+                          setWebhookTestStatus("error");
+                        }
+                      }}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer flex-shrink-0"
+                    >
+                      <span>Tester l&apos;envoi Discord</span>
+                    </button>
+                  </div>
+                  {webhookTestStatus === "success" && (
+                    <p className="text-xs text-emerald-400 font-semibold animate-in fade-in">
+                      ✓ Embed envoyé avec succès sur votre canal Discord !
+                    </p>
+                  )}
+                  {webhookTestStatus === "error" && (
+                    <p className="text-xs text-red-400 font-semibold animate-in fade-in">
+                      ✕ Erreur lors de l&apos;envoi. Vérifiez l&apos;URL du webhook Discord.
+                    </p>
+                  )}
+                </div>
+
+                </>)}
               </div>
             </div>
           )}

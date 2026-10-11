@@ -23,21 +23,31 @@ export default function LandingPage({ onEnterBeta, onOpenLogin }: LandingPagePro
             alt="SGS-Tracker"
             className="h-10 sm:h-12 w-auto object-contain rounded-xl"
           />
+          <span className="hidden sm:inline text-xs font-black uppercase tracking-widest text-white/80">
+            SGS-Tracker
+          </span>
         </div>
 
-        {/* Right: Actions */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Right: Actions & Direct Nav Pills */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <a
+            href="/onboarding?test=1"
+            className="hidden md:inline-flex px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-gray-300 transition-colors cursor-pointer"
+          >
+            🛡️ Tester Onboarding (4 Étapes)
+          </a>
+
           <button
             onClick={onEnterBeta}
-            className="sp-btn-primary px-3.5 sm:px-4 py-2 text-xs flex items-center gap-1.5"
+            className="sp-btn-primary px-3.5 sm:px-4 py-2 text-xs flex items-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(255,70,85,0.4)]"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-            <span>Accéder à la Bêta</span>
+            <span>Accéder au Tracker & Démo</span>
           </button>
 
           <button
             onClick={onOpenLogin}
-            className="sp-btn-secondary px-3.5 sm:px-4 py-2 text-xs"
+            className="sp-btn-secondary px-3.5 sm:px-4 py-2 text-xs cursor-pointer"
           >
             Se connecter
           </button>

@@ -2,5 +2,13 @@
   "id": "french",
   "label": "Français",
   "flag": "/locales/flags/french.png",
-  "translations": {}
+  "translations": {
+    "spikes_title": "Spikes & Plantes",
+    "spikes_desc": "Analyse spatiale des poses de spike par map",
+    "ping_impact": "Impact du Ping sur vos Résultats",
+    "abilities_catalog": "Catalogue Dépliable des Sorts & Compétences",
+    "retention_title": "Conservation & Utilisation des Données",
+    "retention_desc": "Transparence et durée de rétention de vos données de match",
+    "aim_sensi_converter": "Convertisseur Universel 1:1 vers Valorant"
+  }
 }

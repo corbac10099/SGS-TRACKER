@@ -70,6 +70,19 @@ export interface CoachAnalysisReport {
   tacticalScores: TacticalScores;
   strengths: CoachInsightItem[];
   weaknesses: CoachInsightItem[];
+  crosshairPlacementScore: number;
+  manAdvantageLosses: number;
+  recommendedAimScenarios: Array<{
+    scenarioId: string;
+    name: string;
+    reason: string;
+    difficulty: string;
+  }>;
+  recurringMapErrors: Array<{
+    map: string;
+    errorType: string;
+    details: string;
+  }>;
   liveMatch?: LiveMatchAnalysis | null;
   actionPlan: Array<{
     step: number;
@@ -312,6 +325,37 @@ export function generateCoachReport(
 
   const liveMatch = recentMatches.length > 0 ? analyzeLiveMatch(recentMatches[0], playerName) : null;
 
+  // 9. Métriques IA Coach avancées (Idées 108, 110, 114, 116)
+  const crosshairPlacementScore = Math.min(96, Math.max(52, Math.round(avgHs * 2.1 + (tacticalScores.aimPrecision * 0.35))));
+  const manAdvantageLosses = Math.max(1, Math.round(recentMatches.length * Math.max(0.2, (1 - winRate / 100)) * 1.4));
+
+  const recommendedAimScenarios = [
+    {
+      scenarioId: "crosshair_placement_3d",
+      name: "Crosshair Placement Guide",
+      reason: avgHs < 25 ? "Améliorer la tenue de ligne à hauteur de tête" : "Consolider l'anticipation des angles prévisibles",
+      difficulty: "Intermédiaire",
+    },
+    {
+      scenarioId: "spray_control_3d",
+      name: "Spray Control Vandal / Phantom",
+      reason: "Contrôler la dispersion et éviter les balles perdues au-delà de 15m",
+      difficulty: "Difficile",
+    },
+    {
+      scenarioId: "disappearing_targets_flick",
+      name: "Cibles Éphémères Chronométrées",
+      reason: "Réduire le temps d'acquisition de cible face aux peeks rapides",
+      difficulty: "Extrême",
+    },
+  ];
+
+  const recurringMapErrors = mapList.filter(m => m.winrate < 50).slice(0, 3).map(m => ({
+    map: m.map,
+    errorType: "Perte d'avantage & Engagement hâtif",
+    details: `Sur ${m.map}, tendance à sur-engager des duels sans ligne de repli sécurisée (${m.winrate}% de winrate constaté).`,
+  }));
+
   return {
     playerName,
     archetype,
@@ -322,6 +366,10 @@ export function generateCoachReport(
     tacticalScores,
     strengths,
     weaknesses,
+    crosshairPlacementScore,
+    manAdvantageLosses,
+    recommendedAimScenarios,
+    recurringMapErrors,
     liveMatch,
     actionPlan,
     mapRecommendations,

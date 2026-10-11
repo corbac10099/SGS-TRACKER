@@ -2,8 +2,19 @@
 // SGS AIM — Pro Sound Engine (Multi-Couches, Zéro Latence)
 // ══════════════════════════════════════════════════════
 
+export type HitSoundProfile = "valorant" | "bell" | "pop" | "wood";
+
 class AimAudioEngine {
   private ctx: AudioContext | null = null;
+  private currentProfile: HitSoundProfile = "valorant";
+
+  public setSoundProfile(p: HitSoundProfile) {
+    this.currentProfile = p;
+  }
+
+  public getSoundProfile(): HitSoundProfile {
+    return this.currentProfile;
+  }
 
   private getContext(): AudioContext | null {
     if (typeof window === "undefined") return null;
@@ -15,6 +26,39 @@ class AimAudioEngine {
       this.ctx.resume().catch(() => {});
     }
     return this.ctx;
+  }
+
+  /**
+   * Spatialisation audio 3D (Idée 43) : Son de pas ou d'alerte positionné à gauche/droite (-1 à +1)
+   */
+  playSpatialPing(pan: number = 0) {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(440, now);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+    if (ctx.createStereoPanner) {
+      const panner = ctx.createStereoPanner();
+      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+      osc.connect(gain);
+      gain.connect(panner);
+      panner.connect(ctx.destination);
+    } else {
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+    }
+
+    osc.start(now);
+    osc.stop(now + 0.1);
   }
 
   /**
@@ -54,26 +98,71 @@ class AimAudioEngine {
   }
 
   /**
-   * Impact sur le corps (Hitmarker Valorant net et satisfaisant)
+   * Impact sur le corps (Hitsounds personnalisables selon le profil - Idée 58)
    */
   playHit() {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
 
+    if (this.currentProfile === "bell") {
+      // Cloche aiguë claire
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1760, now);
+      osc.frequency.exponentialRampToValueAtTime(1200, now + 0.08);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.09);
+      return;
+    }
+
+    if (this.currentProfile === "pop") {
+      // Pop étouffé doux
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(480, now);
+      osc.frequency.exponentialRampToValueAtTime(180, now + 0.04);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.05);
+      return;
+    }
+
+    if (this.currentProfile === "wood") {
+      // Clic sec mécanique
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(800, now);
+      osc.frequency.exponentialRampToValueAtTime(200, now + 0.03);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.03);
+      return;
+    }
+
+    // Défaut : Valorant hitmarker
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-
     osc.type = "sine";
     osc.frequency.setValueAtTime(980, now);
     osc.frequency.exponentialRampToValueAtTime(1450, now + 0.05);
-
     gain.gain.setValueAtTime(0.3, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-
     osc.connect(gain);
     gain.connect(ctx.destination);
-
     osc.start(now);
     osc.stop(now + 0.06);
   }

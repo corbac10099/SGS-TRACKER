@@ -94,7 +94,10 @@ export async function POST(req: Request) {
         hiddenStats: user.hiddenStats,
         enforcePublicStats: user.enforcePublicStats,
         language: user.language,
-        onboardingDone: true,
+        onboardingDone: Boolean(user.onboardingDone && user.dataRetentionAcceptedAt),
+        dataRetentionPolicy: user.dataRetentionPolicy,
+        dataRetentionDays: user.dataRetentionDays,
+        dataRetentionAcceptedAt: user.dataRetentionAcceptedAt,
       },
     });
   } catch (error: any) {

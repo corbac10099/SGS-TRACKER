@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import { sounds } from "@/lib/soundEffects";
 import { getMapInfo } from "@/lib/valorant/mapsCatalog";
 import { resolveGameMode } from "@/lib/valorant/gameModes";
+import AgentAbilitiesCatalogue from "@/components/AgentAbilitiesCatalogue";
 
 export interface AgentsStatsTabProps {
   agentStats: any[];
@@ -255,6 +256,14 @@ export default function AgentsStatsTab({
                       {agent.hoursPlayed} heures de jeu
                     </div>
                   </div>
+                </div>
+
+                {/* Catalogue Dépliable des Sorts & Compétences */}
+                <div className="w-full">
+                  <AgentAbilitiesCatalogue
+                    agentName={agent.name}
+                    matchesCount={agent.matchesPlayed || details?.matches?.length || 1}
+                  />
                 </div>
 
                 {/* Performance by Map with this Agent — Petites cartes stylisées identiques aux stats des cartes */}

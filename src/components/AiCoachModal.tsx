@@ -597,12 +597,12 @@ export default function AiCoachModal({
                 </div>
               </div>
 
-              {/* Section 4: Recommandations par Map */}
+              {/* Section 4: Recommandations par Map & Erreurs Récurrentes (Idée 110) */}
               {report.mapRecommendations.length > 0 && (
                 <div className="p-4 rounded-2xl glass-card space-y-3">
                   <div className="flex items-center gap-2 text-[var(--color-val-red)]">
                     <IconMap size={18} />
-                    <h4 className="text-xs font-black uppercase tracking-wider">Recommandations par Carte</h4>
+                    <h4 className="text-xs font-black uppercase tracking-wider">Recommandations & Erreurs Récurrentes par Carte</h4>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -625,6 +625,48 @@ export default function AiCoachModal({
                   </div>
                 </div>
               )}
+
+              {/* Section 5: Plan d'Entraînement Aim Trainer Personnalisé (Idée 108) & Métriques de Visée (Idée 114, 116) */}
+              <div className="p-4 sm:p-5 rounded-2xl glass-card space-y-4 border border-sky-500/20 bg-gradient-to-br from-sky-950/20 via-transparent to-transparent">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sky-400">
+                    <span className="text-base">🎯</span>
+                    <h4 className="text-xs font-black uppercase tracking-wider">
+                      Routine d&apos;Entraînement Aim Trainer Recommandée (IA)
+                    </h4>
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] font-bold">
+                    <span className="text-gray-300">
+                      Crosshair Score : <strong className="text-sky-300 font-mono">{report.crosshairPlacementScore}/100</strong>
+                    </span>
+                    <span>•</span>
+                    <span className="text-gray-300">
+                      Throws 5v3 évités : <strong className="text-emerald-400 font-mono">~{report.manAdvantageLosses} rounds</strong>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {report.recommendedAimScenarios.map((sc) => (
+                    <div
+                      key={sc.scenarioId}
+                      className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between gap-2"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-black uppercase text-sky-400">{sc.difficulty}</span>
+                          <span className="text-[9px] text-gray-500 font-mono">3D Canvas</span>
+                        </div>
+                        <h5 className="text-xs font-black text-white">{sc.name}</h5>
+                        <p className="text-[10px] text-gray-300 mt-1 leading-snug">{sc.reason}</p>
+                      </div>
+                      <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block text-right pt-1 border-t border-white/5">
+                        Module SGS AIM
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>

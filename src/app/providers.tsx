@@ -2,6 +2,8 @@
 import React, { useEffect } from "react";
 import { SessionProvider } from "next-auth/react";
 
+import DesktopRgpdModal from "@/components/DesktopRgpdModal";
+
 function DynamicCosmeticsLoader() {
   useEffect(() => {
     fetch("/api/cms/cosmetics")
@@ -33,6 +35,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
       <DynamicCosmeticsLoader />
+      <DesktopRgpdModal />
       {children}
     </SessionProvider>
   );

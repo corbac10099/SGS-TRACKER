@@ -335,6 +335,35 @@ fn set_overlay_click_through(app: tauri::AppHandle, enabled: bool) -> Result<(),
 }
 
 #[tauri::command]
+fn is_valorant_running() -> bool {
+  #[cfg(target_os = "windows")]
+  {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let output = std::process::Command::new("tasklist")
+      .args(["/FI", "IMAGENAME eq VALORANT.exe", "/NH"])
+      .creation_flags(CREATE_NO_WINDOW)
+      .output();
+    if let Ok(out) = output {
+      let text = String::from_utf8_lossy(&out.stdout);
+      return text.to_lowercase().contains("valorant");
+    }
+  }
+  false
+}
+
+#[tauri::command]
+fn emergency_close_overlay(app: tauri::AppHandle) -> Result<(), String> {
+  use tauri::Manager;
+  if let Some(window) = app.get_webview_window("overlay") {
+    let _ = window.hide();
+    Ok(())
+  } else {
+    Err("Overlay window not found".to_string())
+  }
+}
+
+#[tauri::command]
 fn get_app_version(app: tauri::AppHandle) -> String {
   app.package_info().version.to_string()
 }
@@ -369,7 +398,9 @@ pub fn run() {
       set_overlay_position,
       get_overlay_position,
       set_overlay_click_through,
-      get_app_version
+      get_app_version,
+      is_valorant_running,
+      emergency_close_overlay
     ])
     .setup(|app| {
       use tauri::Manager;

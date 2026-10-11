@@ -154,6 +154,10 @@ export default function OverlayPage() {
     return DEFAULT_SENS;
   });
 
+  // ─── Overlay Opacity & Monitor State ──────────────────────────────────────
+  const [overlayOpacity, setOverlayOpacity] = useState(0.9);
+  const [overlayMonitor, setOverlayMonitor] = useState("primary");
+
   // Initialisation du thème sauvegardé sur le compte SGS
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -161,6 +165,14 @@ export default function OverlayPage() {
       setThemeName(savedTheme);
       const savedShortcut = localStorage.getItem("sgs_overlay_shortcut") || "F9";
       setShortcutKey(savedShortcut);
+
+      // Opacité de l'overlay depuis les paramètres
+      const savedOpacity = localStorage.getItem("spycam_overlay_opacity");
+      if (savedOpacity) setOverlayOpacity(parseFloat(savedOpacity));
+
+      // Moniteur cible de l'overlay
+      const savedMonitor = localStorage.getItem("spycam_overlay_monitor");
+      if (savedMonitor) setOverlayMonitor(savedMonitor);
 
       const savedCross = localStorage.getItem("sgs_aim_crosshair");
       if (savedCross) {
@@ -172,6 +184,41 @@ export default function OverlayPage() {
       }
     }
   }, []);
+
+  // Écouter les changements localStorage depuis la fenêtre principale (cross-window sync)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "spycam_overlay_opacity" && e.newValue) {
+        setOverlayOpacity(parseFloat(e.newValue));
+      }
+      if (e.key === "spycam_overlay_monitor" && e.newValue) {
+        setOverlayMonitor(e.newValue);
+      }
+      if (e.key === "spycam_theme" && e.newValue) {
+        setThemeName(e.newValue);
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
+  // Appliquer la position du moniteur dédié au démarrage
+  useEffect(() => {
+    if (overlayMonitor === "secondary") {
+      // Déplacer l'overlay sur le 2nd écran (position hors écran principal)
+      // On utilise screen.availWidth comme estimation de la largeur du moniteur principal
+      const secondScreenX = window.screen.availWidth + 50;
+      setOverlayPosition(secondScreenX, 50);
+    } else if (overlayMonitor === "primary") {
+      // S'assurer que l'overlay est visible sur l'écran principal
+      getOverlayPosition().then((pos) => {
+        if (pos && (pos[0] > window.screen.availWidth || pos[0] < 0)) {
+          setOverlayPosition(50, 50);
+        }
+      });
+    }
+    // "auto" = ne rien faire, laisser la position actuelle
+  }, [overlayMonitor]);
 
   const accentColor = useMemo(() => extractThemeAccent(themeName), [themeName]);
   const bgColor = useMemo(() => getThemeBackgroundColor(themeName), [themeName]);
@@ -417,7 +464,7 @@ export default function OverlayPage() {
       <div
         className="w-full h-full rounded-2xl border border-white/15 backdrop-blur-2xl shadow-2xl p-3 text-white flex flex-col gap-2 relative overflow-hidden transition-colors"
         style={{
-          backgroundColor: `${bgColor}F2`, // Opacité ~95%
+          backgroundColor: `${bgColor}${Math.round(overlayOpacity * 255).toString(16).padStart(2, "0")}`,
           boxShadow: `0 20px 50px rgba(0, 0, 0, 0.9), 0 0 20px ${accentColor}25, inset 0 1px 0 rgba(255, 255, 255, 0.12)`,
           borderColor: `${accentColor}40`,
         }}

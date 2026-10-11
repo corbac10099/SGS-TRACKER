@@ -44,6 +44,9 @@ model User {
   equippedBannerAnimation String?
   equippedBannerBorder    String?
   unlockedCosmetics String   @default("[]")
+  dataRetentionPolicy String  @default("1_season") // "1_season", "3_seasons", "1_year", "forever", "custom"
+  dataRetentionDays   Int     @default(90)
+  dataRetentionAcceptedAt DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   accounts        Account[]
@@ -436,4 +439,117 @@ model AimProfile {
   @@index([userId])
 }
 
+// ==========================================
+// Tracking Avancé Matchs & Événements Live (Neon DB)
+// ==========================================
 
+model MatchSpikeEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  matchId     String
+  mapName     String
+  site        String   // "A", "B", "C"
+  plantType   String   @default("default") // "default", "open", "safe", "corner"
+  x           Float    // Coordonnée normalisée (0.0 - 1.0)
+  y           Float    // Coordonnée normalisée (0.0 - 1.0)
+  roundNumber Int
+  roundWon    Boolean  // Victoire du round après la pose
+  defused     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([matchId])
+  @@index([mapName])
+}
+
+model MatchPingMetric {
+  id           String   @id @default(cuid())
+  userId       String
+  matchId      String
+  avgPingMs    Float
+  maxPingMs    Float    @default(0)
+  packetLoss   Float    @default(0)
+  matchWon     Boolean
+  kdRatio      Float    @default(1.0)
+  serverRegion String   @default("Paris")
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([matchId])
+}
+
+model AgentAbilityStat {
+  id                 String   @id @default(cuid())
+  userId             String
+  matchId            String
+  agentName          String
+  abilitySlot        String   // "C", "Q", "E", "X"
+  abilityName        String
+  casts              Int      @default(0)
+  enemiesFlashed     Int      @default(0)
+  teammatesFlashed   Int      @default(0)
+  damageDealt        Int      @default(0)
+  assistsWithAbility Int      @default(0)
+  killsWithAbility   Int      @default(0)
+  createdAt          DateTime @default(now())
+
+  @@index([userId])
+  @@index([matchId])
+  @@index([agentName])
+}
+
+// ==========================================
+// Auto-Sync Valorant Profiles (Henrik Dev API → Neon DB)
+// ==========================================
+
+model TrackedValorantProfile {
+  id              String   @id @default(cuid())
+  riotId          String   // Riot ID complet (ex: "SENPAII#6767")
+  gameName        String   // Partie nom (ex: "SENPAII")
+  tagLine         String   // Partie tag (ex: "6767")
+  region          String   @default("eu")
+  linkedEmail     String   // Email du compte associé (ex: "ryzeapex64@gmail.com")
+  syncIntervalMin Int      @default(5) // Intervalle de sync en minutes (1, 5, 15, 30, 60)
+  isActive        Boolean  @default(true)
+  lastSyncAt      DateTime?
+  lastSyncStatus  String   @default("pending") // "pending", "success", "error"
+  lastSyncError   String?
+  lastRank        String?
+  lastRankTier    Int?
+  lastRankUrl     String?
+  totalSyncs      Int      @default(0)
+  cachedData      String?  // JSON complet du dernier profil récupéré (snapshot)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  snapshots       TrackedProfileSnapshot[]
+
+  @@unique([riotId, linkedEmail])
+  @@index([linkedEmail])
+  @@index([isActive])
+  @@index([lastSyncAt])
+}
+
+model TrackedProfileSnapshot {
+  id              String   @id @default(cuid())
+  trackedProfileId String
+  rank            String?
+  rankTier        Int?
+  elo             Int?     @default(0)
+  kills           Int      @default(0)
+  deaths          Int      @default(0)
+  assists         Int      @default(0)
+  kdRatio         Float    @default(0)
+  headshotPct     Float    @default(0)
+  winRate         Int      @default(0)
+  acs             Int      @default(0)
+  matchesPlayed   Int      @default(0)
+  mainAgent       String?
+  snapshotData    String?  // JSON complet du profil à ce moment
+  createdAt       DateTime @default(now())
+
+  trackedProfile  TrackedValorantProfile @relation(fields: [trackedProfileId], references: [id], onDelete: Cascade)
+
+  @@index([trackedProfileId])
+  @@index([createdAt])
+}

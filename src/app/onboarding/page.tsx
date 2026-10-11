@@ -68,7 +68,11 @@ function OnboardingContent() {
   const { lang: currentLang, setLanguage: setAppLanguage, tr, trFormat } = useLanguage();
 
   // State tracking
-  const [currentStep, setCurrentStep] = useState<number>(1);
+  const initialStepParam = searchParams.get('step');
+  const [currentStep, setCurrentStep] = useState<number>(() => {
+    const s = parseInt(initialStepParam || '1', 10);
+    return isNaN(s) || s < 1 || s > 4 ? 1 : s;
+  });
   const [languages, setLanguages] = useState<LanguageInfo[]>([
     { id: 'french', label: 'Français', flag: '🇫🇷' },
     { id: 'english', label: 'English', flag: '' },
@@ -81,6 +85,10 @@ function OnboardingContent() {
   const [isPublic, setIsPublic] = useState<boolean>(false);
   const [streamerMode, setStreamerMode] = useState<boolean>(false);
   const [isGuest, setIsGuest] = useState<boolean>(false);
+
+  // Data Retention states
+  const [dataRetentionPolicy, setDataRetentionPolicy] = useState<string>('1_season');
+  const [dataRetentionCustomDays, setDataRetentionCustomDays] = useState<number>(90);
 
   // Search and display toggle for languages
   const [languageSearchQuery, setLanguageSearchQuery] = useState<string>('');
@@ -144,7 +152,12 @@ function OnboardingContent() {
 
   // Navigation handlers
   const handleNext = () => {
-    if (currentStep < 3) {
+    // Sur le site Web standard (3 étapes), la 3ème étape permet de terminer l'onboarding
+    if (currentStep === 3) {
+      handleComplete();
+      return;
+    }
+    if (currentStep < 4) {
       setDirection('next');
       setCurrentStep((prev) => prev + 1);
     }
@@ -168,7 +181,7 @@ function OnboardingContent() {
       setIsSubmitting(true);
       setTimeout(() => {
         setIsSubmitting(false);
-        alert(`✅ Configuration testée avec succès !\n\n• Langue choisie : ${language}\n• Thème choisi : ${theme}\n• Profil public : ${isPublic ? 'Oui' : 'Non'}`);
+        alert(`✅ Configuration testée avec succès !\n\n• Langue choisie : ${language}\n• Thème choisi : ${theme}\n• Profil public : ${isPublic ? 'Oui' : 'Non'}\n• Rétention des données : ${dataRetentionPolicy} (${dataRetentionPolicy === 'custom' ? dataRetentionCustomDays + ' jours' : ''})`);
       }, 500);
       return;
     }
@@ -187,6 +200,8 @@ function OnboardingContent() {
           language,
           theme,
           isPublic,
+          dataRetentionPolicy,
+          dataRetentionDays: dataRetentionPolicy === 'custom' ? dataRetentionCustomDays : dataRetentionPolicy === '1_season' ? 90 : dataRetentionPolicy === '3_seasons' ? 270 : dataRetentionPolicy === '1_year' ? 365 : 9999,
           guestId: guestId || undefined,
         }),
       });
@@ -239,7 +254,7 @@ function OnboardingContent() {
           <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-val-red)] animate-pulse"></span>
           <span>Mode Test AppControl (Prévisualisation)</span>
           <div className="flex gap-1.5 ml-2 border-l border-white/20 pl-3">
-            {[1, 2, 3].map((s) => (
+            {[1, 2, 3, 4].map((s) => (
               <button
                 key={s}
                 onClick={() => {
@@ -263,7 +278,7 @@ function OnboardingContent() {
       <div className="fixed -top-32 -left-32 w-96 h-96 bg-[var(--color-val-red)] opacity-10 blur-[130px] rounded-full pointer-events-none" />
       <div className="fixed -bottom-32 -right-32 w-96 h-96 bg-[var(--color-val-red)] opacity-10 blur-[130px] rounded-full pointer-events-none" />
 
-      {/* Header / Progress Indicator (3 Steps) */}
+      {/* Header / Progress Indicator (4 Steps) */}
       <div className="w-full max-w-xl mb-8 flex flex-col items-center z-10">
         {/* Logo and Protocol subtitle */}
         <div className="flex items-center gap-3 mb-6">
@@ -275,21 +290,21 @@ function OnboardingContent() {
           </span>
         </div>
 
-        {/* 3 Steps Dots Progress Bar */}
+        {/* 4 Steps Dots Progress Bar */}
         <div className="w-full relative px-8">
           {/* Background line aligned exactly to vertical center of the 44px buttons */}
           <div className="absolute left-14 right-14 top-[22px] -translate-y-1/2 h-[2px] bg-[var(--color-border)] z-0">
             <div
               className="h-full bg-[var(--color-val-red)] transition-all duration-500 ease-out shadow-[0_0_10px_rgba(255,70,85,0.5)]"
               style={{
-                width: currentStep === 1 ? '0%' : currentStep === 2 ? '50%' : '100%',
+                width: currentStep === 1 ? '0%' : currentStep === 2 ? '33.3%' : currentStep === 3 ? '66.6%' : '100%',
               }}
             />
           </div>
 
           {/* Dots */}
           <div className="flex items-start justify-between w-full relative z-10">
-            {[1, 2, 3].map((step) => {
+            {[1, 2, 3, 4].map((step) => {
               const isActive = currentStep === step;
               const isCompleted = currentStep > step;
 
@@ -331,7 +346,7 @@ function OnboardingContent() {
                         : 'text-[var(--color-text-secondary)]'
                     }`}
                   >
-                    {step === 1 ? tr("Langue") : step === 2 ? tr("Thème") : tr("Riot Games")}
+                    {step === 1 ? tr("Langue") : step === 2 ? tr("Thème") : step === 3 ? tr("Riot Games") : tr("Rétention")}
                   </span>
                 </div>
               );
@@ -638,39 +653,25 @@ function OnboardingContent() {
               {/* Connect Riot Button */}
               <button
                 type="button"
-                onClick={handleComplete}
-                disabled={isSubmitting}
-                className="w-full max-w-md py-4 bg-[var(--color-val-red)] text-white font-black uppercase tracking-wider rounded-xl shadow-[0_0_25px_rgba(255,70,85,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer opacity-60 hover:opacity-80 mb-4 text-xs sm:text-sm"
+                onClick={handleNext}
+                className="w-full max-w-md py-4 bg-[var(--color-val-red)] hover:bg-[#ff5a67] text-white font-black uppercase tracking-wider rounded-xl shadow-[0_0_25px_rgba(255,70,85,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer mb-4 text-xs sm:text-sm"
               >
-                {isSubmitting ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <RiotGamesLogo className="w-5 h-5 flex-shrink-0" />
-                    <span>{"Connecter mon compte Riot (Bientôt disponible)"}</span>
-                  </>
-                )}
+                <RiotGamesLogo className="w-5 h-5 flex-shrink-0" />
+                <span>{"Connecter mon compte Riot (Bientôt disponible)"}</span>
               </button>
 
               {/* Link / Button below: Passer cette étape */}
               <button
                 type="button"
-                onClick={handleComplete}
-                disabled={isSubmitting}
+                onClick={handleNext}
                 className="text-xs font-bold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] underline underline-offset-4 transition-colors cursor-pointer"
               >
                 {"Passer cette étape"}
               </button>
             </div>
 
-            {error && (
-              <div className="mb-6 px-4 py-2.5 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-xl w-full">
-                {error}
-              </div>
-            )}
-
-            {/* Navigation button: Retour */}
-            <div className="w-full flex items-center justify-start">
+            {/* Navigation button: Retour & Suivant */}
+            <div className="w-full flex items-center justify-between">
               <button
                 type="button"
                 onClick={handleBack}
@@ -681,6 +682,207 @@ function OnboardingContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
                 <span>{tr("Retour")}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={isSubmitting}
+                className="px-8 py-3.5 bg-[var(--color-val-red)] hover:bg-[#ff5a67] text-white font-black uppercase tracking-wider rounded-xl transition-all duration-300 shadow-[0_0_20px_rgba(255,70,85,0.4)] flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02]"
+              >
+                {isSubmitting ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>{"Terminer & Accéder au Tracker"}</span>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 4 - CONSERVATION ET RÉTENTION DES DONNÉES (RGPD & APPLICATION DESKTOP) */}
+        {currentStep === 4 && (
+          <div className="flex flex-col items-center text-center">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-val-red)]/15 border border-[var(--color-val-red)]/30 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--color-val-red)] mb-3">
+              <span>🖥️ Configuration Application PC (Tauri)</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-wider text-[var(--color-text-primary)] mb-2">
+              {"Conservation & Utilisation des Données"}
+            </h1>
+            <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mb-6 max-w-xl leading-relaxed">
+              {"Transparence absolue : vous lancez l'application PC pour la première fois. Choisissez la durée de conservation de vos données de match (Spikes, Spells, Ping) capturées lors de vos sessions de jeu avec l'Overlay."}
+            </p>
+
+            {/* Explanatory Feature Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mb-6 text-left">
+              <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-4 flex flex-col gap-2">
+                <div className="text-xl">📍</div>
+                <div className="text-xs font-black uppercase text-[var(--color-text-primary)] tracking-wide">
+                  Poses de Spike
+                </div>
+                <div className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
+                  Cartographie les zones exactes de pose par map pour calculer vos heatmaps de winrate et retakes.
+                </div>
+              </div>
+
+              <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-4 flex flex-col gap-2">
+                <div className="text-xl">⚡</div>
+                <div className="text-xs font-black uppercase text-[var(--color-text-primary)] tracking-wide">
+                  Sorts & Compétences
+                </div>
+                <div className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
+                  Suivi des flashes réussies, dégâts d'utilitaires et assists pour remplir votre catalogue d'agents.
+                </div>
+              </div>
+
+              <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-4 flex flex-col gap-2">
+                <div className="text-xl">📶</div>
+                <div className="text-xs font-black uppercase text-[var(--color-text-primary)] tracking-wide">
+                  Impact du Ping
+                </div>
+                <div className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
+                  Corrélation objective entre votre latence réseau en millisecondes et vos victoires / K/D.
+                </div>
+              </div>
+            </div>
+
+            {/* Retention Selector Options */}
+            <div className="w-full mb-8 text-left">
+              <label className="text-xs font-black uppercase tracking-wider text-[var(--color-text-primary)] block mb-3">
+                {"Durée de conservation souhaitée sur le serveur :"}
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                {[
+                  {
+                    id: '1_season',
+                    title: '1 Saison en cours',
+                    desc: '~90 jours. Idéal pour garder des statistiques fraîches sans surcharger votre historique.',
+                    badge: 'Recommandé',
+                  },
+                  {
+                    id: '3_seasons',
+                    title: '3 Saisons consécutives',
+                    desc: '~9 mois. Permet de comparer votre évolution et vos progrès sur l\'ensemble de l\'année.',
+                  },
+                  {
+                    id: '1_year',
+                    title: '1 An complet',
+                    desc: '365 jours de données archivées pour un suivi longitudinal approfondi.',
+                  },
+                  {
+                    id: 'forever',
+                    title: 'Illimité / Toujours',
+                    desc: 'Toutes vos données restent disponibles sans suppression automatique.',
+                  },
+                ].map((opt) => {
+                  const isSelected = dataRetentionPolicy === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setDataRetentionPolicy(opt.id)}
+                      className={`p-4 rounded-2xl border-2 transition-all flex flex-col text-left relative cursor-pointer ${
+                        isSelected
+                          ? 'border-[var(--color-val-red)] bg-[var(--color-val-red)]/10 shadow-[0_0_20px_rgba(255,70,85,0.25)]'
+                          : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-text-secondary)]/40'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-black text-sm text-[var(--color-text-primary)]">
+                          {opt.title}
+                        </span>
+                        {opt.badge && (
+                          <span className="text-[9px] font-black uppercase bg-[var(--color-val-red)] text-white px-2 py-0.5 rounded-full">
+                            {opt.badge}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
+                        {opt.desc}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom Duration Button */}
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => setDataRetentionPolicy('custom')}
+                  className={`w-full p-4 rounded-2xl border-2 transition-all flex items-center justify-between text-left cursor-pointer ${
+                    dataRetentionPolicy === 'custom'
+                      ? 'border-[var(--color-val-red)] bg-[var(--color-val-red)]/10'
+                      : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-text-secondary)]/40'
+                  }`}
+                >
+                  <div>
+                    <span className="font-black text-sm text-[var(--color-text-primary)] block">
+                      Durée personnalisée
+                    </span>
+                    <span className="text-[11px] text-[var(--color-text-secondary)]">
+                      Définissez vous-même le nombre exact de jours de rétention.
+                    </span>
+                  </div>
+                  {dataRetentionPolicy === 'custom' && (
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="number"
+                        min="7"
+                        max="730"
+                        value={dataRetentionCustomDays}
+                        onChange={(e) => setDataRetentionCustomDays(Math.max(7, parseInt(e.target.value) || 30))}
+                        className="w-20 px-3 py-1.5 rounded-lg bg-[var(--color-background)] border border-[var(--color-border)] text-sm font-bold text-center text-white focus:border-[var(--color-val-red)] focus:outline-none"
+                      />
+                      <span className="text-xs font-bold text-[var(--color-text-secondary)]">jours</span>
+                    </div>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div className="mb-6 px-4 py-2.5 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-xl w-full">
+                {error}
+              </div>
+            )}
+
+            {/* Navigation buttons: Retour & Terminer */}
+            <div className="w-full flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleBack}
+                disabled={isSubmitting}
+                className="px-6 py-3 text-xs sm:text-sm font-bold uppercase tracking-wider text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex items-center gap-2 cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+                <span>{tr("Retour")}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleComplete}
+                disabled={isSubmitting}
+                className="px-8 py-3.5 bg-[var(--color-val-red)] hover:bg-[#ff5a67] text-white font-black uppercase tracking-wider rounded-xl transition-all duration-300 shadow-[0_0_25px_rgba(255,70,85,0.5)] flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02]"
+              >
+                {isSubmitting ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>{"Valider & Accéder au Tracker"}</span>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </>
+                )}
               </button>
             </div>
           </div>

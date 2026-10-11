@@ -32,6 +32,7 @@ const TABS = [
   { id: "performance", label: "Performances" },
   { id: "agents", label: "Agents" },
   { id: "maps", label: "Cartes" },
+  { id: "spikes", label: "Spikes" },
   { id: "matches", label: "Historique" },
 ];
 

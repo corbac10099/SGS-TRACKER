@@ -46,6 +46,8 @@ export async function PUT(req: Request) {
       notificationPreferences,
       equippedBannerAnimation,
       equippedBannerBorder,
+      dataRetentionPolicy,
+      dataRetentionDays,
     } = body;
     const updateData: any = {};
 
@@ -74,6 +76,8 @@ export async function PUT(req: Request) {
     }
     if (equippedBannerAnimation !== undefined) updateData.equippedBannerAnimation = equippedBannerAnimation;
     if (equippedBannerBorder !== undefined) updateData.equippedBannerBorder = equippedBannerBorder;
+    if (dataRetentionPolicy !== undefined) updateData.dataRetentionPolicy = dataRetentionPolicy;
+    if (dataRetentionDays !== undefined) updateData.dataRetentionDays = dataRetentionDays;
 
     // S'il n'y a rien à mettre à jour
     if (Object.keys(updateData).length === 0) {
@@ -139,6 +143,10 @@ export async function GET(req: Request) {
         notificationPreferences: true,
         equippedBannerAnimation: true,
         equippedBannerBorder: true,
+        onboardingDone: true,
+        dataRetentionPolicy: true,
+        dataRetentionDays: true,
+        dataRetentionAcceptedAt: true,
       },
     });
 

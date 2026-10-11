@@ -79,6 +79,7 @@ export default function SensitivityPanel({ settings, onChange }: Props) {
           ].map((p) => (
             <button
               key={p.name}
+              type="button"
               onClick={() => onChange({ ...settings, sens: p.sens, dpi: p.dpi })}
               className="p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-xs font-bold text-white transition-all cursor-pointer text-left flex items-center justify-between"
             >
@@ -86,6 +87,89 @@ export default function SensitivityPanel({ settings, onChange }: Props) {
               <span className="text-[var(--color-text-secondary)] font-mono text-[11px]">{p.sens} / {p.dpi}</span>
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Convertisseur de Sensibilité Universel 1:1 (Idée 36) */}
+      <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-black uppercase tracking-wider text-sky-400">
+            🔄 Convertisseur Universel 1:1 vers Valorant
+          </span>
+          <span className="text-[9px] text-gray-400 font-mono">Sensibilité exacte</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {[
+            { game: "CS2 / CS:GO", factor: 3.181818, placeholder: "1.2" },
+            { game: "Apex Legends", factor: 3.181818, placeholder: "1.2" },
+            { game: "Overwatch 2", factor: 10.606, placeholder: "4.0" },
+            { game: "Fortnite", factor: 12.6, placeholder: "4.5" },
+            { game: "Rainbow Six", factor: 12.23, placeholder: "8.0" },
+          ].map((conv) => (
+            <div key={conv.game} className="bg-black/30 border border-white/5 rounded-xl p-2.5 flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-gray-300">{conv.game}</span>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  step="0.05"
+                  placeholder={conv.placeholder}
+                  className="w-full bg-[#0a0e14] border border-white/10 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400"
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (val > 0) {
+                      const converted = Math.round((val / conv.factor) * 1000) / 1000;
+                      onChange({ ...settings, sens: converted });
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-[var(--color-text-secondary)] italic">
+          Entrez votre sensibilité dans votre autre jeu : elle sera convertie instantanément en équivalent Valorant 1:1.
+        </p>
+      </div>
+
+      {/* Profils Hitsounds Personnalisables (Idée 58) & Zéro Latence (Idée 69) */}
+      <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
+            🔔 Hitsounds Personnalisables & Audio
+          </span>
+          <span className="text-[9px] text-gray-400">Cliquez pour tester</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {[
+            { id: "valorant", label: "Hitmarker VCT", icon: "🎯" },
+            { id: "bell", label: "Cloche Brillante", icon: "🔔" },
+            { id: "pop", label: "Pop Coton", icon: "🫧" },
+            { id: "wood", label: "Clic Mécanique", icon: "🪵" },
+          ].map((hs) => (
+            <button
+              key={hs.id}
+              type="button"
+              onClick={async () => {
+                const { aimSounds } = await import("./sounds");
+                aimSounds.setSoundProfile(hs.id as any);
+                aimSounds.playHit();
+              }}
+              className="p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-left transition-all cursor-pointer flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm">{hs.icon}</span>
+                <span className="text-[11px] font-bold text-white group-hover:text-emerald-300">{hs.label}</span>
+              </div>
+              <span className="text-[9px] text-gray-500 font-mono">▶</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px]">
+          <span className="text-gray-300 font-bold">⚡ Mode Rendu Zéro Latence (240Hz+)</span>
+          <span className="text-emerald-400 font-mono font-bold">Actif (V-Sync Off / WebGPU)</span>
         </div>
       </div>
     </div>

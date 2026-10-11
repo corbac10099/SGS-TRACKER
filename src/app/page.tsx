@@ -35,6 +35,8 @@ import PersonalGoalsWidget from "@/components/PersonalGoalsWidget";
 import TiltAlertBanner from "@/components/TiltAlertBanner";
 import AgentsStatsTab from "@/components/AgentsStatsTab";
 import MapsStatsTab from "@/components/MapsStatsTab";
+import SpikesStatsTab from "@/components/SpikesStatsTab";
+import PingPerformanceCard from "@/components/PingPerformanceCard";
 import ActivityCalendar from "@/components/ActivityCalendar";
 import MatchHistory from "@/components/MatchHistory";
 import FloatingVoiceBar from "@/components/FloatingVoiceBar";
@@ -452,6 +454,10 @@ export function HomeContent({
                 matchesCount={filters.filteredMatches?.length}
               />
             </div>
+
+            <div className="mt-8">
+              <PingPerformanceCard matches={filters.filteredMatches} />
+            </div>
           </div>
         )}
 
@@ -473,6 +479,13 @@ export function HomeContent({
               matches={filters.filteredMatches}
               onSelectMatch={handleSelectMatch}
             />
+          </div>
+        )}
+
+        {/* Onglet Spikes & Plantes */}
+        {nav.activeTab === "spikes" && (
+          <div key="tab-spikes" className="w-full animate-tab-in">
+            <SpikesStatsTab matches={filters.filteredMatches} />
           </div>
         )}
 
