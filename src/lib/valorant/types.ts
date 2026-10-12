@@ -115,7 +115,9 @@ export interface MatchDuoTeam {
 }
 
 export interface ValorantMatchData {
+  id?: string;
   matchId: string;
+  startedAt?: string;
   mode: string;
   modeIcon: string;
   map: string;

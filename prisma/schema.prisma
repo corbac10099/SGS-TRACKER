@@ -553,3 +553,41 @@ model TrackedProfileSnapshot {
   @@index([trackedProfileId])
   @@index([createdAt])
 }
+
+// ==========================================
+// Clés Système & Paramètres Sécurisés (Neon DB)
+// ==========================================
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique // ex: "HENRIK_DEV_API_KEY"
+  value       String   // Clé sécurisée chiffrée ou masquée
+  description String?
+  isSecret    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ==========================================
+// Historique de Matchs Cumulé Infini (Neon DB)
+// ==========================================
+
+model PersistedValorantMatch {
+  id          String   @id @default(cuid())
+  matchId     String   // Riot match uuid
+  riotId      String   // Normalized (ex: "SENPAII#6767")
+  gameName    String
+  tagLine     String
+  puuid       String?
+  queue       String?
+  map         String?
+  matchDate   DateTime
+  matchData   String   // JSON complet du match pour affichage
+  createdAt   DateTime @default(now())
+
+  @@unique([matchId, riotId])
+  @@index([riotId])
+  @@index([matchDate])
+  @@index([puuid])
+}
+

@@ -5,11 +5,11 @@ import bcrypt from 'bcryptjs';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password, firstName, lastName } = body;
+    const { email, password, firstName, lastName, dataRetentionPolicy, dataRetentionDays } = body;
 
-    if (!email || !password || !firstName || !lastName) {
+    if (!email || !password || !firstName) {
       return NextResponse.json(
-        { error: 'Tous les champs sont requis.' },
+        { error: 'Email, mot de passe et pseudo sont requis.' },
         { status: 400 }
       );
     }
@@ -41,8 +41,10 @@ export async function POST(request: Request) {
         email: email.toLowerCase(),
         password: hashedPassword,
         firstName,
-        lastName,
+        lastName: lastName || null,
         onboardingDone: false,
+        dataRetentionPolicy: dataRetentionPolicy || "1_season",
+        dataRetentionDays: typeof dataRetentionDays === "number" ? dataRetentionDays : 90,
       },
     });
 

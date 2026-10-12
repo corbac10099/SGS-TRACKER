@@ -17,6 +17,12 @@ import { resolveAgentDisplay } from "@/lib/valorant/agentsCatalog";
 import { parseRiotMatchData } from "@/lib/valorant/parser";
 import { ValorantProfileResponse } from "@/lib/valorant/types";
 import { fetchHenrikPlayerData } from "@/lib/valorant/henrikApi";
+import { getSecureHenrikApiKey } from "@/lib/systemSettings";
+import {
+  saveMatchesToNeon,
+  getPersistedMatchesForPlayer,
+  mergeMatchHistories,
+} from "@/lib/valorant/matchStorage";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +77,13 @@ async function handlePlayerRequest(
   adminBypassHeader: boolean = false
 ) {
   try {
-    const activeKey = customApiKey?.trim() || getDynamicRiotApiKey();
+    let activeKey = customApiKey?.trim() || getDynamicRiotApiKey();
+    if (!activeKey || !activeKey.startsWith("HDEV-")) {
+      const secureKey = await getSecureHenrikApiKey();
+      if (secureKey) {
+        activeKey = secureKey;
+      }
+    }
     const cleanGameName = gameName.trim();
     const cleanTagLine = tagLine.trim();
     const cacheKey = `${cleanGameName.toLowerCase()}#${cleanTagLine.toLowerCase()}@${region}_${activeKey ? "live" : "mock"}`;
@@ -218,6 +230,37 @@ async function handlePlayerRequest(
         if (henrikProfile) {
           henrikProfile.player.isOwner = isOwner;
           henrikProfile.player.canEdit = isOwner;
+
+          const targetRiotId = `${cleanGameName}#${cleanTagLine}`;
+          const puuid = henrikProfile.player.puuid;
+          const userRetentionDays = registeredUser?.dataRetentionDays ?? 90;
+
+          // Cumuler et enregistrer les nouveaux matchs dans Neon DB
+          if (Array.isArray(henrikProfile.matchHistory) && henrikProfile.matchHistory.length > 0) {
+            await saveMatchesToNeon(
+              targetRiotId,
+              cleanGameName,
+              cleanTagLine,
+              puuid,
+              henrikProfile.matchHistory,
+              userRetentionDays
+            );
+          }
+
+          // Récupérer et fusionner l'historique cumulé infini depuis Neon
+          const persistedMatches = await getPersistedMatchesForPlayer(
+            targetRiotId,
+            puuid,
+            userRetentionDays
+          );
+
+          if (persistedMatches.length > 0) {
+            henrikProfile.matchHistory = mergeMatchHistories(
+              henrikProfile.matchHistory || [],
+              persistedMatches
+            );
+          }
+
           profileData = henrikProfile;
         } else {
           apiStatusInfo = {
@@ -361,6 +404,22 @@ async function handlePlayerRequest(
             profileData.player.isOwner = isOwner;
             profileData.player.canEdit = isOwner;
             profileData.isMock = false;
+
+            // Récupérer et fusionner tous les matchs cumulés de Neon DB
+            const targetRiotId = `${cleanGameName}#${cleanTagLine}`;
+            const userRetentionDays = registeredUser?.dataRetentionDays ?? 90;
+            const persistedMatches = await getPersistedMatchesForPlayer(
+              targetRiotId,
+              profileData.player.puuid || neonTracked.id,
+              userRetentionDays
+            );
+            if (persistedMatches.length > 0) {
+              profileData.matchHistory = mergeMatchHistories(
+                profileData.matchHistory || [],
+                persistedMatches
+              );
+            }
+
             profileData.apiStatus = {
               connected: true,
               verified: true,

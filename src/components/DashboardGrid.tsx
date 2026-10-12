@@ -70,24 +70,41 @@ const DEFAULT_COLS = 29;
 const GRID_GAP = 8;
 
 const DEFAULT_LAYOUT: GridItemConfig[] = [
-  { id: "chart", x: 0, y: 0, colSpan: 29, rowSpan: 4, visible: true },
-  { id: "performanceScore", x: 0, y: 4, colSpan: 9, rowSpan: 2, visible: true },
-  { id: "weapons", x: 0, y: 6, colSpan: 9, rowSpan: 4, visible: true },
-  { id: "kills", x: 9, y: 4, colSpan: 10, rowSpan: 1, visible: true },
-  { id: "deaths", x: 19, y: 4, colSpan: 10, rowSpan: 1, visible: true },
-  { id: "assists", x: 9, y: 5, colSpan: 10, rowSpan: 1, visible: true },
-  { id: "kd", x: 19, y: 5, colSpan: 10, rowSpan: 1, visible: true },
-  { id: "adr", x: 9, y: 6, colSpan: 10, rowSpan: 1, visible: true },
-  { id: "hs", x: 19, y: 6, colSpan: 10, rowSpan: 1, visible: true },
-  { id: "wr", x: 9, y: 7, colSpan: 10, rowSpan: 1, visible: true },
-  { id: "acs", x: 19, y: 7, colSpan: 10, rowSpan: 1, visible: true },
-  { id: "fb", x: 9, y: 8, colSpan: 5, rowSpan: 1, visible: true },
-  { id: "ace", x: 14, y: 8, colSpan: 5, rowSpan: 1, visible: true },
-  { id: "kast", x: 19, y: 8, colSpan: 5, rowSpan: 1, visible: true },
-  { id: "dd", x: 24, y: 8, colSpan: 5, rowSpan: 1, visible: true },
-  { id: "wins", x: 0, y: 10, colSpan: 14, rowSpan: 1, visible: true },
-  { id: "matches", x: 14, y: 10, colSpan: 15, rowSpan: 1, visible: true },
-  { id: "coach", x: 0, y: 11, colSpan: 29, rowSpan: 2, visible: true },
+  // ── Bloc supérieur (y = 0 à 10) ──
+  // Armes : 9 colonnes sur 10 lignes (x: 0, y: 0)
+  { id: "weapons", x: 0, y: 0, colSpan: 9, rowSpan: 10, visible: true },
+
+  // Graphique : 19 colonnes sur 9 lignes (x: 9, y: 0) (ajusté sur 20 cols pour combler les 29 cols avec les armes : 9 + 20 = 29 cols)
+  { id: "chart", x: 9, y: 0, colSpan: 20, rowSpan: 9, visible: true },
+
+  // Score SPI : 8 colonnes sur 4 lignes (x: 0, y: 10)
+  { id: "performanceScore", x: 0, y: 10, colSpan: 8, rowSpan: 4, visible: true },
+
+  // ── Cartes de statistiques (6 colonnes sur 3 lignes par défaut) ──
+  // Rangée 1 de stats à côté du SPI (y: 9, à droite du graphique)
+  { id: "kills", x: 9, y: 9, colSpan: 5, rowSpan: 3, visible: true },
+  { id: "deaths", x: 14, y: 9, colSpan: 5, rowSpan: 3, visible: true },
+  { id: "assists", x: 19, y: 9, colSpan: 5, rowSpan: 3, visible: true },
+  { id: "kd", x: 24, y: 9, colSpan: 5, rowSpan: 3, visible: true },
+
+  // Rangée 2 de stats (y: 12)
+  { id: "adr", x: 9, y: 12, colSpan: 5, rowSpan: 3, visible: true },
+  { id: "hs", x: 14, y: 12, colSpan: 5, rowSpan: 3, visible: true },
+  { id: "wr", x: 19, y: 12, colSpan: 5, rowSpan: 3, visible: true },
+  { id: "acs", x: 24, y: 12, colSpan: 5, rowSpan: 3, visible: true },
+
+  // Rangée 3 de stats (y: 15)
+  { id: "fb", x: 0, y: 15, colSpan: 6, rowSpan: 3, visible: true },
+  { id: "ace", x: 6, y: 15, colSpan: 6, rowSpan: 3, visible: true },
+  { id: "kast", x: 12, y: 15, colSpan: 6, rowSpan: 3, visible: true },
+  { id: "dd", x: 18, y: 15, colSpan: 5, rowSpan: 3, visible: true },
+  { id: "wins", x: 23, y: 15, colSpan: 6, rowSpan: 3, visible: true },
+
+  // Rangée 4 de stats (y: 18)
+  { id: "matches", x: 0, y: 18, colSpan: 29, rowSpan: 3, visible: true },
+
+  // ── Coach Tactique SGS : 29 colonnes sur 8 lignes ──
+  { id: "coach", x: 0, y: 21, colSpan: 29, rowSpan: 8, visible: true },
 ];
 
 export const ITEM_ICONS: Record<string, React.ReactNode> = {
@@ -132,15 +149,14 @@ const ITEM_LABELS: Record<string, { label: string; desc: string }> = {
   matches: { label: "Parties", desc: "Nombre total de parties" },
 };
 
-// Return strictly enforced minimum dimensions according to content needs
+// Return strictly enforced minimum dimensions according to user defined specifications
 export function getMinItemDimensions(itemId: string): { minCol: number; minRow: number } {
-  if (itemId === "chart" || itemId.startsWith("chart_")) return { minCol: 8, minRow: 3 };
-  if (itemId === "coach") return { minCol: 8, minRow: 2 };
-  if (itemId === "weapons") return { minCol: 7, minRow: 3 };
-  if (itemId === "performanceScore") return { minCol: 6, minRow: 2 };
-  if (["fb", "ace", "kast", "dd"].includes(itemId)) return { minCol: 3, minRow: 1 };
-  // Standard stat cards (K/D, ACS, HS %, etc.) need at least 5 cols (~160px) to prevent truncation
-  return { minCol: 5, minRow: 1 };
+  if (itemId === "chart" || itemId.startsWith("chart_")) return { minCol: 19, minRow: 8 };
+  if (itemId === "coach") return { minCol: 20, minRow: 6 };
+  if (itemId === "weapons") return { minCol: 8, minRow: 8 };
+  if (itemId === "performanceScore") return { minCol: 7, minRow: 4 };
+  // Chaque case de stat a désormais au minimum 5-6 colonnes et 3 lignes de hauteur
+  return { minCol: 5, minRow: 3 };
 }
 
 // Check if two items overlap in 2D
@@ -242,7 +258,7 @@ export default function DashboardGrid({
   isComparing = false,
 }: DashboardGridProps) {
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
-  const storageKey = `spycam_grid_layout_v8_29_${userStorageKey}`;
+  const storageKey = `spycam_grid_layout_v10_29_${userStorageKey}`;
   const chartsStorageKey = `spycam_charts_config_v1_${userStorageKey}`;
   const gridContainerRef = useRef<HTMLDivElement>(null);
 

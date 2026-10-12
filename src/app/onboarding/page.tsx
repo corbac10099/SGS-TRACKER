@@ -87,6 +87,7 @@ function OnboardingContent() {
   const [isGuest, setIsGuest] = useState<boolean>(false);
 
   // Data Retention states
+  const [consentRetention, setConsentRetention] = useState<boolean>(true);
   const [dataRetentionPolicy, setDataRetentionPolicy] = useState<string>('1_season');
   const [dataRetentionCustomDays, setDataRetentionCustomDays] = useState<number>(90);
 
@@ -152,11 +153,6 @@ function OnboardingContent() {
 
   // Navigation handlers
   const handleNext = () => {
-    // Sur le site Web standard (3 étapes), la 3ème étape permet de terminer l'onboarding
-    if (currentStep === 3) {
-      handleComplete();
-      return;
-    }
     if (currentStep < 4) {
       setDirection('next');
       setCurrentStep((prev) => prev + 1);
@@ -181,13 +177,27 @@ function OnboardingContent() {
       setIsSubmitting(true);
       setTimeout(() => {
         setIsSubmitting(false);
-        alert(`✅ Configuration testée avec succès !\n\n• Langue choisie : ${language}\n• Thème choisi : ${theme}\n• Profil public : ${isPublic ? 'Oui' : 'Non'}\n• Rétention des données : ${dataRetentionPolicy} (${dataRetentionPolicy === 'custom' ? dataRetentionCustomDays + ' jours' : ''})`);
+        alert(`✅ Configuration testée avec succès !\n\n• Langue choisie : ${language}\n• Thème choisi : ${theme}\n• Profil public : ${isPublic ? 'Oui' : 'Non'}\n• Conservation activée : ${consentRetention ? 'Oui' : 'Non'}\n• Rétention des données : ${dataRetentionPolicy} (${dataRetentionPolicy === 'custom' ? dataRetentionCustomDays + ' jours' : ''})`);
       }, 500);
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
+
+    const calculatedDays = !consentRetention
+      ? 0
+      : dataRetentionPolicy === 'custom'
+      ? dataRetentionCustomDays
+      : dataRetentionPolicy === '30_days'
+      ? 30
+      : dataRetentionPolicy === '1_season'
+      ? 90
+      : dataRetentionPolicy === '3_seasons'
+      ? 270
+      : dataRetentionPolicy === '1_year'
+      ? 365
+      : 9999;
 
     try {
       const res = await fetch('/api/auth/onboarding', {
@@ -200,8 +210,8 @@ function OnboardingContent() {
           language,
           theme,
           isPublic,
-          dataRetentionPolicy,
-          dataRetentionDays: dataRetentionPolicy === 'custom' ? dataRetentionCustomDays : dataRetentionPolicy === '1_season' ? 90 : dataRetentionPolicy === '3_seasons' ? 270 : dataRetentionPolicy === '1_year' ? 365 : 9999,
+          dataRetentionPolicy: consentRetention ? dataRetentionPolicy : 'none',
+          dataRetentionDays: calculatedDays,
           guestId: guestId || undefined,
         }),
       });
@@ -366,7 +376,7 @@ function OnboardingContent() {
         {currentStep === 1 && (
           <div className="flex flex-col items-center text-center">
             <div className="text-[10px] font-black uppercase tracking-[0.25em] text-[var(--color-val-red)] mb-2">
-              Étape 01 sur 03
+              Étape 01 sur 04
             </div>
             <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-wider text-[var(--color-text-primary)] mb-2">
               {"Choisissez votre langue"}
@@ -502,7 +512,7 @@ function OnboardingContent() {
         {currentStep === 2 && (
           <div className="flex flex-col items-center text-center">
             <div className="text-[10px] font-black uppercase tracking-[0.25em] text-[var(--color-val-red)] mb-2">
-              Étape 02 sur 03
+              Étape 02 sur 04
             </div>
             <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-wider text-[var(--color-text-primary)] mb-2">
               {"Choisissez votre thème"}
@@ -594,7 +604,7 @@ function OnboardingContent() {
         {currentStep === 3 && (
           <div className="flex flex-col items-center text-center">
             <div className="text-[10px] font-black uppercase tracking-[0.25em] text-[var(--color-val-red)] mb-2">
-              Étape 03 sur 03
+              Étape 03 sur 04
             </div>
             <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-wider text-[var(--color-text-primary)] mb-2">
               {"Connectez votre compte Riot Games"}
@@ -690,85 +700,105 @@ function OnboardingContent() {
                 disabled={isSubmitting}
                 className="px-8 py-3.5 bg-[var(--color-val-red)] hover:bg-[#ff5a67] text-white font-black uppercase tracking-wider rounded-xl transition-all duration-300 shadow-[0_0_20px_rgba(255,70,85,0.4)] flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02]"
               >
-                {isSubmitting ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span>{"Terminer & Accéder au Tracker"}</span>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </>
-                )}
+                <span>{"Étape Suivante : Conservation des Données"}</span>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
               </button>
             </div>
           </div>
         )}
 
-        {/* STEP 4 - CONSERVATION ET RÉTENTION DES DONNÉES (RGPD & APPLICATION DESKTOP) */}
+        {/* STEP 4 - CONSERVATION ET RÉTENTION DES DONNÉES (ANTI-RATE LIMITS RIOT & HISTORIQUE INFINI) */}
         {currentStep === 4 && (
           <div className="flex flex-col items-center text-center">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-val-red)]/15 border border-[var(--color-val-red)]/30 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--color-val-red)] mb-3">
-              <span>🖥️ Configuration Application PC (Tauri)</span>
+              <span>🛡️ Protection API Riot & Historique Cumulé</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-wider text-[var(--color-text-primary)] mb-2">
-              {"Conservation & Utilisation des Données"}
+              {"Conservation & Historique de Matchs"}
             </h1>
             <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] mb-6 max-w-xl leading-relaxed">
-              {"Transparence absolue : vous lancez l'application PC pour la première fois. Choisissez la durée de conservation de vos données de match (Spikes, Spells, Ping) capturées lors de vos sessions de jeu avec l'Overlay."}
+              {"Soulagez l'API Riot Games et évitez les rate limits (erreurs 429). SGS Tracker peut sauvegarder et cumuler votre historique de match à l'infini sur nos serveurs sécurisés Neon DB afin de ne jamais perdre vos parties au-delà des 10 à 15 matchs imposés par Riot."}
             </p>
+
+            {/* Consent Toggle Card */}
+            <div className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-4 sm:p-5 mb-6 flex items-center justify-between gap-4 text-left">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-[var(--color-val-red)]/15 border border-[var(--color-val-red)]/30 flex items-center justify-center text-xl">
+                  💾
+                </div>
+                <div>
+                  <div className="font-black text-sm text-[var(--color-text-primary)]">
+                    Sauvegarder et cumuler mon historique sur Neon DB
+                  </div>
+                  <div className="text-[11px] text-[var(--color-text-secondary)]">
+                    Allonge l'historique de matchs à l'infini et soulage les quotas d'API Riot.
+                  </div>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                <input
+                  type="checkbox"
+                  checked={consentRetention}
+                  onChange={(e) => setConsentRetention(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--color-val-red)]"></div>
+              </label>
+            </div>
 
             {/* Explanatory Feature Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mb-6 text-left">
               <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-4 flex flex-col gap-2">
-                <div className="text-xl">📍</div>
-                <div className="text-xs font-black uppercase text-[var(--color-text-primary)] tracking-wide">
-                  Poses de Spike
-                </div>
-                <div className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
-                  Cartographie les zones exactes de pose par map pour calculer vos heatmaps de winrate et retakes.
-                </div>
-              </div>
-
-              <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-4 flex flex-col gap-2">
                 <div className="text-xl">⚡</div>
                 <div className="text-xs font-black uppercase text-[var(--color-text-primary)] tracking-wide">
-                  Sorts & Compétences
+                  Anti-Rate Limits (429)
                 </div>
                 <div className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
-                  Suivi des flashes réussies, dégâts d'utilitaires et assists pour remplir votre catalogue d'agents.
+                  Requêtes allégées : vos parties passées sont servies instantanément depuis Neon sans saturer Riot.
                 </div>
               </div>
 
               <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-4 flex flex-col gap-2">
-                <div className="text-xl">📶</div>
+                <div className="text-xl">♾️</div>
                 <div className="text-xs font-black uppercase text-[var(--color-text-primary)] tracking-wide">
-                  Impact du Ping
+                  Historique Cumulé Infini
                 </div>
                 <div className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
-                  Corrélation objective entre votre latence réseau en millisecondes et vos victoires / K/D.
+                  Riot limite l'accès aux 10-15 derniers matchs. SGS Tracker conserve vos parties sur la durée choisie.
+                </div>
+              </div>
+
+              <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-4 flex flex-col gap-2">
+                <div className="text-xl">📍</div>
+                <div className="text-xs font-black uppercase text-[var(--color-text-primary)] tracking-wide">
+                  Télémétrie & Spikes
+                </div>
+                <div className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
+                  Cartographie des poses, sorts utilisés et ping moyen pour calculer vos heatmaps et scores SPI.
                 </div>
               </div>
             </div>
 
             {/* Retention Selector Options */}
-            <div className="w-full mb-8 text-left">
+            <div className={`w-full mb-8 text-left transition-opacity ${consentRetention ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
               <label className="text-xs font-black uppercase tracking-wider text-[var(--color-text-primary)] block mb-3">
-                {"Durée de conservation souhaitée sur le serveur :"}
+                {"Durée de conservation souhaitée sur le serveur Neon :"}
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                 {[
                   {
-                    id: '1_season',
-                    title: '1 Saison en cours',
-                    desc: '~90 jours. Idéal pour garder des statistiques fraîches sans surcharger votre historique.',
-                    badge: 'Recommandé',
+                    id: '30_days',
+                    title: '30 Jours',
+                    desc: '~1 mois de parties. Idéal pour garder uniquement vos matchs récents.',
                   },
                   {
-                    id: '3_seasons',
-                    title: '3 Saisons consécutives',
-                    desc: '~9 mois. Permet de comparer votre évolution et vos progrès sur l\'ensemble de l\'année.',
+                    id: '1_season',
+                    title: '1 Saison en cours',
+                    desc: '~90 jours. Idéal pour garder des statistiques fraîches sans surcharger votre profil.',
+                    badge: 'Recommandé',
                   },
                   {
                     id: '1_year',
@@ -777,8 +807,9 @@ function OnboardingContent() {
                   },
                   {
                     id: 'forever',
-                    title: 'Illimité / Toujours',
-                    desc: 'Toutes vos données restent disponibles sans suppression automatique.',
+                    title: 'À l\'infini / Illimité',
+                    desc: 'Toutes vos parties restent archivées sans aucune suppression automatique.',
+                    badge: 'Infini',
                   },
                 ].map((opt) => {
                   const isSelected = dataRetentionPolicy === opt.id;

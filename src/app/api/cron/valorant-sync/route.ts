@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fetchHenrikPlayerData } from "@/lib/valorant/henrikApi";
-import { getDynamicRiotApiKey } from "@/lib/valorant/riotApi";
+import { getSecureHenrikApiKey } from "@/lib/systemSettings";
+import {
+  saveMatchesToNeon,
+  getPersistedMatchesForPlayer,
+  mergeMatchHistories,
+} from "@/lib/valorant/matchStorage";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Max 60s pour Vercel
@@ -76,12 +81,12 @@ async function handleSync(request: NextRequest) {
       });
     }
 
-    // Récupérer la clé API Henrik Dev
-    const apiKey = getDynamicRiotApiKey();
+    // Récupérer la clé API Henrik Dev (depuis mémoire, env ou base Neon DB)
+    const apiKey = await getSecureHenrikApiKey();
     if (!apiKey || !apiKey.startsWith("HDEV-")) {
       return NextResponse.json(
         {
-          error: "Aucune clé API Henrik Dev (HDEV-*) configurée. Configurez RIOT_API_KEY avec votre clé HenrikDev.",
+          error: "Aucune clé API Henrik Dev (HDEV-*) configurée dans Neon DB ou en variable d'environnement.",
         },
         { status: 500 }
       );
@@ -91,6 +96,17 @@ async function handleSync(request: NextRequest) {
 
     for (const profile of profilesToSync) {
       try {
+        // Déterminer la durée de rétention demandée par le joueur
+        let userRetentionDays = 90;
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: profile.linkedEmail },
+          });
+          if (user && user.dataRetentionDays !== undefined) {
+            userRetentionDays = user.dataRetentionDays;
+          }
+        } catch {}
+
         // Appel à l'API Henrik Dev
         const playerData = await fetchHenrikPlayerData(
           profile.gameName,
@@ -105,8 +121,37 @@ async function handleSync(request: NextRequest) {
           const rankTier = playerData.rankTier || playerData.player?.rankTier || 0;
           const rankUrl = playerData.rankUrl || playerData.player?.rankUrl || "";
           const mainAgent = playerData.mainAgent?.name || playerData.player?.mainAgent?.name || "";
+          const puuid = playerData.player.puuid;
 
-          // Mettre à jour le profil suivi
+          // ─── CUMUL ET EXTENSION INFINIE DE L'HISTORIQUE DE MATCHS ───
+          // 1. Sauvegarder les nouveaux matchs retournés par l'API dans Neon DB
+          if (Array.isArray(playerData.matchHistory) && playerData.matchHistory.length > 0) {
+            await saveMatchesToNeon(
+              profile.riotId,
+              profile.gameName,
+              profile.tagLine,
+              puuid,
+              playerData.matchHistory,
+              userRetentionDays
+            );
+          }
+
+          // 2. Récupérer l'ensemble de l'historique cumulé stocké sur Neon DB
+          const persistedMatches = await getPersistedMatchesForPlayer(
+            profile.riotId,
+            puuid,
+            userRetentionDays
+          );
+
+          // 3. Fusionner les matchs récents et persistés pour allonger l'historique
+          if (persistedMatches.length > 0) {
+            playerData.matchHistory = mergeMatchHistories(
+              playerData.matchHistory || [],
+              persistedMatches
+            );
+          }
+
+          // Mettre à jour le profil suivi avec le profil complet enrichi
           await prisma.trackedValorantProfile.update({
             where: { id: profile.id },
             data: {
@@ -134,7 +179,7 @@ async function handleSync(request: NextRequest) {
               headshotPct: stats.headshotPct || 0,
               winRate: stats.winRate || 0,
               acs: stats.acs || 0,
-              matchesPlayed: stats.matchesPlayed || 0,
+              matchesPlayed: playerData.matchHistory?.length || stats.matchesPlayed || 0,
               mainAgent,
               snapshotData: JSON.stringify(playerData),
             },

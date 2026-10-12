@@ -222,14 +222,47 @@ export default function LandingPage({ onEnterBeta, onOpenLogin }: LandingPagePro
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-white/5 py-6 px-4 text-center text-xs text-white/40">
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="font-bold text-white/60">
-            SGS-TRACKER — Tracker & Hub Stratégique VALORANT
+      {/* Footer Conforme AdSense */}
+      <footer className="relative z-10 border-t border-white/10 py-10 px-4 text-xs text-white/50 bg-black/40 backdrop-blur-md">
+        <div className="max-w-6xl mx-auto space-y-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-6 border-b border-white/5">
+            <div className="flex items-center gap-3">
+              <img
+                src="/sgs-icon.jpg"
+                alt="SGS-Tracker"
+                className="h-8 w-auto rounded-lg"
+              />
+              <span className="font-black text-sm uppercase tracking-wider text-white">
+                SGS-Tracker • Start Gaming Studio
+              </span>
+            </div>
+            {/* Liens de navigation obligatoires AdSense */}
+            <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs font-semibold text-gray-300">
+              <a href="/mentions-legales" className="hover:text-[var(--color-val-red,#ff4655)] transition-colors">
+                Mentions Légales
+              </a>
+              <a href="/confidentialite" className="hover:text-[var(--color-val-red,#ff4655)] transition-colors">
+                Politique de Confidentialité (RGPD)
+              </a>
+              <a href="/cgu" className="hover:text-[var(--color-val-red,#ff4655)] transition-colors">
+                Conditions Générales d&apos;Utilisation (CGU)
+              </a>
+              <a href="/download" className="hover:text-[var(--color-val-red,#ff4655)] transition-colors">
+                Télécharger l&apos;Application
+              </a>
+              <a href="/salons" className="hover:text-[var(--color-val-red,#ff4655)] transition-colors">
+                Salons & Recherche d&apos;Équipe
+              </a>
+            </div>
           </div>
-          <div>
-            Non affilié à Riot Games. VALORANT est une marque de Riot Games, Inc.
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-gray-400">
+            <p>
+              © {new Date().getFullYear()} Start Gaming Studio. Tous droits réservés. Outil d&apos;analyse statistique et d&apos;entraînement e-sport pour VALORANT.
+            </p>
+            <p className="text-[10px] text-gray-400 max-w-md text-center sm:text-right">
+              SGS-Tracker n&apos;est pas affilié, sponsorisé ni approuvé par Riot Games. VALORANT et Riot Games sont des marques déposées de Riot Games, Inc.
+            </p>
           </div>
         </div>
       </footer>

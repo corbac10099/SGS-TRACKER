@@ -94,18 +94,22 @@ export default function DownloadAppViewComponent({ onClose }: DownloadAppViewPro
             </p>
 
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
-              <button
-                onClick={handleDownload}
-                disabled={release?.isPublished === false}
-                className={`relative group px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-wider transition-all duration-300 transform active:scale-95 shadow-xl flex items-center gap-3 cursor-pointer ${
+              <a
+                href={release?.downloadUrl || "/api/download"}
+                download={release?.filename || "SGS-Tracker-Setup.exe"}
+                onClick={() => {
+                  setDownloadStarted(true);
+                  setTimeout(() => setDownloadStarted(false), 5000);
+                }}
+                className={`relative group px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-wider transition-all duration-300 transform active:scale-95 shadow-xl flex items-center gap-3 cursor-pointer no-underline ${
                   release?.isPublished === false
-                    ? "bg-gray-700 text-white/50 cursor-not-allowed"
+                    ? "bg-gray-700 text-white/50 pointer-events-none"
                     : "bg-[var(--color-val-red)] hover:bg-[#ff5565] text-white shadow-[0_0_25px_rgba(255,70,85,0.45)] hover:shadow-[0_0_35px_rgba(255,70,85,0.65)]"
                 }`}
               >
                 <IconDownload size={20} className="transition-transform group-hover:-translate-y-0.5" />
                 <span>{downloadStarted ? "Téléchargement en cours..." : "Télécharger pour Windows"}</span>
-              </button>
+              </a>
 
               {onClose && (
                 <button

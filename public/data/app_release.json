@@ -1,11 +1,16 @@
 {
   "version": "1.0.2",
   "releaseName": "SGS Tracker Desktop v1.0.2 (Official)",
-  "releaseDate": "2026-10-06",
-  "fileSize": "3.49 MB",
+  "releaseDate": "2026-10-11",
+  "fileSize": "3.66 MB",
   "minWindowsVersion": "Windows 10 / 11 (64-bit)",
   "isPublished": true,
-  "downloadUrl": "/installers/SGS-Tracker_1.0.0_x64-setup-online (3).exe",
-  "filename": "SGS-Tracker_1.0.0_x64-setup-online (3).exe",
-  "changelog": []
+  "downloadUrl": "/installers/SGS-Tracker-Setup.exe",
+  "filename": "SGS-Tracker-Setup.exe",
+  "changelog": [
+    "Overlay natif Valorant avec clics traversants (touche F10)",
+    "Intégration Discord Rich Presence",
+    "Auto-sync et historique de matchs cumulé Neon DB",
+    "Moteur d'analyse SPI et détection des poses de Spike"
+  ]
 }
