@@ -33,17 +33,18 @@ export async function POST(request: NextRequest) {
 
 async function handleSync(request: NextRequest) {
   try {
-    // Authentification optionnelle via CRON_SECRET
+    // Authentification optionnelle via CRON_SECRET (via header Authorization ou query param ?secret=xxx)
     const authHeader = request.headers.get("authorization");
+    const { searchParams } = new URL(request.url);
+    const querySecret = searchParams.get("secret") || searchParams.get("key");
     const cronSecret = process.env.CRON_SECRET;
     const host = request.headers.get("host") || "";
     const isLocalhost = host.includes("localhost") || host.includes("127.0.0.1");
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}` && !isLocalhost) {
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}` && querySecret !== cronSecret && !isLocalhost) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
     const forceId = searchParams.get("id");
     const filterEmail = searchParams.get("email");
 

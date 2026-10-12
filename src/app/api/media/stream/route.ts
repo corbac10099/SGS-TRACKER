@@ -76,6 +76,12 @@ export async function GET(req: NextRequest) {
       headers.set('Content-Length', contentLength);
     }
 
+    if (key.endsWith('.exe')) {
+      const fileName = key.split('/').pop() || 'SGS-Tracker-Setup.exe';
+      headers.set('Content-Disposition', `attachment; filename="${fileName}"`);
+      headers.set('Content-Type', 'application/vnd.microsoft.portable-executable');
+    }
+
     const status = range && contentRange ? 206 : 200;
 
     return new NextResponse(webStream as any, {

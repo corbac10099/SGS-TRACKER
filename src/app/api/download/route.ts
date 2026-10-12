@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     console.warn("[Download Route] Erreur lecture binaire local:", err);
   }
 
-  // Fallback redirection directe vers le fichier statique
-  const url = new URL("/installers/SGS-Tracker-Setup.exe", request.url);
+  // Fallback direct vers Cloudflare R2 qui sert l'exécutable avec les bons headers
+  const url = new URL("/api/media/stream?key=releases/SGS-Tracker-Setup.exe", request.url);
   return NextResponse.redirect(url, { status: 302 });
 }
