@@ -1,17 +1,13 @@
 {
   "version": "1.0.3",
   "releaseName": "SGS Tracker Desktop v1.0.3 (Official)",
-  "releaseDate": "2026-10-12",
+  "releaseDate": "2026-10-13",
   "fileSize": "3.49 MB",
   "minWindowsVersion": "Windows 10 / 11 (64-bit)",
   "isPublished": true,
-  "downloadUrl": "/api/download",
+  "downloadUrl": "/installers/SGS-Tracker-Setup.exe",
   "filename": "SGS-Tracker-Setup.exe",
-  "r2Key": "releases/SGS-Tracker-Setup.exe",
-  "r2Url": "/api/media/stream?key=releases/SGS-Tracker-Setup.exe",
   "changelog": [
-    "Overlay temps réel optimisé",
-    "Téléchargement ultra-rapide direct via Cloudflare R2",
-    "Support complet de la synchronisation cloud continue"
+    "Correction des telechargement"
   ]
 }

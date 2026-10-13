@@ -1,11 +1,11 @@
 {
   "version": "1.0.3",
-  "notes": "Nouvelle version disponible",
-  "pub_date": "2026-10-12T00:00:00Z",
-  "downloadUrl": "/installers/SGS-Tracker_1.0.0_x64-setup-online (3).exe",
+  "notes": "Correction des telechargement",
+  "pub_date": "2026-10-13T00:00:00Z",
+  "downloadUrl": "/installers/SGS-Tracker-Setup.exe",
   "platforms": {
     "windows-x86_64": {
-      "url": "/installers/SGS-Tracker_1.0.0_x64-setup-online (3).exe"
+      "url": "/installers/SGS-Tracker-Setup.exe"
     }
   }
 }

@@ -12,11 +12,6 @@
       "flag": "/locales/flags/english.png"
     },
     {
-      "id": "japanese",
-      "label": "日本語",
-      "flag": "/locales/flags/japanese.png"
-    },
-    {
       "id": "italiano",
       "label": "Italian",
       "flag": "/locales/flags/italiano.png"
@@ -30,6 +25,11 @@
       "id": "portuguese",
       "label": "Português",
       "flag": "/locales/flags/portuguese.png"
+    },
+    {
+      "id": "japanese",
+      "label": "日本語",
+      "flag": "/locales/flags/japanese.svg"
     }
   ]
 }
