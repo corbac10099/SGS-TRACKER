@@ -104,48 +104,86 @@ export const TIER_NAMES: Record<number, string> = {
   27: "Radiant",
 };
 
-export function getPlayerRank(player: any, defaultRank?: { name?: string; icon?: string; tier?: number }): { name: string; icon: string } {
+export const UNRANKED_ICON =
+  "https://media.valorant-api.com/competitivetiers/564d8e28-c226-3180-6285-e48a390db8b1/0/largeicon.png";
+
+export function getPlayerRank(
+  player: any,
+  defaultRank?: { name?: string; icon?: string; tier?: number }
+): { name: string; icon: string } {
+  // 1. Si le joueur est explicitement non classé ou tier 0
+  if (
+    player?.rank === "Non classé" ||
+    player?.rankTier === 0 ||
+    player?.competitiveTier === 0
+  ) {
+    return {
+      name: "Non classé",
+      icon: player?.rankUrl || UNRANKED_ICON,
+    };
+  }
+
+  // 2. Si le joueur a déjà un rang explicite et une icône valide
   if (player?.rank && player?.rankUrl) {
     return { name: player.rank, icon: player.rankUrl };
   }
   if (player?.rankUrl) {
-    return { name: player.rank || "Rang", icon: player.rankUrl };
+    return { name: player.rank || "Non classé", icon: player.rankUrl };
   }
-  if (player?.rankTier && TIER_NAMES[player.rankTier]) {
+
+  // 3. Si le joueur a un rankTier numérique valide (> 0)
+  if (
+    typeof player?.rankTier === "number" &&
+    player.rankTier > 0 &&
+    TIER_NAMES[player.rankTier]
+  ) {
     const tier = player.rankTier;
     return {
       name: player.rank || TIER_NAMES[tier],
       icon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${tier}/largeicon.png`,
     };
   }
-  // Vérifier si le joueur se trouve dans myTeam
+
+  if (
+    typeof player?.competitiveTier === "number" &&
+    player.competitiveTier > 0 &&
+    TIER_NAMES[player.competitiveTier]
+  ) {
+    const tier = player.competitiveTier;
+    return {
+      name: player.rank || TIER_NAMES[tier],
+      icon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${tier}/largeicon.png`,
+    };
+  }
+
+  // 4. Vérifier si le joueur se trouve dans myTeam
   if (player?.myTeam && Array.isArray(player.myTeam)) {
     const me = player.myTeam.find((p: any) => p.isMe);
     if (me?.rank && me?.rankUrl) {
       return { name: me.rank, icon: me.rankUrl };
     }
   }
+
+  // 5. Si un defaultRank valide est fourni
   if (defaultRank?.icon) {
-    return { name: defaultRank.name || "Rang", icon: defaultRank.icon };
+    return { name: defaultRank.name || "Non classé", icon: defaultRank.icon };
   }
-  if (defaultRank?.tier && TIER_NAMES[defaultRank.tier]) {
+  if (
+    typeof defaultRank?.tier === "number" &&
+    defaultRank.tier > 0 &&
+    TIER_NAMES[defaultRank.tier]
+  ) {
     return {
       name: defaultRank.name || TIER_NAMES[defaultRank.tier],
       icon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${defaultRank.tier}/largeicon.png`,
     };
   }
 
-  let hash = 0;
-  const str = String(player?.name || player?.puuid || "player");
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  const fallbackTier = 18 + (Math.abs(hash) % 5);
-  const tier = player?.rankTier || player?.competitiveTier || fallbackTier;
-  const name = player?.rank || TIER_NAMES[tier] || `Rang ${tier}`;
-  const icon = `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${tier}/largeicon.png`;
-  return { name, icon };
+  // 6. Fin de chaîne : renvoyer "Non classé" avec l'icône unranked officielle
+  return {
+    name: player?.rank || "Non classé",
+    icon: UNRANKED_ICON,
+  };
 }
 
 export const PlayerRow = React.memo(function PlayerRow({ player, isWinnerTeam }: { player: any; isWinnerTeam?: boolean }) {

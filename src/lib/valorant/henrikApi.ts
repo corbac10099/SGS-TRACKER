@@ -322,8 +322,11 @@ export function parseHenrikMatchesList(
         const pDeaths = p.stats?.deaths ?? p.score?.deaths ?? 0;
         const pAssists = p.stats?.assists ?? p.score?.assists ?? 0;
         const pAcs = Math.round((p.stats?.score || pKills * 200) / Math.max(roundsPlayed, 1));
-        const pTier = p.currenttier || 18;
-        const pTierName = p.currenttier_patched || "Ascendant 1";
+        const pTier = typeof p.currenttier === "number" ? p.currenttier : 0;
+        const pTierName = p.currenttier_patched || (pTier === 0 ? "Non classé" : `Rang ${pTier}`);
+        const pRankIcon = pTier > 0
+          ? `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${pTier}/largeicon.png`
+          : "https://media.valorant-api.com/competitivetiers/564d8e28-c226-3180-6285-e48a390db8b1/0/largeicon.png";
         const resolvedPName = p.name || p.game_name || p.riot_id_name || p.player_display_name || (isMePlayer ? realName : `Joueur ${myTeam.length + enemyTeam.length + 1}`);
         const resolvedPTag = p.tag || p.tag_line || p.riot_id_tag || "EU1";
 
@@ -334,7 +337,8 @@ export function parseHenrikMatchesList(
           agent: pAgentName,
           agentIcon: pAgentIcon,
           rank: gameModeInfo.isRanked ? pTierName : "Non classé",
-          rankUrl: gameModeInfo.isRanked ? `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${pTier}/largeicon.png` : "",
+          rankTier: gameModeInfo.isRanked ? pTier : 0,
+          rankUrl: gameModeInfo.isRanked ? pRankIcon : "https://media.valorant-api.com/competitivetiers/564d8e28-c226-3180-6285-e48a390db8b1/0/largeicon.png",
           score: p.stats?.score || pKills * 200,
           acs: pAcs,
           kills: pKills,
