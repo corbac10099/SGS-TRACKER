@@ -23,6 +23,7 @@ export default function AgentsStatsTab({
   onSelectMatch,
 }: AgentsStatsTabProps) {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
+  const [matchesLimit, setMatchesLimit] = useState<Record<string, number>>({});
 
   // Filtrer les stats d'agents pour exclure les entités non jouables avec sorts (Robo-Agent, Inconnu)
   const validAgentStats = useMemo(() => {
@@ -102,10 +103,10 @@ export default function AgentsStatsTab({
       {validAgentStats.map((agent: any) => {
         const isExpanded = expandedAgent === agent.name;
         const details = agentDetailsMap[agent.name];
-        const agentMatchesCount = details?.matches.length || agent.games || 0;
+        const displayGamesCount = Math.max(agent.games || 0, details?.matches.length || 0);
         const avgAcs =
-          agentMatchesCount > 0
-            ? Math.round((details?.totalAcs || 0) / agentMatchesCount)
+          displayGamesCount > 0
+            ? Math.round((details?.totalAcs || 0) / (details?.matches.length || 1))
             : 0;
         const hsPct =
           details && details.totalShots > 0
@@ -150,7 +151,7 @@ export default function AgentsStatsTab({
                       Parties
                     </span>
                     <span className="text-xs sm:text-sm font-bold text-[var(--color-text-on-surface)]">
-                      {agent.games}
+                      {displayGamesCount}
                     </span>
                   </div>
                   <div className="flex flex-col">
@@ -346,7 +347,7 @@ export default function AgentsStatsTab({
 
                     <div className="space-y-2">
                       {details.matches
-                        .slice(0, 5)
+                        .slice(0, matchesLimit[agent.name] || 5)
                         .map((m: any, idx: number) => {
                           const d = m.date ? new Date(m.date) : new Date();
                           const dateStr = !isNaN(d.getTime())
@@ -458,6 +459,23 @@ export default function AgentsStatsTab({
                             </div>
                           );
                         })}
+
+                      {details.matches.length > (matchesLimit[agent.name] || 5) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            sounds.playClick();
+                            setMatchesLimit((prev) => ({
+                              ...prev,
+                              [agent.name]: (prev[agent.name] || 5) + 10,
+                            }));
+                          }}
+                          className="w-full py-2.5 rounded-xl border border-white/10 hover:border-[var(--color-val-red)]/50 bg-white/5 hover:bg-[var(--color-val-red)]/10 text-xs font-bold text-[var(--color-text-secondary)] hover:text-white transition-all cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          <span>Voir plus de parties avec {agent.name}</span>
+                          <span className="text-[10px] opacity-60">({details.matches.length - (matchesLimit[agent.name] || 5)} restantes)</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

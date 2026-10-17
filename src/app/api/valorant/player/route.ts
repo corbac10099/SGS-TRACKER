@@ -19,6 +19,7 @@ import { ValorantProfileResponse } from "@/lib/valorant/types";
 import {
   fetchHenrikPlayerData,
   fetchHenrikPlayerDataProgressive,
+  parseHenrikMatchesList,
 } from "@/lib/valorant/henrikApi";
 import { getSecureHenrikApiKey } from "@/lib/systemSettings";
 import {
@@ -280,10 +281,28 @@ async function handlePlayerRequestStream(
             userRetentionDays
           );
           if (persistedMatches.length > 0) {
-            henrikProfile.matchHistory = mergeMatchHistories(
+            const merged = mergeMatchHistories(
               henrikProfile.matchHistory || [],
               persistedMatches
             );
+            henrikProfile.matchHistory = merged;
+
+            // Recalculer l'ensemble des métriques d'agents et stats globales avec tous les matchs fusionnés
+            const recomputed = parseHenrikMatchesList(
+              merged,
+              puuid,
+              cleanGameName,
+              cleanTagLine,
+              henrikProfile.rank,
+              henrikProfile.rankUrl,
+              henrikProfile.rankTier
+            );
+            henrikProfile.agentStats = recomputed.agentStats;
+            henrikProfile.player.agentStats = recomputed.agentStats;
+            henrikProfile.stats = recomputed.statsObj;
+            henrikProfile.player.stats = recomputed.statsObj;
+            henrikProfile.mainAgent = recomputed.mainAgentObj;
+            henrikProfile.player.mainAgent = recomputed.mainAgentObj;
           }
 
           profileData = henrikProfile;
@@ -529,10 +548,27 @@ async function handlePlayerRequest(
           );
 
           if (persistedMatches.length > 0) {
-            henrikProfile.matchHistory = mergeMatchHistories(
+            const merged = mergeMatchHistories(
               henrikProfile.matchHistory || [],
               persistedMatches
             );
+            henrikProfile.matchHistory = merged;
+
+            const recomputed = parseHenrikMatchesList(
+              merged,
+              puuid,
+              cleanGameName,
+              cleanTagLine,
+              henrikProfile.rank,
+              henrikProfile.rankUrl,
+              henrikProfile.rankTier
+            );
+            henrikProfile.agentStats = recomputed.agentStats;
+            henrikProfile.player.agentStats = recomputed.agentStats;
+            henrikProfile.stats = recomputed.statsObj;
+            henrikProfile.player.stats = recomputed.statsObj;
+            henrikProfile.mainAgent = recomputed.mainAgentObj;
+            henrikProfile.player.mainAgent = recomputed.mainAgentObj;
           }
 
           profileData = henrikProfile;

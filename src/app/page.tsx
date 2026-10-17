@@ -563,6 +563,7 @@ export function HomeContent({
           setRiotId={player.setRiotId}
           myRiotId={player.myRiotId}
           onSearch={player.handleSearch}
+          onSearchPlayer={player.searchPlayer}
           newsView={nav.newsView}
           agentsView={nav.agentsView}
           lobbiesView={nav.lobbiesView}

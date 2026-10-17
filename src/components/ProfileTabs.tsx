@@ -149,11 +149,11 @@ export default function ProfileTabs({
 
   return (
     <div className="w-full mt-4 sm:mt-6">
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between border-b border-[var(--color-border)] mb-4 sm:mb-6 gap-3 pb-1">
+      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between border-b border-[var(--color-border)] mb-4 sm:mb-6 gap-3 pb-1">
         {/* Onglets principaux */}
         <div
           ref={profileTabsContainerRef}
-          className="relative flex items-center gap-4 sm:gap-8 overflow-x-auto max-w-full custom-scrollbar"
+          className="relative flex items-center gap-3 sm:gap-6 md:gap-7 overflow-x-auto max-w-full custom-scrollbar flex-shrink-0"
         >
           {/* Sliding Red Underline Indicator */}
           <div
@@ -192,7 +192,7 @@ export default function ProfileTabs({
         </div>
 
         {/* Filtres alignés : Saison & Modes de jeu */}
-        <div className="flex items-center gap-2 sm:gap-3 pb-2.5 w-full lg:w-auto justify-between lg:justify-end flex-nowrap">
+        <div className="flex items-center gap-2 sm:gap-3 pb-2.5 w-full xl:w-auto justify-between xl:justify-end flex-wrap sm:flex-nowrap">
           {/* Sélecteur de saison */}
           <select
             value={selectedSeason}

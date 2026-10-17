@@ -32,6 +32,7 @@ export interface HeaderProps {
   setRiotId: (id: string) => void;
   myRiotId: string;
   onSearch: (e: React.FormEvent) => void;
+  onSearchPlayer?: (id: string) => void;
   newsView: boolean;
   agentsView: boolean;
   lobbiesView?: boolean;
@@ -76,6 +77,7 @@ export default function Header({
   setRiotId,
   myRiotId,
   onSearch,
+  onSearchPlayer,
   newsView,
   agentsView,
   lobbiesView = false,
@@ -452,11 +454,14 @@ export default function Header({
                           onClick={() => {
                             setRiotId(search);
                             setIsFocused(false);
-                            setTimeout(() => {
+                            saveRecentSearch(search);
+                            sounds.playClick();
+                            if (onSearchPlayer) {
+                              onSearchPlayer(search);
+                            } else {
                               const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
-                              saveRecentSearch(search);
                               onSearch(fakeEvent);
-                            }, 50);
+                            }
                           }}
                           className="flex items-center justify-between w-full p-2 rounded-xl hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer text-left group"
                         >
