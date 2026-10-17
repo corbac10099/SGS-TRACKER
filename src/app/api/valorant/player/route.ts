@@ -264,6 +264,19 @@ async function handlePlayerRequestStream(
           const puuid = henrikProfile.player.puuid;
           const userRetentionDays = registeredUser?.dataRetentionDays ?? 90;
 
+          if (Array.isArray(henrikProfile.matchHistory)) {
+            henrikProfile.matchHistory = henrikProfile.matchHistory.filter(
+              (m: any) =>
+                m &&
+                m.agent &&
+                m.agent !== "Inconnu" &&
+                !String(m.matchId || "").startsWith("henrik-match-")
+            );
+            if (henrikProfile.player) {
+              henrikProfile.player.matchHistory = henrikProfile.matchHistory;
+            }
+          }
+
           if (Array.isArray(henrikProfile.matchHistory) && henrikProfile.matchHistory.length > 0) {
             await saveMatchesToNeon(
               targetRiotId,
@@ -528,6 +541,19 @@ async function handlePlayerRequest(
           const targetRiotId = `${cleanGameName}#${cleanTagLine}`;
           const puuid = henrikProfile.player.puuid;
           const userRetentionDays = registeredUser?.dataRetentionDays ?? 90;
+
+          if (Array.isArray(henrikProfile.matchHistory)) {
+            henrikProfile.matchHistory = henrikProfile.matchHistory.filter(
+              (m: any) =>
+                m &&
+                m.agent &&
+                m.agent !== "Inconnu" &&
+                !String(m.matchId || "").startsWith("henrik-match-")
+            );
+            if (henrikProfile.player) {
+              henrikProfile.player.matchHistory = henrikProfile.matchHistory;
+            }
+          }
 
           // Cumuler et enregistrer les nouveaux matchs dans Neon DB
           if (Array.isArray(henrikProfile.matchHistory) && henrikProfile.matchHistory.length > 0) {

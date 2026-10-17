@@ -24,7 +24,13 @@ export async function saveMatchesToNeon(
 
   for (const match of matches) {
     const matchId = String(match.matchId || match.id || "").trim();
-    if (!matchId) continue;
+    if (
+      !matchId ||
+      matchId.startsWith("henrik-match-") ||
+      match.agent === "Inconnu" ||
+      !match.agent
+    )
+      continue;
 
     // Détermination de la date du match
     let matchDate: Date;
@@ -122,9 +128,15 @@ export async function getPersistedMatchesForPlayer(
 
     const parsed: ValorantMatchData[] = [];
     for (const rec of records) {
+      if (rec.matchId.startsWith("henrik-match-")) continue;
       try {
         const item = JSON.parse(rec.matchData) as ValorantMatchData;
-        if (item) {
+        if (
+          item &&
+          item.agent &&
+          item.agent !== "Inconnu" &&
+          !String(item.matchId || "").startsWith("henrik-match-")
+        ) {
           item.matchId = rec.matchId;
           item.id = rec.matchId;
           parsed.push(item);
@@ -155,7 +167,12 @@ export function mergeMatchHistories(
   // 1. D'abord les matchs persistés de Neon
   for (const m of persistedMatches) {
     const id = m.matchId || m.id;
-    if (id) {
+    if (
+      id &&
+      m.agent &&
+      m.agent !== "Inconnu" &&
+      !String(id).startsWith("henrik-match-")
+    ) {
       mapById.set(id, m);
     }
   }
@@ -163,7 +180,12 @@ export function mergeMatchHistories(
   // 2. Les matchs récents de l'API écrasent/enrichissent les détails si plus récents
   for (const m of freshMatches) {
     const id = m.matchId || m.id;
-    if (id) {
+    if (
+      id &&
+      m.agent &&
+      m.agent !== "Inconnu" &&
+      !String(id).startsWith("henrik-match-")
+    ) {
       mapById.set(id, m);
     }
   }

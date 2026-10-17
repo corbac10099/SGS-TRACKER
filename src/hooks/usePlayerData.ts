@@ -578,9 +578,16 @@ export function usePlayerData(
   }, [myRiotId, riotId, nav.SLUG_TO_TAB, nav.slugToRiotId, streamPlayerProfile]);
 
   const rawMatches = useMemo(() => {
-    return (playerData?.matchHistory ||
+    const list = (playerData?.matchHistory ||
       playerData?.player?.matchHistory ||
       []) as any[];
+    return list.filter(
+      (m: any) =>
+        m &&
+        m.agent &&
+        m.agent !== "Inconnu" &&
+        !String(m.matchId || "").startsWith("henrik-match-")
+    );
   }, [playerData]);
 
   const rawAgentStats = useMemo(() => {
