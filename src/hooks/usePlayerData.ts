@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import type { NavigationState } from "./useNavigation";
 import type { AuthState } from "./useAuth";
 import type { SettingsState } from "./useSettings";
@@ -12,6 +12,7 @@ export interface PlayerDataState {
   myRiotId: string;
   setMyRiotId: (v: string) => void;
   loading: boolean;
+  isStreaming: boolean;
   playerData: any;
   setPlayerData: React.Dispatch<React.SetStateAction<any>>;
   myPlayerData: any;
@@ -31,6 +32,38 @@ export interface PlayerDataState {
   setNewsItems: (v: any[]) => void;
 }
 
+// ─── Cache Local Rapide (Stale-While-Revalidate) ─────────────────────────
+const LOCAL_PROFILE_CACHE = new Map<string, { data: any; timestamp: number }>();
+
+function getLocalProfile(targetId: string): any | null {
+  if (typeof window === "undefined" || !targetId) return null;
+  const key = targetId.trim().toLowerCase();
+  const mem = LOCAL_PROFILE_CACHE.get(key);
+  if (mem && Date.now() - mem.timestamp < 10 * 60 * 1000) {
+    return mem.data;
+  }
+  try {
+    const raw = sessionStorage.getItem(`sgs_swr_p_${key}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.player) {
+        LOCAL_PROFILE_CACHE.set(key, { data: parsed, timestamp: Date.now() });
+        return parsed;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function saveLocalProfile(targetId: string, data: any) {
+  if (typeof window === "undefined" || !targetId || !data) return;
+  const key = targetId.trim().toLowerCase();
+  LOCAL_PROFILE_CACHE.set(key, { data, timestamp: Date.now() });
+  try {
+    sessionStorage.setItem(`sgs_swr_p_${key}`, JSON.stringify(data));
+  } catch {}
+}
+
 export function usePlayerData(
   auth: AuthState,
   nav: NavigationState,
@@ -40,11 +73,14 @@ export function usePlayerData(
   const [riotId, setRiotId] = useState("");
   const [myRiotId, setMyRiotId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [playerData, setPlayerData] = useState<any>(null);
   const [myPlayerData, setMyPlayerData] = useState<any>(null);
   const [error, setError] = useState("");
   const [devOverrides, setDevOverrides] = useState<DevStatOverrides | null>(null);
   const [newsItems, setNewsItems] = useState<any[]>([]);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const getDevKeyHeader = useCallback((): Record<string, string> => {
     const headers: Record<string, string> = {};
@@ -61,96 +97,228 @@ export function usePlayerData(
     return headers;
   }, [auth.session?.user?.email]);
 
+  /**
+   * Récupère le profil joueur via flux de streaming SSE progressif
+   * ou fallback JSON avec hydratation immédiate SWR
+   */
+  const streamPlayerProfile = useCallback(
+    async (targetId: string, isOwn: boolean = false, overrideKey?: string | null) => {
+      const cleanTarget = targetId.trim();
+      if (!cleanTarget) return;
+
+      // 1. Annulation de la requête / stream en cours si l'utilisateur change de joueur
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      // 2. Hydratation immédiate Stale-While-Revalidate (0ms)
+      const cached = getLocalProfile(cleanTarget);
+      if (cached && !overrideKey) {
+        setPlayerData(cached);
+        if (isOwn) setMyPlayerData(cached);
+      } else if (!playerData) {
+        setPlayerData(null);
+      }
+
+      setLoading(true);
+      setIsStreaming(true);
+      setError("");
+
+      try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          ...getDevKeyHeader(),
+        };
+        if (overrideKey) {
+          headers["x-riot-dev-key"] = overrideKey;
+        }
+
+        const response = await fetch("/api/valorant/player", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ riotId: cleanTarget, stream: true }),
+          signal: controller.signal,
+        });
+
+        const contentType = response.headers.get("content-type") || "";
+
+        if (contentType.includes("text/event-stream") && response.body) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const chunks = buffer.split("\n\n");
+            buffer = chunks.pop() || "";
+
+            for (const chunk of chunks) {
+              const trimmed = chunk.trim();
+              if (!trimmed.startsWith("data:")) continue;
+              const jsonText = trimmed.slice(5).trim();
+              if (!jsonText) continue;
+
+              try {
+                const { type, data } = JSON.parse(jsonText);
+
+                if (type === "cached" || type === "stale_db") {
+                  setPlayerData(data);
+                  if (isOwn) setMyPlayerData(data);
+                } else if (type === "settings") {
+                  setPlayerData((prev: any) => {
+                    if (!prev) return prev;
+                    return {
+                      ...prev,
+                      player: { ...(prev.player || {}), ...data },
+                      theme: data.theme || prev.theme,
+                      bannerUrl: data.bannerUrl || prev.bannerUrl,
+                      bannerOffsetY: data.bannerOffsetY ?? prev.bannerOffsetY,
+                      dashboardGrid: data.dashboardGrid || prev.dashboardGrid,
+                    };
+                  });
+                } else if (type === "identity") {
+                  setPlayerData((prev: any) => {
+                    const mergedPlayer = {
+                      ...(prev?.player || {}),
+                      ...(data.player || data),
+                    };
+                    return {
+                      ...(prev || {}),
+                      player: mergedPlayer,
+                      gameName: mergedPlayer.gameName,
+                      tagLine: mergedPlayer.tagLine,
+                      level: mergedPlayer.accountLevel || mergedPlayer.level,
+                      cardUrl: mergedPlayer.cardSmall || mergedPlayer.cardUrl,
+                      cardWideUrl: mergedPlayer.cardWide || mergedPlayer.cardWideUrl,
+                    };
+                  });
+                } else if (type === "rank") {
+                  setPlayerData((prev: any) => ({
+                    ...(prev || {}),
+                    rank: data.rank,
+                    rankUrl: data.rankUrl,
+                    rankTier: data.rankTier,
+                    player: {
+                      ...(prev?.player || {}),
+                      rank: data.rank,
+                      rankUrl: data.rankUrl,
+                      rankTier: data.rankTier,
+                    },
+                  }));
+                } else if (type === "stats") {
+                  setPlayerData((prev: any) => ({
+                    ...(prev || {}),
+                    stats: data.stats,
+                    agentStats: data.agentStats,
+                    weapons: data.weapons,
+                    matchHistory: data.matchHistory,
+                    mainAgent: data.mainAgent,
+                    player: {
+                      ...(prev?.player || {}),
+                      stats: data.stats,
+                      agentStats: data.agentStats,
+                      weapons: data.weapons,
+                      matchHistory: data.matchHistory,
+                      mainAgent: data.mainAgent,
+                    },
+                  }));
+                } else if (type === "complete") {
+                  setPlayerData(data);
+                  if (isOwn) setMyPlayerData(data);
+                  saveLocalProfile(cleanTarget, data);
+                } else if (type === "error") {
+                  setError(data.error || "Erreur de chargement.");
+                }
+              } catch (parseErr) {
+                console.warn("[Stream Parse Warning]:", parseErr);
+              }
+            }
+          }
+        } else {
+          // Fallback réponse standard non streamée
+          const d = await response.json();
+          if (d.error) {
+            setError(d.error);
+          } else {
+            setPlayerData(d);
+            if (isOwn) setMyPlayerData(d);
+            saveLocalProfile(cleanTarget, d);
+          }
+        }
+      } catch (err: any) {
+        if (err.name === "AbortError") {
+          return;
+        }
+        setError("Serveur inaccessible.");
+      } finally {
+        setLoading(false);
+        setIsStreaming(false);
+      }
+    },
+    [getDevKeyHeader, playerData]
+  );
+
   const searchPlayer = useCallback(
     (searchId: string) => {
       const isOwn =
         myRiotId && searchId.toLowerCase() === myRiotId.toLowerCase();
       setRiotId(searchId);
-      setLoading(true);
-      setError("");
-      setPlayerData(null);
       nav.pushUrl({
         tab: nav.activeTab,
         playerId: searchId,
         isOwnProfile: !!isOwn,
       });
-      fetch("/api/valorant/player", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getDevKeyHeader(),
-        },
-        body: JSON.stringify({ riotId: searchId }),
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.error) setError(d.error);
-          else {
-            setPlayerData(d);
-            if (isOwn) setMyPlayerData(d);
-          }
-        })
-        .catch(() => setError("Serveur inaccessible."))
-        .finally(() => setLoading(false));
+      streamPlayerProfile(searchId, !!isOwn);
 
-      // Si consultation d'un profil tiers et que nos propres données ne sont pas encore en mémoire, chargement discret
-      if (!isOwn && myRiotId) {
-        fetch("/api/valorant/player", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...getDevKeyHeader(),
-          },
-          body: JSON.stringify({ riotId: myRiotId }),
-        })
-          .then((r) => r.json())
-          .then((md) => {
-            if (!md.error) setMyPlayerData(md);
+      // Si consultation d'un tiers et que nos données ne sont pas chargées, récupération discrète
+      if (!isOwn && myRiotId && !myPlayerData) {
+        const cachedOwn = getLocalProfile(myRiotId);
+        if (cachedOwn) {
+          setMyPlayerData(cachedOwn);
+        } else {
+          fetch("/api/valorant/player", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...getDevKeyHeader(),
+            },
+            body: JSON.stringify({ riotId: myRiotId }),
           })
-          .catch(() => {});
+            .then((r) => r.json())
+            .then((md) => {
+              if (!md.error) {
+                setMyPlayerData(md);
+                saveLocalProfile(myRiotId, md);
+              }
+            })
+            .catch(() => {});
+        }
       }
     },
-    [myRiotId, nav, getDevKeyHeader]
+    [myRiotId, nav, streamPlayerProfile, myPlayerData, getDevKeyHeader]
   );
 
   const goHome = useCallback(() => {
     if (myRiotId) {
       setRiotId(myRiotId);
-      setLoading(true);
-      setError("");
-      setPlayerData(null);
       nav.pushUrl({
         tab: nav.activeTab,
         playerId: myRiotId,
         isOwnProfile: true,
       });
-      fetch("/api/valorant/player", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getDevKeyHeader(),
-        },
-        body: JSON.stringify({ riotId: myRiotId }),
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.error) setError(d.error);
-          else {
-            setPlayerData(d);
-            setMyPlayerData(d);
-          }
-        })
-        .catch(() => setError("Serveur inaccessible."))
-        .finally(() => setLoading(false));
+      streamPlayerProfile(myRiotId, true);
     }
-  }, [myRiotId, nav, getDevKeyHeader]);
+  }, [myRiotId, nav, streamPlayerProfile]);
 
   const handleSearch = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      setLoading(true);
-      setError("");
-      setPlayerData(null);
       const isOwn =
         myRiotId && riotId.toLowerCase() === myRiotId.toLowerCase();
 
@@ -162,25 +330,9 @@ export function usePlayerData(
         playerId: riotId,
         isOwnProfile: !!isOwn,
       });
-      try {
-        const r = await fetch("/api/valorant/player", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...getDevKeyHeader(),
-          },
-          body: JSON.stringify({ riotId }),
-        });
-        const d = await r.json();
-        if (!r.ok) setError(d.error);
-        else setPlayerData(d);
-      } catch {
-        setError("Serveur inaccessible.");
-      } finally {
-        setLoading(false);
-      }
+      await streamPlayerProfile(riotId, !!isOwn);
     },
-    [riotId, myRiotId, nav, getDevKeyHeader]
+    [riotId, myRiotId, nav, streamPlayerProfile]
   );
 
   const handleDebugGenerate = useCallback(async () => {
@@ -206,26 +358,15 @@ export function usePlayerData(
   const handleRiotKeyChange = useCallback(
     (newKey: string | null) => {
       const targetId = riotId || myRiotId || "Gr4phØ#0001";
-      setLoading(true);
-      setError("");
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (newKey) headers["x-riot-dev-key"] = newKey;
-      fetch("/api/valorant/player", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ riotId: targetId }),
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.error) setError(d.error);
-          else setPlayerData(d);
-        })
-        .catch(() => setError("Serveur inaccessible."))
-        .finally(() => setLoading(false));
+      const isOwn = myRiotId && targetId.toLowerCase() === myRiotId.toLowerCase();
+      // On vide le cache pour forcer un rechargement avec la nouvelle clé
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(`sgs_swr_p_${targetId.toLowerCase().trim()}`);
+      }
+      LOCAL_PROFILE_CACHE.delete(targetId.toLowerCase().trim());
+      streamPlayerProfile(targetId, !!isOwn, newKey);
     },
-    [riotId, myRiotId]
+    [riotId, myRiotId, streamPlayerProfile]
   );
 
   // Auth redirect & initial fetch
@@ -342,9 +483,6 @@ export function usePlayerData(
 
         if (targetRiotId) {
           setRiotId(targetRiotId);
-          setLoading(true);
-          setError("");
-          setPlayerData(null);
           const isOwn =
             initialRiotId &&
             targetRiotId.toLowerCase() === initialRiotId.toLowerCase();
@@ -355,21 +493,7 @@ export function usePlayerData(
               isOwnProfile: !!isOwn,
             });
           }
-          fetch("/api/valorant/player", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...getDevKeyHeader(),
-            },
-            body: JSON.stringify({ riotId: targetRiotId }),
-          })
-            .then((r) => r.json())
-            .then((d) => {
-              if (d.error) setError(d.error);
-              else setPlayerData(d);
-            })
-            .catch(() => setError("Serveur inaccessible."))
-            .finally(() => setLoading(false));
+          streamPlayerProfile(targetRiotId, !!isOwn);
         }
       }
     }
@@ -441,24 +565,8 @@ export function usePlayerData(
 
       if (urlRiotId && urlRiotId !== riotId) {
         setRiotId(urlRiotId);
-        setLoading(true);
-        setError("");
-        setPlayerData(null);
-        fetch("/api/valorant/player", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...getDevKeyHeader(),
-          },
-          body: JSON.stringify({ riotId: urlRiotId }),
-        })
-          .then((r) => r.json())
-          .then((d) => {
-            if (d.error) setError(d.error);
-            else setPlayerData(d);
-          })
-          .catch(() => setError("Serveur inaccessible."))
-          .finally(() => setLoading(false));
+        const isOwn = myRiotId && urlRiotId.toLowerCase() === myRiotId.toLowerCase();
+        streamPlayerProfile(urlRiotId, !!isOwn);
       } else if (!urlRiotId && myRiotId && riotId !== myRiotId) {
         searchPlayer(myRiotId);
       }
@@ -467,7 +575,7 @@ export function usePlayerData(
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myRiotId, riotId, nav.SLUG_TO_TAB, nav.slugToRiotId]);
+  }, [myRiotId, riotId, nav.SLUG_TO_TAB, nav.slugToRiotId, streamPlayerProfile]);
 
   const rawMatches = useMemo(() => {
     return (playerData?.matchHistory ||
@@ -493,6 +601,7 @@ export function usePlayerData(
     myRiotId,
     setMyRiotId,
     loading,
+    isStreaming,
     playerData,
     setPlayerData,
     myPlayerData,

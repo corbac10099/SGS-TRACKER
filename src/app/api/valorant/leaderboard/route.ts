@@ -7,6 +7,13 @@ export const dynamic = "force-dynamic";
 // UUID officiel de l'acte compétitif en cours de Valorant (Épisode 9 Acte 3 / Acte V)
 const CURRENT_ACTIVE_ACT_ID = "8102cd81-43a0-d0d7-bd59-47b8fe9bed1b";
 
+interface CachedLeaderboard {
+  data: any;
+  timestamp: number;
+}
+const LEADERBOARD_CACHE = new Map<string, CachedLeaderboard>();
+const LEADERBOARD_TTL_MS = 5 * 60 * 1000; // 5 minutes de validité
+
 // Mock Fallback Leaderboard
 const MOCK_LEADERBOARD: LeaderboardPlayerEntry[] = [
   { leaderboardRank: 1, puuid: "p1", gameName: "TenZ", tagLine: "SEN", rankedRating: 1124, numberOfWins: 148, tier: 27, tierName: "Radiant", tierIcon: "https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/27/largeicon.png" },
@@ -27,6 +34,18 @@ export async function GET(request: NextRequest) {
     const region = (searchParams.get("region") || "eu").toLowerCase();
     const rawActId = searchParams.get("actId");
     const actId = rawActId && rawActId.includes("-") ? rawActId : CURRENT_ACTIVE_ACT_ID;
+    const cacheKey = `${region}_${actId}`;
+
+    if (LEADERBOARD_CACHE.has(cacheKey)) {
+      const cached = LEADERBOARD_CACHE.get(cacheKey)!;
+      if (Date.now() - cached.timestamp < LEADERBOARD_TTL_MS) {
+        return NextResponse.json(cached.data, {
+          headers: {
+            "Cache-Control": "public, s-maxage=180, stale-while-revalidate=300",
+          },
+        });
+      }
+    }
 
     const dynamicKey =
       request.headers.get("x-riot-dev-key") ||
@@ -61,7 +80,13 @@ export async function GET(request: NextRequest) {
                 tierIcon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${tier}/largeicon.png`,
               };
             });
-            return NextResponse.json({ region, players: formatted });
+            const result = { region, players: formatted };
+            LEADERBOARD_CACHE.set(cacheKey, { data: result, timestamp: Date.now() });
+            return NextResponse.json(result, {
+              headers: {
+                "Cache-Control": "public, s-maxage=180, stale-while-revalidate=300",
+              },
+            });
           }
         }
       } catch (hErr) {
@@ -87,10 +112,21 @@ export async function GET(request: NextRequest) {
           tierIcon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${tier}/largeicon.png`,
         };
       });
-      return NextResponse.json({ region, players: formatted });
+      const result = { region, players: formatted };
+      LEADERBOARD_CACHE.set(cacheKey, { data: result, timestamp: Date.now() });
+      return NextResponse.json(result, {
+        headers: {
+          "Cache-Control": "public, s-maxage=180, stale-while-revalidate=300",
+        },
+      });
     }
 
-    return NextResponse.json({ region, players: MOCK_LEADERBOARD });
+    const fallbackResult = { region, players: MOCK_LEADERBOARD };
+    return NextResponse.json(fallbackResult, {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+      },
+    });
   } catch (error: any) {
     return NextResponse.json({ region: "eu", players: MOCK_LEADERBOARD });
   }

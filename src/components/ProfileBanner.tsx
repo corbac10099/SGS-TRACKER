@@ -27,6 +27,7 @@ export interface ProfileBannerProps {
   onToggleCompare?: () => void;
   bannerAnimation?: string;
   bannerBorder?: boolean | string;
+  isStreaming?: boolean;
 }
 
 export default function ProfileBanner({
@@ -50,6 +51,7 @@ export default function ProfileBanner({
   onToggleCompare,
   bannerAnimation = "",
   bannerBorder = false,
+  isStreaming = false,
 }: ProfileBannerProps) {
   const chosenBanner = canEditProfile
     ? bannerUrl || p.bannerUrl || p.customBannerUrl || p.cardWideUrl
@@ -272,6 +274,12 @@ export default function ProfileBanner({
                 <span className="md:hidden text-[9px] font-black text-[var(--color-val-light)] bg-white/10 border border-white/15 px-1.5 py-0.5 rounded-md">
                   Nv. {p.level}
                 </span>
+                {isStreaming && (
+                  <span className="inline-flex items-center gap-1.5 text-[9px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-md animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    Sync en direct
+                  </span>
+                )}
                 {!streamerMode && (
                   <UserBadges
                     badges={p.badge}

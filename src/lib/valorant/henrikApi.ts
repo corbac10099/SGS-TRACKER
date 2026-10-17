@@ -53,20 +53,30 @@ export async function fetchHenrikAccountByPuuid(
   return null;
 }
 
-/**
- * Récupère le compte, le rang réel (MMR) et l'historique complet des matchs via HenrikDev
- */
-export async function fetchHenrikPlayerData(
-  gameName: string,
-  tagLine: string,
-  region = "eu",
-  apiKey: string
-): Promise<ValorantProfileResponse | null> {
-  const cleanName = gameName.trim();
-  const cleanTag = tagLine.trim();
-  const cleanRegion = region.toLowerCase() || "eu";
+export interface HenrikAccountData {
+  puuid: string;
+  realName: string;
+  realTag: string;
+  accountLevel: number;
+  cardSmall: string;
+  cardLarge: string;
+  cardWide: string;
+}
 
-  // 1. Récupération des données du compte (PUUID, niveau, cartes de joueur)
+export interface HenrikRankData {
+  rankTier: number;
+  rankName: string;
+  rankUrl: string;
+}
+
+/**
+ * Récupère les données d'identité et de compte (PUUID, niveau, cartes) via HenrikDev
+ */
+export async function fetchHenrikAccountDetails(
+  cleanName: string,
+  cleanTag: string,
+  apiKey: string
+): Promise<HenrikAccountData | null> {
   const accountRes = await henrikFetch(
     `/v1/account/${encodeURIComponent(cleanName)}/${encodeURIComponent(cleanTag)}`,
     apiKey
@@ -78,28 +88,36 @@ export async function fetchHenrikPlayerData(
   }
 
   const acc = accountRes.data;
-  const puuid: string = acc.puuid;
-  const realName: string = acc.name || cleanName;
-  const realTag: string = acc.tag || cleanTag;
-  const accountLevel: number = acc.account_level || 100;
-  const cardSmall: string =
-    acc.card?.small ||
-    "https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png";
-  const cardLarge: string =
-    acc.card?.large ||
-    "https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/largeart.png";
-  const cardWide: string =
-    acc.card?.wide ||
-    "https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/wideart.png";
+  return {
+    puuid: acc.puuid,
+    realName: acc.name || cleanName,
+    realTag: acc.tag || cleanTag,
+    accountLevel: acc.account_level || 100,
+    cardSmall:
+      acc.card?.small ||
+      "https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/smallart.png",
+    cardLarge:
+      acc.card?.large ||
+      "https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/largeart.png",
+    cardWide:
+      acc.card?.wide ||
+      "https://media.valorant-api.com/playercards/9fb348bc-41a0-91ad-8a3e-818035c4e561/wideart.png",
+  };
+}
 
-  // 2. Récupération du rang réel / MMR
+/**
+ * Récupère le rang compétitif actuel et le MMR par PUUID
+ */
+export async function fetchHenrikRankDetails(
+  puuid: string,
+  cleanRegion: string,
+  apiKey: string
+): Promise<HenrikRankData> {
   let mmrData: any = null;
-  // Essai V2 par PUUID
   const mmrV2Res = await henrikFetch(`/v2/by-puuid/mmr/${cleanRegion}/${puuid}`, apiKey);
   if (mmrV2Res && mmrV2Res.data?.current_data) {
     mmrData = mmrV2Res.data.current_data;
   } else {
-    // Essai V3 par PUUID
     const mmrV3Res = await henrikFetch(`/v3/by-puuid/mmr/${cleanRegion}/pc/${puuid}`, apiKey);
     if (mmrV3Res && mmrV3Res.data) {
       mmrData = mmrV3Res.data.current || mmrV3Res.data;
@@ -118,28 +136,49 @@ export async function fetchHenrikPlayerData(
       `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${rankTier}/largeicon.png`;
   }
 
-  // 3. Récupération des vrais matchs
-  let rawMatches: any[] = [];
-  // Essai V3 matches par PUUID
+  return { rankTier, rankName, rankUrl };
+}
+
+/**
+ * Récupère l'historique brut des matchs récents par PUUID
+ */
+export async function fetchHenrikRawMatches(
+  puuid: string,
+  cleanRegion: string,
+  apiKey: string,
+  size = 15
+): Promise<any[]> {
   const matchesV3Res = await henrikFetch(
-    `/v3/by-puuid/matches/${cleanRegion}/${puuid}?size=15`,
+    `/v3/by-puuid/matches/${cleanRegion}/${puuid}?size=${size}`,
     apiKey
   );
 
   if (matchesV3Res && Array.isArray(matchesV3Res.data)) {
-    rawMatches = matchesV3Res.data;
-  } else {
-    // Essai V4 matches
-    const matchesV4Res = await henrikFetch(
-      `/v4/by-puuid/matches/${cleanRegion}/pc/${puuid}?size=15`,
-      apiKey
-    );
-    if (matchesV4Res && Array.isArray(matchesV4Res.data)) {
-      rawMatches = matchesV4Res.data;
-    }
+    return matchesV3Res.data;
   }
 
-  // 4. Parser les matchs et calculer les statistiques réelles
+  const matchesV4Res = await henrikFetch(
+    `/v4/by-puuid/matches/${cleanRegion}/pc/${puuid}?size=${size}`,
+    apiKey
+  );
+  if (matchesV4Res && Array.isArray(matchesV4Res.data)) {
+    return matchesV4Res.data;
+  }
+  return [];
+}
+
+/**
+ * Parse les matchs bruts et génère l'ensemble des métriques de match et d'agents
+ */
+export function parseHenrikMatchesList(
+  rawMatches: any[],
+  puuid: string,
+  realName: string,
+  realTag: string,
+  rankName: string,
+  rankUrl: string,
+  rankTier: number
+) {
   const parsedMatches: ValorantMatchData[] = [];
   const agentPlayCounts: Record<string, { games: number; wins: number; kills: number; deaths: number; minutes: number }> = {};
 
@@ -610,35 +649,55 @@ export async function fetchHenrikPlayerData(
   };
 
   return {
+    parsedMatches,
+    mainAgentObj,
+    agentStats,
+    statsObj,
+  };
+}
+
+/**
+ * Construit un objet de réponse ValorantProfileResponse complet à partir des blocs individuels
+ */
+export function buildHenrikProfileResponse(
+  acc: HenrikAccountData,
+  mmr: HenrikRankData,
+  parsedMatches: ValorantMatchData[],
+  mainAgentObj: any,
+  agentStats: AgentPerformanceStat[],
+  statsObj: any,
+  cleanRegion: string
+): ValorantProfileResponse {
+  return {
     player: {
-      puuid,
-      gameName: realName,
-      tagLine: realTag,
+      puuid: acc.puuid,
+      gameName: acc.realName,
+      tagLine: acc.realTag,
       region: cleanRegion,
-      accountLevel,
-      level: accountLevel,
-      cardUrl: cardSmall,
-      cardSmall,
-      cardLarge,
-      cardWide,
-      cardWideUrl: cardWide,
+      accountLevel: acc.accountLevel,
+      level: acc.accountLevel,
+      cardUrl: acc.cardSmall,
+      cardSmall: acc.cardSmall,
+      cardLarge: acc.cardLarge,
+      cardWide: acc.cardWide,
+      cardWideUrl: acc.cardWide,
       badge: null,
       showBadge: true,
       isOwner: true,
       canEdit: true,
-      rank: rankName,
-      rankUrl,
-      rankTier,
+      rank: mmr.rankName,
+      rankUrl: mmr.rankUrl,
+      rankTier: mmr.rankTier,
       mainAgent: mainAgentObj,
       stats: statsObj,
       agentStats,
       weapons: OFFICIAL_WEAPONS,
       matchHistory: parsedMatches,
     },
-    rank: rankName,
-    rankUrl,
-    rankTier,
-    level: accountLevel,
+    rank: mmr.rankName,
+    rankUrl: mmr.rankUrl,
+    rankTier: mmr.rankTier,
+    level: acc.accountLevel,
     mainAgent: mainAgentObj,
     stats: statsObj,
     agentStats,
@@ -652,8 +711,105 @@ export async function fetchHenrikPlayerData(
       accountVerified: true,
       isDevKey: true,
       matchSource: "henrik_live",
-      puuid,
-      message: `Données réelles synchronisées en direct avec l'API HenrikDev (Rang : ${rankName}).`,
+      puuid: acc.puuid,
+      message: `Données réelles synchronisées en direct avec l'API HenrikDev (Rang : ${mmr.rankName}).`,
     },
   };
+}
+
+/**
+ * Récupère le compte, le rang réel (MMR) et l'historique complet des matchs via HenrikDev en parallèle
+ */
+export async function fetchHenrikPlayerData(
+  gameName: string,
+  tagLine: string,
+  region = "eu",
+  apiKey: string
+): Promise<ValorantProfileResponse | null> {
+  const cleanName = gameName.trim();
+  const cleanTag = tagLine.trim();
+  const cleanRegion = region.toLowerCase() || "eu";
+
+  const acc = await fetchHenrikAccountDetails(cleanName, cleanTag, apiKey);
+  if (!acc) return null;
+
+  // Parallélisation immédiate du rang et des matchs pour réduire le temps de chargement par deux
+  const [mmr, rawMatches] = await Promise.all([
+    fetchHenrikRankDetails(acc.puuid, cleanRegion, apiKey),
+    fetchHenrikRawMatches(acc.puuid, cleanRegion, apiKey, 15),
+  ]);
+
+  const { parsedMatches, mainAgentObj, agentStats, statsObj } = parseHenrikMatchesList(
+    rawMatches,
+    acc.puuid,
+    acc.realName,
+    acc.realTag,
+    mmr.rankName,
+    mmr.rankUrl,
+    mmr.rankTier
+  );
+
+  return buildHenrikProfileResponse(acc, mmr, parsedMatches, mainAgentObj, agentStats, statsObj, cleanRegion);
+}
+
+/**
+ * Récupération progressive avec streaming événementiel
+ */
+export async function fetchHenrikPlayerDataProgressive(
+  gameName: string,
+  tagLine: string,
+  region = "eu",
+  apiKey: string,
+  onChunk: (chunk: { stage: "identity" | "rank" | "stats"; data: any }) => void
+): Promise<ValorantProfileResponse | null> {
+  const cleanName = gameName.trim();
+  const cleanTag = tagLine.trim();
+  const cleanRegion = region.toLowerCase() || "eu";
+
+  // Étape 1 : Récupération immédiate du compte et notification d'identité
+  const acc = await fetchHenrikAccountDetails(cleanName, cleanTag, apiKey);
+  if (!acc) return null;
+
+  onChunk({ stage: "identity", data: acc });
+
+  // Étape 2 : Lancement concurrent MMR et Matchs
+  let mmrResult: HenrikRankData = { rankTier: 0, rankName: "Non classé", rankUrl: "" };
+  let matchesResult: any[] = [];
+
+  const mmrPromise = fetchHenrikRankDetails(acc.puuid, cleanRegion, apiKey).then((res) => {
+    mmrResult = res;
+    onChunk({ stage: "rank", data: res });
+    return res;
+  });
+
+  const matchesPromise = fetchHenrikRawMatches(acc.puuid, cleanRegion, apiKey, 15).then((res) => {
+    matchesResult = res;
+    return res;
+  });
+
+  await Promise.all([mmrPromise, matchesPromise]);
+
+  // Étape 3 : Parsing des matchs et notification des statistiques
+  const { parsedMatches, mainAgentObj, agentStats, statsObj } = parseHenrikMatchesList(
+    matchesResult,
+    acc.puuid,
+    acc.realName,
+    acc.realTag,
+    mmrResult.rankName,
+    mmrResult.rankUrl,
+    mmrResult.rankTier
+  );
+
+  onChunk({
+    stage: "stats",
+    data: {
+      stats: statsObj,
+      agentStats,
+      weapons: OFFICIAL_WEAPONS,
+      matchHistory: parsedMatches,
+      mainAgent: mainAgentObj,
+    },
+  });
+
+  return buildHenrikProfileResponse(acc, mmrResult, parsedMatches, mainAgentObj, agentStats, statsObj, cleanRegion);
 }

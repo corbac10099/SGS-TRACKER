@@ -368,6 +368,7 @@ export function HomeContent({
           onToggleCompare={() => setIsDirectComparing(!isDirectComparing)}
           bannerAnimation={activeBannerAnim}
           bannerBorder={activeBannerBorder}
+          isStreaming={player.isStreaming}
         />
 
         <ProfileTabs

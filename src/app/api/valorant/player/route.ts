@@ -16,7 +16,10 @@ import {
 import { resolveAgentDisplay } from "@/lib/valorant/agentsCatalog";
 import { parseRiotMatchData } from "@/lib/valorant/parser";
 import { ValorantProfileResponse } from "@/lib/valorant/types";
-import { fetchHenrikPlayerData } from "@/lib/valorant/henrikApi";
+import {
+  fetchHenrikPlayerData,
+  fetchHenrikPlayerDataProgressive,
+} from "@/lib/valorant/henrikApi";
 import { getSecureHenrikApiKey } from "@/lib/systemSettings";
 import {
   saveMatchesToNeon,
@@ -69,13 +72,284 @@ const PLAYER_CACHE = globalThis.__playerProfileCache ?? new Map<string, CachedPl
 globalThis.__playerProfileCache = PLAYER_CACHE;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes de validité
 
-async function handlePlayerRequest(
+/**
+ * Gestionnaire du flux de streaming SSE (Server-Sent Events) pour le chargement progressif
+ */
+async function handlePlayerRequestStream(
   gameName: string,
   tagLine: string,
   region: string = "eu",
   customApiKey?: string | null,
   adminBypassHeader: boolean = false
 ) {
+  const encoder = new TextEncoder();
+  const stream = new TransformStream();
+  const writer = stream.writable.getWriter();
+
+  const sendChunk = (type: string, data: any) => {
+    try {
+      writer.write(encoder.encode(`data: ${JSON.stringify({ type, data })}\n\n`));
+    } catch {}
+  };
+
+  (async () => {
+    try {
+      let activeKey = customApiKey?.trim() || getDynamicRiotApiKey();
+      if (!activeKey || !activeKey.startsWith("HDEV-")) {
+        const secureKey = await getSecureHenrikApiKey();
+        if (secureKey) {
+          activeKey = secureKey;
+        }
+      }
+      const cleanGameName = gameName.trim();
+      const cleanTagLine = tagLine.trim();
+      const cacheKey = `${cleanGameName.toLowerCase()}#${cleanTagLine.toLowerCase()}@${region}_${activeKey ? "live" : "mock"}`;
+
+      // 1. Émission immédiate si profil en cache mémoire (0ms)
+      if (PLAYER_CACHE.has(cacheKey)) {
+        const cached = PLAYER_CACHE.get(cacheKey)!;
+        if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
+          const cachedProfile: ValorantProfileResponse = JSON.parse(JSON.stringify(cached.data));
+          sendChunk("cached", cachedProfile);
+          sendChunk("complete", cachedProfile);
+          return;
+        }
+      }
+
+      // 2. Recherche utilisateur et cache Neon DB en parallèle
+      const [registeredUser, neonTracked] = await Promise.all([
+        (prisma.user as any).findFirst({
+          where: {
+            OR: [
+              { riotGameName: { equals: `${cleanGameName}#${cleanTagLine}`, mode: "insensitive" } },
+              { riotGameName: { equals: cleanGameName, mode: "insensitive" } },
+              { name: { equals: `${cleanGameName}#${cleanTagLine}`, mode: "insensitive" } },
+              { name: { equals: cleanGameName, mode: "insensitive" } },
+              ...(cleanGameName.length > 25 ? [{ riotPuuid: cleanGameName }] : []),
+            ],
+          },
+        }).catch(() => null),
+        (prisma as any).trackedValorantProfile.findFirst({
+          where: {
+            OR: [
+              { riotId: { equals: `${cleanGameName}#${cleanTagLine}`, mode: "insensitive" } },
+              {
+                AND: [
+                  { gameName: { equals: cleanGameName, mode: "insensitive" } },
+                  { tagLine: { equals: cleanTagLine, mode: "insensitive" } },
+                ],
+              },
+            ],
+            cachedData: { not: null },
+          },
+          orderBy: { lastSyncAt: "desc" },
+        }).catch(() => null),
+      ]);
+
+      let customOwnerSettings: any = null;
+      if (registeredUser) {
+        customOwnerSettings = {
+          theme: registeredUser.theme,
+          bannerUrl: registeredUser.bannerUrl,
+          bannerOffsetY: registeredUser.bannerOffsetY,
+          isPublic: registeredUser.isPublic,
+          hiddenStats: registeredUser.hiddenStats,
+          dashboardGrid: registeredUser.dashboardGrid,
+          badge: registeredUser.badge || null,
+          showBadge: registeredUser.showBadge !== false,
+          puuid: registeredUser.riotPuuid,
+          equippedBannerAnimation: registeredUser.equippedBannerAnimation || null,
+          equippedBannerBorder: registeredUser.equippedBannerBorder || null,
+        };
+      }
+
+      // Snapshot Neon DB émis sans attendre pour affichage instantané
+      if (neonTracked?.cachedData) {
+        try {
+          const parsedCached = JSON.parse(neonTracked.cachedData);
+          if (parsedCached && parsedCached.player) {
+            sendChunk("stale_db", parsedCached);
+          }
+        } catch {}
+      }
+
+      // Vérification permissions propriétaire / session
+      let isOwner = false;
+      let isAdmin = adminBypassHeader === true;
+      let currentUser: any = null;
+      try {
+        const session = await getServerSession(authOptions);
+        if (session?.user?.email) {
+          currentUser = await (prisma.user as any).findUnique({ where: { email: session.user.email } });
+          if (currentUser) {
+            const myRiot = (currentUser.riotGameName || "").toLowerCase();
+            const myName = (currentUser.name || "").toLowerCase();
+            const targetFull = `${cleanGameName}#${cleanTagLine}`.toLowerCase();
+            const targetName = cleanGameName.toLowerCase();
+            isOwner = myRiot === targetFull || myRiot === targetName || myName === targetFull || myName === targetName;
+            if (!isOwner && currentUser.riotPuuid && registeredUser?.riotPuuid) {
+              isOwner = currentUser.riotPuuid === registeredUser.riotPuuid;
+            }
+            if (
+              currentUser.email === "laffont.romain64@gmail.com" ||
+              currentUser.email === "romain.lft64@gmail.com" ||
+              (currentUser as any).role === "ADMIN" ||
+              (currentUser as any).sgsRole === "admin"
+            ) {
+              isAdmin = true;
+            }
+          }
+        }
+      } catch {}
+
+      const isProfilePrivate = Boolean(registeredUser && registeredUser.isPublic === false);
+      let isFriendAllowed = false;
+      if (isProfilePrivate && !isOwner && registeredUser && currentUser) {
+        try {
+          const friendship = await (prisma as any).friendship.findFirst({
+            where: {
+              userId: registeredUser.id,
+              friendId: currentUser.id,
+              status: "accepted",
+              canViewStats: true,
+            },
+          });
+          if (friendship) isFriendAllowed = true;
+        } catch {}
+      }
+
+      if (isProfilePrivate && !isOwner && !isAdmin && !isFriendAllowed) {
+        sendChunk("error", {
+          error: "Ce profil est privé. Ce joueur n'a pas configuré son profil en public sur SGS Tracker. Seul le propriétaire ou ses amis autorisés peuvent y accéder.",
+        });
+        return;
+      }
+
+      if (customOwnerSettings) {
+        sendChunk("settings", customOwnerSettings);
+      }
+
+      let profileData: ValorantProfileResponse | null = null;
+
+      if (activeKey && activeKey.startsWith("HDEV-")) {
+        const henrikProfile = await fetchHenrikPlayerDataProgressive(
+          cleanGameName,
+          cleanTagLine,
+          region,
+          activeKey,
+          (step) => {
+            if (step.stage === "identity") {
+              sendChunk("identity", {
+                player: {
+                  ...step.data,
+                  isOwner,
+                  canEdit: isOwner,
+                  isFriendAllowed,
+                  ...(customOwnerSettings || {}),
+                },
+              });
+            } else if (step.stage === "rank") {
+              sendChunk("rank", step.data);
+            } else if (step.stage === "stats") {
+              sendChunk("stats", step.data);
+            }
+          }
+        );
+
+        if (henrikProfile) {
+          henrikProfile.player.isOwner = isOwner;
+          henrikProfile.player.canEdit = isOwner;
+          const targetRiotId = `${cleanGameName}#${cleanTagLine}`;
+          const puuid = henrikProfile.player.puuid;
+          const userRetentionDays = registeredUser?.dataRetentionDays ?? 90;
+
+          if (Array.isArray(henrikProfile.matchHistory) && henrikProfile.matchHistory.length > 0) {
+            await saveMatchesToNeon(
+              targetRiotId,
+              cleanGameName,
+              cleanTagLine,
+              puuid,
+              henrikProfile.matchHistory,
+              userRetentionDays
+            );
+          }
+
+          const persistedMatches = await getPersistedMatchesForPlayer(
+            targetRiotId,
+            puuid,
+            userRetentionDays
+          );
+          if (persistedMatches.length > 0) {
+            henrikProfile.matchHistory = mergeMatchHistories(
+              henrikProfile.matchHistory || [],
+              persistedMatches
+            );
+          }
+
+          profileData = henrikProfile;
+        }
+      }
+
+      // Si pas de résultat Henrik ou en mode démo/mock
+      if (!profileData) {
+        profileData = generateDeterministicProfile(cleanGameName, cleanTagLine, undefined, region);
+        profileData.player.isOwner = isOwner;
+        profileData.player.canEdit = isOwner;
+        sendChunk("identity", { player: profileData.player });
+        sendChunk("rank", { rank: profileData.rank, rankUrl: profileData.rankUrl, rankTier: profileData.rankTier });
+        sendChunk("stats", {
+          stats: profileData.stats,
+          agentStats: profileData.agentStats,
+          weapons: profileData.weapons,
+          matchHistory: profileData.matchHistory,
+          mainAgent: profileData.mainAgent,
+        });
+      }
+
+      if (profileData) {
+        PLAYER_CACHE.set(cacheKey, {
+          data: JSON.parse(JSON.stringify(profileData)),
+          timestamp: Date.now(),
+        });
+
+        if (customOwnerSettings) {
+          profileData.player = {
+            ...profileData.player,
+            ...customOwnerSettings,
+          };
+        }
+
+        sendChunk("complete", profileData);
+      }
+    } catch (err: any) {
+      sendChunk("error", { error: err.message || "Erreur lors du streaming des données." });
+    } finally {
+      sendChunk("done", {});
+      writer.close().catch(() => {});
+    }
+  })();
+
+  return new Response(stream.readable, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+async function handlePlayerRequest(
+  gameName: string,
+  tagLine: string,
+  region: string = "eu",
+  customApiKey?: string | null,
+  adminBypassHeader: boolean = false,
+  isStream: boolean = false
+) {
+  if (isStream) {
+    return handlePlayerRequestStream(gameName, tagLine, region, customApiKey, adminBypassHeader);
+  }
   try {
     let activeKey = customApiKey?.trim() || getDynamicRiotApiKey();
     if (!activeKey || !activeKey.startsWith("HDEV-")) {
@@ -606,17 +880,24 @@ export async function GET(request: NextRequest) {
     request.headers.get("x-admin-bypass") === "true" ||
     request.headers.get("x-spycam-admin") === "true";
 
+  const isStream =
+    searchParams.get("stream") === "true" ||
+    searchParams.get("stream") === "1" ||
+    request.headers.get("accept")?.includes("text/event-stream") === true;
+
   return handlePlayerRequest(
     decodeURIComponent(gameName).trim(),
     decodeURIComponent(tagLine).trim(),
     region,
     customApiKey,
-    adminBypass
+    adminBypass,
+    isStream
   );
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
     const body = await request.json().catch(() => ({}));
     let gameName = body.name || body.gameName || "";
     let tagLine = body.tag || body.tagLine || "0001";
@@ -636,18 +917,33 @@ export async function POST(request: NextRequest) {
       tagLine = "0001";
     }
 
-    const region = (body.region || "eu").toLowerCase();
+    const region = (body.region || searchParams.get("region") || "eu").toLowerCase();
     const customApiKey =
       request.headers.get("x-riot-dev-key") ||
       request.headers.get("x-riot-token") ||
-      body.apiKey;
+      body.apiKey ||
+      searchParams.get("apiKey");
 
     const adminBypass =
       request.headers.get("x-admin-bypass") === "true" ||
       request.headers.get("x-spycam-admin") === "true" ||
       body.adminBypass === true;
 
-    return handlePlayerRequest(gameName.trim(), tagLine.trim(), region, customApiKey, adminBypass);
+    const isStream =
+      body.stream === true ||
+      body.stream === "true" ||
+      searchParams.get("stream") === "true" ||
+      searchParams.get("stream") === "1" ||
+      request.headers.get("accept")?.includes("text/event-stream") === true;
+
+    return handlePlayerRequest(
+      gameName.trim(),
+      tagLine.trim(),
+      region,
+      customApiKey,
+      adminBypass,
+      isStream
+    );
   } catch (err: any) {
     return NextResponse.json({ error: "Requête invalide", details: err.message }, { status: 400 });
   }
