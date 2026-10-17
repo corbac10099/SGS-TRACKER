@@ -119,45 +119,72 @@ export function useFilters(
   }, [rawMatches, gameMode, selectedSeason]);
 
   const filteredAgents = useMemo(() => {
-    if (!rawAgentStats || rawAgentStats.length === 0) return [];
-    if (gameMode === "all" && selectedSeason === "all") return rawAgentStats;
+    if (
+      (!rawAgentStats || rawAgentStats.length === 0) &&
+      (!filteredMatches || filteredMatches.length === 0)
+    ) {
+      return [];
+    }
 
-    const counts: Record<string, any> = {};
-    filteredMatches.forEach((m: any) => {
-      if (!counts[m.agent])
-        counts[m.agent] = {
-          games: 0,
-          wins: 0,
-          kills: 0,
-          deaths: 0,
-          hoursPlayed: 0,
-          icon: m.agentIcon,
-        };
-      counts[m.agent].games++;
-      if (m.won) counts[m.agent].wins++;
-      counts[m.agent].kills += m.kills;
-      counts[m.agent].deaths += m.deaths;
-      counts[m.agent].hoursPlayed += (m.duration || 0) / 3600;
-    });
+    if (filteredMatches && filteredMatches.length > 0) {
+      const counts: Record<string, any> = {};
+      filteredMatches.forEach((m: any) => {
+        const agName = m.agent;
+        if (
+          !agName ||
+          agName === "Robo-Agent" ||
+          agName === "AbilityDraftAgent" ||
+          agName === "Inconnu"
+        )
+          return;
 
-    return Object.keys(counts)
-      .map((name) => {
-        const data = counts[name];
-        const orig = rawAgentStats.find((a: any) => a.name === name);
-        return {
-          name,
-          role: orig?.role || "Agent",
-          icon: data.icon,
-          games: data.games,
-          winRate: Math.round((data.wins / data.games) * 100),
-          kd: parseFloat(
-            (data.kills / Math.max(data.deaths, 1)).toFixed(2)
-          ),
-          hoursPlayed: parseFloat(data.hoursPlayed.toFixed(1)),
-        };
-      })
-      .sort((a: any, b: any) => b.games - a.games);
-  }, [rawAgentStats, gameMode, selectedSeason, filteredMatches]);
+        if (!counts[agName]) {
+          counts[agName] = {
+            games: 0,
+            wins: 0,
+            kills: 0,
+            deaths: 0,
+            minutes: 0,
+            icon: m.agentIcon,
+          };
+        }
+        counts[agName].games++;
+        if (m.won) counts[agName].wins++;
+        counts[agName].kills += Number(m.kills) || 0;
+        counts[agName].deaths += Number(m.deaths) || 0;
+        const dur =
+          typeof m.duration === "number"
+            ? m.duration
+            : parseFloat(String(m.duration || 0)) || 30;
+        counts[agName].minutes += dur;
+      });
+
+      return Object.keys(counts)
+        .map((name) => {
+          const data = counts[name];
+          const orig = (rawAgentStats || []).find(
+            (a: any) => a.name?.toLowerCase() === name.toLowerCase()
+          );
+          return {
+            name,
+            role: orig?.role || "Agent",
+            icon:
+              orig?.icon ||
+              data.icon ||
+              "https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png",
+            games: data.games,
+            winRate: Math.round((data.wins / Math.max(data.games, 1)) * 100),
+            kd: parseFloat(
+              (data.kills / Math.max(data.deaths, 1)).toFixed(2)
+            ),
+            hoursPlayed: parseFloat((data.minutes / 60).toFixed(1)),
+          };
+        })
+        .sort((a: any, b: any) => b.games - a.games);
+    }
+
+    return rawAgentStats || [];
+  }, [rawAgentStats, filteredMatches]);
 
   const filteredStats = useMemo(() => {
     if (!rawStats) return null;

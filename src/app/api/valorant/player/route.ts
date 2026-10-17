@@ -19,13 +19,13 @@ import { ValorantProfileResponse } from "@/lib/valorant/types";
 import {
   fetchHenrikPlayerData,
   fetchHenrikPlayerDataProgressive,
-  parseHenrikMatchesList,
 } from "@/lib/valorant/henrikApi";
 import { getSecureHenrikApiKey } from "@/lib/systemSettings";
 import {
   saveMatchesToNeon,
   getPersistedMatchesForPlayer,
   mergeMatchHistories,
+  recomputeStatsFromParsedMatches,
 } from "@/lib/valorant/matchStorage";
 
 export const dynamic = "force-dynamic";
@@ -288,21 +288,22 @@ async function handlePlayerRequestStream(
             henrikProfile.matchHistory = merged;
 
             // Recalculer l'ensemble des métriques d'agents et stats globales avec tous les matchs fusionnés
-            const recomputed = parseHenrikMatchesList(
+            const recomputed = recomputeStatsFromParsedMatches(
               merged,
-              puuid,
-              cleanGameName,
-              cleanTagLine,
-              henrikProfile.rank,
-              henrikProfile.rankUrl,
-              henrikProfile.rankTier
+              henrikProfile.stats
             );
-            henrikProfile.agentStats = recomputed.agentStats;
-            henrikProfile.player.agentStats = recomputed.agentStats;
-            henrikProfile.stats = recomputed.statsObj;
-            henrikProfile.player.stats = recomputed.statsObj;
-            henrikProfile.mainAgent = recomputed.mainAgentObj;
-            henrikProfile.player.mainAgent = recomputed.mainAgentObj;
+            if (recomputed.agentStats && recomputed.agentStats.length > 0) {
+              henrikProfile.agentStats = recomputed.agentStats;
+              if (henrikProfile.player) henrikProfile.player.agentStats = recomputed.agentStats;
+            }
+            if (recomputed.statsObj) {
+              henrikProfile.stats = recomputed.statsObj;
+              if (henrikProfile.player) henrikProfile.player.stats = recomputed.statsObj;
+            }
+            if (recomputed.mainAgentObj) {
+              henrikProfile.mainAgent = recomputed.mainAgentObj;
+              if (henrikProfile.player) henrikProfile.player.mainAgent = recomputed.mainAgentObj;
+            }
           }
 
           profileData = henrikProfile;
@@ -554,21 +555,22 @@ async function handlePlayerRequest(
             );
             henrikProfile.matchHistory = merged;
 
-            const recomputed = parseHenrikMatchesList(
+            const recomputed = recomputeStatsFromParsedMatches(
               merged,
-              puuid,
-              cleanGameName,
-              cleanTagLine,
-              henrikProfile.rank,
-              henrikProfile.rankUrl,
-              henrikProfile.rankTier
+              henrikProfile.stats
             );
-            henrikProfile.agentStats = recomputed.agentStats;
-            henrikProfile.player.agentStats = recomputed.agentStats;
-            henrikProfile.stats = recomputed.statsObj;
-            henrikProfile.player.stats = recomputed.statsObj;
-            henrikProfile.mainAgent = recomputed.mainAgentObj;
-            henrikProfile.player.mainAgent = recomputed.mainAgentObj;
+            if (recomputed.agentStats && recomputed.agentStats.length > 0) {
+              henrikProfile.agentStats = recomputed.agentStats;
+              if (henrikProfile.player) henrikProfile.player.agentStats = recomputed.agentStats;
+            }
+            if (recomputed.statsObj) {
+              henrikProfile.stats = recomputed.statsObj;
+              if (henrikProfile.player) henrikProfile.player.stats = recomputed.statsObj;
+            }
+            if (recomputed.mainAgentObj) {
+              henrikProfile.mainAgent = recomputed.mainAgentObj;
+              if (henrikProfile.player) henrikProfile.player.mainAgent = recomputed.mainAgentObj;
+            }
           }
 
           profileData = henrikProfile;

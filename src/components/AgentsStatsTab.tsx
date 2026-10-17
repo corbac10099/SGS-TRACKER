@@ -96,17 +96,82 @@ export default function AgentsStatsTab({
     return map;
   }, [matches]);
 
-  if (!validAgentStats || validAgentStats.length === 0) return null;
+  const displayAgentStats = useMemo(() => {
+    if (validAgentStats && validAgentStats.length > 0) return validAgentStats;
+    if (matches && matches.length > 0) {
+      const counts: Record<string, any> = {};
+      matches.forEach((m) => {
+        const agName = m.agent;
+        if (
+          !agName ||
+          agName === "Robo-Agent" ||
+          agName === "AbilityDraftAgent" ||
+          agName === "Inconnu"
+        )
+          return;
+        if (!counts[agName]) {
+          counts[agName] = {
+            name: agName,
+            role: "Agent",
+            icon:
+              m.agentIcon ||
+              "https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png",
+            games: 0,
+            wins: 0,
+            kills: 0,
+            deaths: 0,
+            minutes: 0,
+          };
+        }
+        counts[agName].games++;
+        if (m.won) counts[agName].wins++;
+        counts[agName].kills += Number(m.kills) || 0;
+        counts[agName].deaths += Number(m.deaths) || 0;
+        const dur =
+          typeof m.duration === "number"
+            ? m.duration
+            : parseFloat(String(m.duration || 0)) || 30;
+        counts[agName].minutes += dur;
+      });
+      return Object.values(counts)
+        .map((a: any) => ({
+          ...a,
+          winRate: Math.round((a.wins / Math.max(a.games, 1)) * 100),
+          kd: parseFloat((a.kills / Math.max(a.deaths, 1)).toFixed(2)),
+          hoursPlayed: parseFloat((a.minutes / 60).toFixed(1)),
+        }))
+        .sort((a, b) => b.games - a.games);
+    }
+    return [];
+  }, [validAgentStats, matches]);
+
+  if (!displayAgentStats || displayAgentStats.length === 0) {
+    return (
+      <div className="w-full p-8 text-center glass-panel rounded-2xl border border-[var(--color-border)] text-neutral-400">
+        <p className="text-sm font-medium">
+          Aucune statistique d'agent disponible pour cette sélection.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-3 animate-in fade-in duration-500">
-      {validAgentStats.map((agent: any) => {
+      {displayAgentStats.map((agent: any) => {
         const isExpanded = expandedAgent === agent.name;
         const details = agentDetailsMap[agent.name];
-        const displayGamesCount = Math.max(agent.games || 0, details?.matches.length || 0);
+        const displayGamesCount = Math.max(
+          agent.games || 0,
+          details?.matches.length || 0
+        );
+        const winRate = Number.isFinite(agent.winRate) ? agent.winRate : 0;
+        const kd = Number.isFinite(agent.kd) ? agent.kd : 0;
+        const hoursPlayed = Number.isFinite(agent.hoursPlayed)
+          ? agent.hoursPlayed
+          : 0;
         const avgAcs =
-          displayGamesCount > 0
-            ? Math.round((details?.totalAcs || 0) / (details?.matches.length || 1))
+          details && details.matches.length > 0
+            ? Math.round((details.totalAcs || 0) / details.matches.length)
             : 0;
         const hsPct =
           details && details.totalShots > 0
@@ -159,7 +224,7 @@ export default function AgentsStatsTab({
                       Victoires
                     </span>
                     <span className="text-xs sm:text-sm font-bold text-emerald-400">
-                      {agent.winRate}%
+                      {winRate}%
                     </span>
                   </div>
                   <div className="flex flex-col">
@@ -167,7 +232,7 @@ export default function AgentsStatsTab({
                       Ratio K/D
                     </span>
                     <span className="text-xs sm:text-sm font-bold text-[var(--color-text-on-surface)]">
-                      {agent.kd}
+                      {kd}
                     </span>
                   </div>
                   <div className="flex flex-col">
@@ -175,7 +240,7 @@ export default function AgentsStatsTab({
                       Heures
                     </span>
                     <span className="text-xs sm:text-sm font-bold text-[var(--color-text-on-surface)]">
-                      {agent.hoursPlayed}h
+                      {hoursPlayed}h
                     </span>
                   </div>
                 </div>
@@ -186,9 +251,9 @@ export default function AgentsStatsTab({
                 <div className="w-20 sm:w-24 h-2 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
-                      agent.winRate >= 50 ? "bg-emerald-500" : "bg-red-500"
+                      winRate >= 50 ? "bg-emerald-500" : "bg-red-500"
                     }`}
-                    style={{ width: `${agent.winRate}%` }}
+                    style={{ width: `${winRate}%` }}
                   />
                 </div>
                 <div
@@ -242,9 +307,12 @@ export default function AgentsStatsTab({
                       Bilan V / D
                     </span>
                     <div className="text-base font-black text-emerald-400 mt-0.5">
-                      {Math.round((agent.games * agent.winRate) / 100)}V -{" "}
-                      {agent.games -
-                        Math.round((agent.games * agent.winRate) / 100)}
+                      {Math.round((displayGamesCount * winRate) / 100)}V -{" "}
+                      {Math.max(
+                        0,
+                        displayGamesCount -
+                          Math.round((displayGamesCount * winRate) / 100)
+                      )}
                       D
                     </div>
                   </div>
@@ -254,7 +322,7 @@ export default function AgentsStatsTab({
                       Temps Total
                     </span>
                     <div className="text-base font-black text-neutral-200 mt-0.5">
-                      {agent.hoursPlayed} heures de jeu
+                      {hoursPlayed} heures de jeu
                     </div>
                   </div>
                 </div>
