@@ -15,12 +15,17 @@ export function normalizePlayerData(playerData: any): any {
     rank:
       playerData.rank ||
       playerData.player?.rank ||
-      "Ascendant 3",
+      (playerData.isMock ? "Ascendant 3" : null),
     rankUrl:
       playerData.rankUrl ||
       playerData.player?.rankUrl ||
-      "https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/24/largeicon.png",
-    rankTier: playerData.rankTier ?? playerData.player?.rankTier ?? 24,
+      (playerData.isMock
+        ? "https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/24/largeicon.png"
+        : null),
+    rankTier:
+      playerData.rankTier ??
+      playerData.player?.rankTier ??
+      (playerData.isMock ? 24 : null),
     level:
       playerData.level ??
       playerData.player?.level ??

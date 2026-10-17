@@ -1306,7 +1306,37 @@ export default function DashboardGrid({
 
   // Render individual widget content
   const renderItemContent = (id: string) => {
+    // Helper pour afficher un skeleton individuel avec shimmer correspondant au design de la carte
+    const renderStatSkeleton = (label: string) => (
+      <div className="w-full h-full p-3 sm:p-4 rounded-2xl glass-panel border border-[var(--color-border)]/60 flex flex-col justify-between overflow-hidden animate-pulse select-none">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
+            {label}
+          </span>
+          <div className="w-2.5 h-2.5 rounded-full skeleton-shimmer opacity-40" />
+        </div>
+        <div className="my-auto py-2 flex items-baseline gap-2">
+          <div className="h-6 sm:h-7 w-16 sm:w-20 rounded-lg skeleton-shimmer" />
+        </div>
+        <div className="h-2 w-12 rounded skeleton-shimmer opacity-50" />
+      </div>
+    );
+
     if (id === "chart" || id.startsWith("chart_")) {
+      if (!matchHistory || matchHistory.length === 0) {
+        return (
+          <div className="w-full h-full p-4 sm:p-5 rounded-2xl glass-panel border border-[var(--color-border)]/60 flex flex-col justify-between overflow-hidden animate-pulse">
+            <div className="flex items-center justify-between mb-4">
+              <div className="h-4 w-28 rounded-lg skeleton-shimmer" />
+              <div className="flex gap-2">
+                <div className="h-4 w-12 rounded skeleton-shimmer" />
+                <div className="h-4 w-12 rounded skeleton-shimmer" />
+              </div>
+            </div>
+            <div className="flex-1 w-full rounded-xl skeleton-shimmer min-h-[120px] opacity-60" />
+          </div>
+        );
+      }
       const foundCfg = chartsConfig.find((c) => c.id === id);
       const cfg = foundCfg || {
         id,
@@ -1345,11 +1375,21 @@ export default function DashboardGrid({
       case "performanceScore":
         if (!performanceScoreResult) {
           return (
-            <div className="w-full h-full p-4 rounded-2xl glass-panel border border-white/10 flex flex-col justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
-                Score SPI
-              </span>
-              <span className="text-xs text-[var(--color-text-secondary)]">Chargement du score...</span>
+            <div className="w-full h-full p-4 rounded-2xl glass-panel border border-[var(--color-border)]/60 flex flex-col justify-between overflow-hidden animate-pulse">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-secondary)]">
+                  Score de Performance (SPI)
+                </span>
+                <div className="w-3 h-3 rounded-full skeleton-shimmer opacity-40" />
+              </div>
+              <div className="flex items-center gap-4 my-2">
+                <div className="w-14 h-14 rounded-2xl skeleton-shimmer shrink-0" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 w-24 rounded skeleton-shimmer" />
+                  <div className="h-3 w-16 rounded skeleton-shimmer opacity-60" />
+                </div>
+              </div>
+              <div className="h-2 w-full rounded skeleton-shimmer opacity-40" />
             </div>
           );
         }
@@ -1362,6 +1402,21 @@ export default function DashboardGrid({
           />
         );
       case "coach":
+        if (!stats && (!matchHistory || matchHistory.length === 0)) {
+          return (
+            <div className="w-full h-full p-5 rounded-2xl glass-panel border border-[var(--color-border)]/60 flex flex-col justify-between overflow-hidden animate-pulse">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded skeleton-shimmer" />
+                <div className="h-4 w-36 rounded skeleton-shimmer" />
+              </div>
+              <div className="space-y-2 my-4">
+                <div className="h-3 w-full rounded skeleton-shimmer opacity-60" />
+                <div className="h-3 w-4/5 rounded skeleton-shimmer opacity-50" />
+              </div>
+              <div className="h-8 w-28 rounded-lg skeleton-shimmer opacity-70" />
+            </div>
+          );
+        }
         return (
           <AiCoachWidget
             matches={matchHistory}
@@ -1372,18 +1427,43 @@ export default function DashboardGrid({
           />
         );
       case "weapons":
+        if (!stats && (!matchHistory || matchHistory.length === 0)) {
+          return (
+            <div className="w-full h-full p-4 rounded-2xl glass-panel border border-[var(--color-border)]/60 flex flex-col justify-between overflow-hidden animate-pulse">
+              <div className="h-3 w-32 rounded skeleton-shimmer mb-3" />
+              <div className="space-y-3 flex-1 flex flex-col justify-around">
+                <div className="flex items-center justify-between">
+                  <div className="h-5 w-20 rounded skeleton-shimmer" />
+                  <div className="h-3 w-14 rounded skeleton-shimmer" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="h-5 w-20 rounded skeleton-shimmer" />
+                  <div className="h-3 w-14 rounded skeleton-shimmer" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="h-5 w-20 rounded skeleton-shimmer" />
+                  <div className="h-3 w-14 rounded skeleton-shimmer" />
+                </div>
+              </div>
+            </div>
+          );
+        }
         return <WeaponHitmap matchHistory={matchHistory} stats={stats} />;
       case "kills":
-        return <StatCard label="Éliminations" value={stats?.kills ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("kills")} metricKey="kills" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "kills"} onToggleExpand={() => setExpandedCardId(expandedCardId === "kills" ? null : "kills")} comparisonValue={myStats?.kills} comparisonLabel={myPlayerName} isComparing={isComparing} />;
+        if (!stats) return renderStatSkeleton("Éliminations");
+        return <StatCard label="Éliminations" value={stats.kills ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("kills")} metricKey="kills" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "kills"} onToggleExpand={() => setExpandedCardId(expandedCardId === "kills" ? null : "kills")} comparisonValue={myStats?.kills} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       case "deaths":
-        return <StatCard label="Morts" value={stats?.deaths ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("deaths")} metricKey="deaths" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "deaths"} onToggleExpand={() => setExpandedCardId(expandedCardId === "deaths" ? null : "deaths")} comparisonValue={myStats?.deaths} comparisonLabel={myPlayerName} isComparing={isComparing} />;
+        if (!stats) return renderStatSkeleton("Morts");
+        return <StatCard label="Morts" value={stats.deaths ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("deaths")} metricKey="deaths" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "deaths"} onToggleExpand={() => setExpandedCardId(expandedCardId === "deaths" ? null : "deaths")} comparisonValue={myStats?.deaths} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       case "assists":
-        return <StatCard label="Passes décisives" value={stats?.assists ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("assists")} metricKey="assists" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "assists"} onToggleExpand={() => setExpandedCardId(expandedCardId === "assists" ? null : "assists")} comparisonValue={myStats?.assists} comparisonLabel={myPlayerName} isComparing={isComparing} />;
+        if (!stats) return renderStatSkeleton("Passes décisives");
+        return <StatCard label="Passes décisives" value={stats.assists ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("assists")} metricKey="assists" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "assists"} onToggleExpand={() => setExpandedCardId(expandedCardId === "assists" ? null : "assists")} comparisonValue={myStats?.assists} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       case "kd":
+        if (!stats) return renderStatSkeleton("Ratio K/D");
         return (
           <StatCard
             label="Ratio K/D"
-            value={(stats?.kdRatio ?? 0).toFixed(2)}
+            value={(stats.kdRatio ?? 0).toFixed(2)}
             highlight
             warning={warnings?.kd}
             smartRating={smartRating}
@@ -1400,12 +1480,14 @@ export default function DashboardGrid({
           />
         );
       case "adr":
-        return <StatCard label="Dégâts/Tour (ADR)" value={stats?.adr ?? 0} highlight smartRating={smartRating} sessionDelta={getStatDelta("adr")} metricKey="adr" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "adr"} onToggleExpand={() => setExpandedCardId(expandedCardId === "adr" ? null : "adr")} comparisonValue={myStats?.adr !== undefined ? Math.round(Number(myStats.adr)) : undefined} comparisonLabel={myPlayerName} isComparing={isComparing} />;
+        if (!stats) return renderStatSkeleton("Dégâts/Tour (ADR)");
+        return <StatCard label="Dégâts/Tour (ADR)" value={stats.adr ?? 0} highlight smartRating={smartRating} sessionDelta={getStatDelta("adr")} metricKey="adr" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "adr"} onToggleExpand={() => setExpandedCardId(expandedCardId === "adr" ? null : "adr")} comparisonValue={myStats?.adr !== undefined ? Math.round(Number(myStats.adr)) : undefined} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       case "hs":
+        if (!stats) return renderStatSkeleton("Headshot %");
         return (
           <StatCard
             label="Headshot %"
-            value={stats?.headshotPct ?? 0}
+            value={stats.headshotPct ?? 0}
             suffix="%"
             warning={warnings?.hs}
             smartRating={smartRating}
@@ -1422,10 +1504,11 @@ export default function DashboardGrid({
           />
         );
       case "wr":
+        if (!stats) return renderStatSkeleton("Win Rate");
         return (
           <StatCard
             label="Win Rate"
-            value={stats?.winRate ?? 0}
+            value={stats.winRate ?? 0}
             suffix="%"
             warning={warnings?.wr}
             smartRating={smartRating}
@@ -1442,10 +1525,11 @@ export default function DashboardGrid({
           />
         );
       case "acs":
+        if (!stats) return renderStatSkeleton("ACS Moyen");
         return (
           <StatCard
             label="ACS Moyen"
-            value={stats?.acs ?? 0}
+            value={stats.acs ?? 0}
             highlight
             warning={warnings?.acs}
             smartRating={smartRating}
@@ -1462,16 +1546,19 @@ export default function DashboardGrid({
           />
         );
       case "fb":
-        return <StatCard label="Premiers sangs" value={stats?.firstBloods ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("fb")} metricKey="firstBloods" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "fb"} onToggleExpand={() => setExpandedCardId(expandedCardId === "fb" ? null : "fb")} comparisonValue={myStats?.firstBloods} comparisonLabel={myPlayerName} isComparing={isComparing} />;
+        if (!stats) return renderStatSkeleton("Premiers sangs");
+        return <StatCard label="Premiers sangs" value={stats.firstBloods ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("fb")} metricKey="firstBloods" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "fb"} onToggleExpand={() => setExpandedCardId(expandedCardId === "fb" ? null : "fb")} comparisonValue={myStats?.firstBloods} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       case "ace":
-        return <StatCard label="ACE" value={stats?.aceCount ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("ace")} metricKey="aces" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "ace"} onToggleExpand={() => setExpandedCardId(expandedCardId === "ace" ? null : "ace")} comparisonValue={myStats?.aceCount} comparisonLabel={myPlayerName} isComparing={isComparing} />;
+        if (!stats) return renderStatSkeleton("ACE");
+        return <StatCard label="ACE" value={stats.aceCount ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("ace")} metricKey="aces" friendsStats={friendsStats} onSelectPlayer={onSelectPlayer} onOpenFriendsModal={onOpenFriendsModal} isExpanded={expandedCardId === "ace"} onToggleExpand={() => setExpandedCardId(expandedCardId === "ace" ? null : "ace")} comparisonValue={myStats?.aceCount} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       case "kast":
+        if (!stats) return renderStatSkeleton("KAST");
         return (
           <StatCard
             label="KAST"
-            value={stats?.kast ?? 0}
+            value={stats.kast ?? 0}
             suffix="%"
-            sub={stats?.kastPercentile}
+            sub={stats.kastPercentile}
             warning={warnings?.kast}
             smartRating={smartRating}
             comparisonValue={myStats?.kast !== undefined ? Math.round(Number(myStats.kast)) : undefined}
@@ -1480,10 +1567,11 @@ export default function DashboardGrid({
           />
         );
       case "dd":
+        if (!stats) return renderStatSkeleton("DDΔ / Round");
         return (
           <StatCard
             label="DDΔ / Round"
-            value={stats?.ddDelta > 0 ? `+${stats?.ddDelta}` : stats?.ddDelta ?? 0}
+            value={stats.ddDelta > 0 ? `+${stats.ddDelta}` : stats.ddDelta ?? 0}
             warning={warnings?.dd}
             smartRating={smartRating}
             comparisonValue={myStats?.ddDelta}
@@ -1492,10 +1580,11 @@ export default function DashboardGrid({
           />
         );
       case "wins":
+        if (!stats) return renderStatSkeleton("Victoires");
         return (
           <StatCard
             label="Victoires"
-            value={Math.round(((stats?.winRate ?? 0) / 100) * (stats?.matchesPlayed ?? 0))}
+            value={Math.round(((stats.winRate ?? 0) / 100) * (stats.matchesPlayed ?? 0))}
             smartRating={smartRating}
             sessionDelta={getStatDelta("wins")}
             comparisonValue={myStats?.winRate !== undefined && myStats?.matchesPlayed !== undefined ? Math.round(((myStats.winRate) / 100) * myStats.matchesPlayed) : undefined}
@@ -1504,7 +1593,8 @@ export default function DashboardGrid({
           />
         );
       case "matches":
-        return <StatCard label="Parties" value={stats?.matchesPlayed ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("matches")} comparisonValue={myStats?.matchesPlayed} comparisonLabel={myPlayerName} isComparing={isComparing} />;
+        if (!stats) return renderStatSkeleton("Parties");
+        return <StatCard label="Parties" value={stats.matchesPlayed ?? 0} smartRating={smartRating} sessionDelta={getStatDelta("matches")} comparisonValue={myStats?.matchesPlayed} comparisonLabel={myPlayerName} isComparing={isComparing} />;
       default:
         return null;
     }

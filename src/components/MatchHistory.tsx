@@ -19,6 +19,7 @@ export interface MatchHistoryProps {
   currentPlayerRankUrl?: string;
   currentPlayerRankTier?: number;
   highlightedMatchId?: string | null;
+  isLoading?: boolean;
 }
 
 export const SkullIcon = React.memo(({ className }: { className?: string }) => (
@@ -811,6 +812,7 @@ function MatchHistoryComponent({
   currentPlayerRankUrl,
   currentPlayerRankTier,
   highlightedMatchId,
+  isLoading = false,
 }: MatchHistoryProps) {
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(
@@ -848,6 +850,32 @@ function MatchHistoryComponent({
   }, [highlightedMatchId]);
 
   if (!matches || matches.length === 0) {
+    if (isLoading) {
+      return (
+        <div className="w-full space-y-3 animate-pulse">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="w-full h-20 rounded-2xl glass-panel border border-[var(--color-border)]/60 p-4 flex items-center justify-between gap-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl skeleton-shimmer shrink-0" />
+                <div className="space-y-2">
+                  <div className="h-4 w-28 rounded skeleton-shimmer" />
+                  <div className="h-3 w-16 rounded skeleton-shimmer opacity-60" />
+                </div>
+              </div>
+              <div className="flex items-center gap-6">
+                <div className="h-6 w-16 rounded skeleton-shimmer" />
+                <div className="h-4 w-20 rounded skeleton-shimmer opacity-70" />
+                <div className="w-8 h-8 rounded-full skeleton-shimmer opacity-50" />
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     return (
       <div className="w-full glass-panel rounded-2xl p-10 text-center animate-in fade-in duration-500">
         <p className="text-sm text-[var(--color-text-secondary)] font-bold uppercase tracking-wider">

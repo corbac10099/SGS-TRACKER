@@ -320,25 +320,37 @@ export default function ProfileBanner({
 
           {/* Droite : Rang */}
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-auto z-10">
-            <div
-              className="flex flex-col items-end hidden sm:flex"
-              style={{
-                textShadow: "0px 2px 10px rgba(0,0,0,0.8)",
-              }}
-            >
-              <span className="text-[9px] sm:text-[10px] text-[var(--color-text-secondary)] uppercase tracking-[0.2em] font-bold">
-                Rang
-              </span>
-              <span className="text-xs sm:text-lg font-black text-white uppercase tracking-wider">
-                {p.rank}
-              </span>
-            </div>
-            <img
-              referrerPolicy="no-referrer"
-              src={p.rankUrl}
-              alt={p.rank}
-              className="w-11 h-11 xs:w-13 xs:h-13 sm:w-16 sm:h-16 md:w-20 md:h-20 object-contain drop-shadow-[0_0_20px_rgba(0,0,0,0.8)]"
-            />
+            {!p.rankUrl ? (
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-auto z-10 animate-pulse">
+                <div className="hidden sm:flex flex-col items-end gap-1.5">
+                  <div className="h-2 w-8 bg-white/20 rounded-md"></div>
+                  <div className="h-4 w-20 bg-white/20 rounded-md"></div>
+                </div>
+                <div className="w-11 h-11 xs:w-13 xs:h-13 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl bg-white/10 border border-white/15 skeleton-shimmer"></div>
+              </div>
+            ) : (
+              <>
+                <div
+                  className="flex flex-col items-end hidden sm:flex"
+                  style={{
+                    textShadow: "0px 2px 10px rgba(0,0,0,0.8)",
+                  }}
+                >
+                  <span className="text-[9px] sm:text-[10px] text-[var(--color-text-secondary)] uppercase tracking-[0.2em] font-bold">
+                    Rang
+                  </span>
+                  <span className="text-xs sm:text-lg font-black text-white uppercase tracking-wider">
+                    {p.rank}
+                  </span>
+                </div>
+                <img
+                  referrerPolicy="no-referrer"
+                  src={p.rankUrl}
+                  alt={p.rank}
+                  className="w-11 h-11 xs:w-13 xs:h-13 sm:w-16 sm:h-16 md:w-20 md:h-20 object-contain drop-shadow-[0_0_20px_rgba(0,0,0,0.8)]"
+                />
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -396,13 +396,15 @@ export function HomeContent({
         />
 
         {/* Onglet Performance */}
-        {nav.activeTab === "performance" && s && (
+        {nav.activeTab === "performance" && (
           <div key="tab-performance" className="w-full animate-tab-in">
-            <TiltAlertBanner
-              matches={filters.filteredMatches}
-              overallKd={s?.kdRatio}
-              overallAcs={s?.acs}
-            />
+            {s && (
+              <TiltAlertBanner
+                matches={filters.filteredMatches}
+                overallKd={s?.kdRatio}
+                overallAcs={s?.acs}
+              />
+            )}
 
             <DashboardGrid
               stats={s}
@@ -491,11 +493,13 @@ export function HomeContent({
         )}
 
         {/* Onglet Matchs */}
-        {nav.activeTab === "matches" && filters.filteredMatches && (
+        {nav.activeTab === "matches" && (
           <div key="tab-matches" className="w-full space-y-6 animate-tab-in">
-            <ActivityCalendar matches={filters.filteredMatches} />
+            {filters.filteredMatches && filters.filteredMatches.length > 0 && (
+              <ActivityCalendar matches={filters.filteredMatches} />
+            )}
             <MatchHistory
-              matches={filters.filteredMatches}
+              matches={filters.filteredMatches || []}
               searchPlayer={player.searchPlayer}
               visibleCount={filters.visibleMatchesCount}
               onLoadMore={() =>
@@ -505,6 +509,7 @@ export function HomeContent({
               currentPlayerRankUrl={p?.rankUrl}
               currentPlayerRankTier={p?.rankTier}
               highlightedMatchId={highlightedMatchId}
+              isLoading={player.loading && (!filters.filteredMatches || filters.filteredMatches.length === 0)}
             />
           </div>
         )}

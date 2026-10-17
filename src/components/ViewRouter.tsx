@@ -298,7 +298,7 @@ export default function ViewRouter({
           </div>
         ))}
 
-      {player.loading && <ProfileSkeleton />}
+      {player.loading && !player.playerData && <ProfileSkeleton />}
 
       {!player.playerData && !player.loading && (
         <div className="flex flex-col items-center justify-center mt-20 text-center animate-in fade-in duration-700">
