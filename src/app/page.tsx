@@ -1007,9 +1007,10 @@ export default function Home() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center text-[var(--color-text-secondary)] font-bold tracking-widest uppercase animate-pulse">
-          Chargement...
-        </div>
+        <LandingPage
+          onEnterBeta={() => {}}
+          onOpenLogin={() => {}}
+        />
       }
     >
       <HomeContent />
