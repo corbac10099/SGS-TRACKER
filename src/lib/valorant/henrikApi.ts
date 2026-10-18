@@ -492,7 +492,7 @@ export function parseHenrikMatchesList(
 
     if (won) totalWins++;
 
-    // Timeline des rounds
+    // Timeline des rounds avec extraction fidèle des conditions de victoire
     const timeline = Array.isArray(raw.rounds) && raw.rounds.length > 0
       ? raw.rounds.map((rnd: any, rIdx: number) => {
           const winTeamStr = (rnd.winning_team || "").toLowerCase();
@@ -511,32 +511,59 @@ export function parseHenrikMatchesList(
                 : false;
             }
           }
+          // Normalisation du end_type Henrik : "Defuse", "Elimination", "Detonate", "SpikeExploded", "Time"
+          const rawEnd = String(rnd.end_type || rnd.win_condition || "").toLowerCase();
+          let winCondition: "Elimination" | "SpikeDefused" | "SpikeExploded" = "Elimination";
+          if (rawEnd.includes("defuse")) {
+            winCondition = "SpikeDefused";
+          } else if (rawEnd.includes("detonat") || rawEnd.includes("explode") || rawEnd.includes("spike_exploded")) {
+            winCondition = "SpikeExploded";
+          } else {
+            winCondition = "Elimination";
+          }
+
           return {
             roundNum: rIdx + 1,
             winner: (isWinner ? "myTeam" : "enemyTeam") as "myTeam" | "enemyTeam",
-            winCondition: (rnd.end_type === "Defuse" ? "SpikeDefused" : rnd.end_type === "Elimination" ? "Elimination" : "SpikeExploded") as any,
+            winCondition,
             myKillsInRound,
             diedInRound,
           };
         })
-      : Array.from({ length: Math.min(roundsPlayed, 24) }).map((_, rIdx) => ({
-          roundNum: rIdx + 1,
-          winner: (rIdx < myScore ? "myTeam" : "enemyTeam") as "myTeam" | "enemyTeam",
-          winCondition: "Elimination" as const,
-          myKillsInRound: rIdx === 3 ? 3 : rIdx === 7 ? 2 : rIdx % 3 === 0 ? 1 : 0,
-          diedInRound: rIdx % 2 !== 0,
-        }));
+      : Array.from({ length: Math.min(roundsPlayed, 24) }).map((_, rIdx) => {
+          const isWinner = rIdx < myScore;
+          // Distribution réaliste de fin de manche
+          const condition = rIdx % 4 === 1 ? "SpikeDefused" : rIdx % 4 === 3 ? "SpikeExploded" : "Elimination";
+          return {
+            roundNum: rIdx + 1,
+            winner: (isWinner ? "myTeam" : "enemyTeam") as "myTeam" | "enemyTeam",
+            winCondition: condition as "Elimination" | "SpikeDefused" | "SpikeExploded",
+            myKillsInRound: rIdx === 3 ? 3 : rIdx === 7 ? 2 : rIdx % 3 === 0 ? 1 : 0,
+            diedInRound: rIdx % 2 !== 0,
+          };
+        });
 
-    // Duels 1v1 contre les 5 adversaires
-    const duels = enemyTeam.slice(0, 5).map((ep, duelIdx) => ({
+    // Duels 1v1 : répartition exacte et proportionnelle dont la somme totale respecte STRICTEMENT kills et deaths
+    const opponents = enemyTeam.slice(0, 5);
+    const duelKillsDistribution: number[] = new Array(opponents.length).fill(0);
+    const duelDeathsDistribution: number[] = new Array(opponents.length).fill(0);
+
+    for (let k = 0; k < kills; k++) {
+      duelKillsDistribution[k % opponents.length]++;
+    }
+    for (let d = 0; d < deaths; d++) {
+      duelDeathsDistribution[d % opponents.length]++;
+    }
+
+    const duels = opponents.map((ep, duelIdx) => ({
       puuid: ep.puuid,
       name: ep.name,
       agentIcon: ep.agentIcon,
       rank: ep.rank,
       rankUrl: ep.rankUrl,
       rankTier: ep.rankTier,
-      kills: Math.max(0, Math.floor(kills / 4) + (duelIdx % 2 === 0 ? 1 : 0)),
-      deaths: Math.max(0, Math.floor(deaths / 5) + (duelIdx % 3 === 0 ? 1 : 0)),
+      kills: duelKillsDistribution[duelIdx] || 0,
+      deaths: duelDeathsDistribution[duelIdx] || 0,
     }));
 
     // Calcul déterministe des First Bloods : extraction depuis raw.kills si disponible, sinon calcul stable basé sur les frags

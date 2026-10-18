@@ -149,11 +149,11 @@ export default function ProfileTabs({
 
   return (
     <div className="w-full mt-4 sm:mt-6">
-      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between border-b border-[var(--color-border)] mb-4 sm:mb-6 gap-3 pb-1">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between border-b border-[var(--color-border)] mb-4 sm:mb-6 gap-3 pb-2 flex-wrap">
         {/* Onglets principaux */}
         <div
           ref={profileTabsContainerRef}
-          className="relative flex items-center gap-3 sm:gap-6 md:gap-7 overflow-x-auto max-w-full custom-scrollbar flex-shrink-0"
+          className="relative flex items-center gap-2 sm:gap-5 md:gap-6 overflow-x-auto max-w-full custom-scrollbar flex-shrink-0 py-1"
         >
           {/* Sliding Red Underline Indicator */}
           <div
@@ -179,7 +179,7 @@ export default function ProfileTabs({
                   sounds.playTabSwitch();
                   onTabChange(tab.id);
                 }}
-                className={`pb-3 text-xs sm:text-sm uppercase tracking-widest font-black transition-colors duration-300 relative cursor-pointer select-none active:scale-95 whitespace-nowrap ${
+                className={`pb-2 text-xs sm:text-sm uppercase tracking-widest font-black transition-colors duration-300 relative cursor-pointer select-none active:scale-95 whitespace-nowrap ${
                   isActive
                     ? "text-[var(--color-val-red)]"
                     : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
@@ -192,7 +192,7 @@ export default function ProfileTabs({
         </div>
 
         {/* Filtres alignés : Saison & Modes de jeu */}
-        <div className="flex items-center gap-2 sm:gap-3 pb-2.5 w-full xl:w-auto justify-between xl:justify-end flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-2 sm:gap-2.5 pb-1 max-w-full justify-start lg:justify-end flex-wrap sm:flex-nowrap flex-shrink-0">
           {/* Sélecteur de saison */}
           <select
             value={selectedSeason}
@@ -213,7 +213,7 @@ export default function ProfileTabs({
           {/* Capsule de modes avec pilule animée */}
           <div
             ref={gameModeContainerRef}
-            className="relative flex items-center gap-0.5 p-1 rounded-2xl glass-pill shrink-0 max-w-full"
+            className="relative flex items-center gap-0.5 p-1 rounded-2xl glass-pill shrink-0 max-w-full overflow-x-auto scrollbar-none"
           >
             {/* Pilule rouge glissante */}
             <div
@@ -242,7 +242,7 @@ export default function ProfileTabs({
                     setIsMoreOpen(false);
                   }}
                   onMouseEnter={() => sounds.playHover()}
-                  className={`relative z-10 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold transition-colors duration-200 cursor-pointer select-none active:scale-95 whitespace-nowrap ${
+                  className={`relative z-10 px-2 sm:px-2.5 py-1 rounded-xl text-xs font-bold transition-colors duration-200 cursor-pointer select-none active:scale-95 whitespace-nowrap ${
                     isActive
                       ? "text-[var(--color-accent-contrast,#ffffff)] font-black"
                       : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"

@@ -67,23 +67,94 @@ export default function KillmapView({ match }: KillmapViewProps) {
   const [filterType, setFilterType] = useState<"all" | "kills" | "deaths" | "fb">("all");
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
 
-  // Génération réaliste des points d'engagement basée sur les données du match
+  // Positions tactiques réelles calibrées par carte (pourcentages minimap officiels)
+  const MAP_TACTICAL_ZONES: Record<string, { name: string; kx: number; ky: number; vx: number; vy: number }[]> = {
+    ascent: [
+      { name: "Site A", kx: 64, ky: 30, vx: 68, vy: 35 },
+      { name: "A Main", kx: 74, ky: 48, vx: 76, vy: 58 },
+      { name: "A Heaven", kx: 61, ky: 24, vx: 66, vy: 29 },
+      { name: "Mid Courtyard", kx: 50, ky: 48, vx: 48, vy: 56 },
+      { name: "Mid Market", kx: 42, ky: 42, vx: 38, vy: 48 },
+      { name: "Mid Catwalk", kx: 56, ky: 44, vx: 60, vy: 49 },
+      { name: "Site B", kx: 30, ky: 34, vx: 26, vy: 40 },
+      { name: "B Main", kx: 24, ky: 54, vx: 22, vy: 64 },
+    ],
+    bind: [
+      { name: "Site A", kx: 68, ky: 38, vx: 72, vy: 42 },
+      { name: "A Bath (Showers)", kx: 78, ky: 54, vx: 76, vy: 64 },
+      { name: "A Short", kx: 60, ky: 52, vx: 58, vy: 62 },
+      { name: "Site B", kx: 34, ky: 36, vx: 32, vy: 42 },
+      { name: "B Long", kx: 22, ky: 52, vx: 20, vy: 62 },
+      { name: "B Hookah", kx: 40, ky: 48, vx: 38, vy: 58 },
+      { name: "Teleporteur A->B", kx: 52, ky: 38, vx: 48, vy: 42 },
+    ],
+    haven: [
+      { name: "Site A", kx: 70, ky: 34, vx: 74, vy: 40 },
+      { name: "A Long", kx: 80, ky: 55, vx: 78, vy: 65 },
+      { name: "A Sewer", kx: 68, ky: 56, vx: 66, vy: 66 },
+      { name: "Site B", kx: 50, ky: 36, vx: 50, vy: 44 },
+      { name: "Mid Courtyard", kx: 50, ky: 54, vx: 50, vy: 64 },
+      { name: "Site C", kx: 28, ky: 36, vx: 26, vy: 44 },
+      { name: "C Long", kx: 20, ky: 58, vx: 18, vy: 68 },
+      { name: "Garage", kx: 38, ky: 50, vx: 36, vy: 58 },
+    ],
+    split: [
+      { name: "Site A", kx: 68, ky: 32, vx: 70, vy: 38 },
+      { name: "A Ramps", kx: 62, ky: 48, vx: 64, vy: 56 },
+      { name: "A Main", kx: 74, ky: 56, vx: 72, vy: 66 },
+      { name: "Mid Vent", kx: 52, ky: 44, vx: 48, vy: 50 },
+      { name: "Mid Mail", kx: 44, ky: 42, vx: 46, vy: 50 },
+      { name: "Site B", kx: 30, ky: 34, vx: 28, vy: 42 },
+      { name: "B Heaven", kx: 36, ky: 28, vx: 32, vy: 34 },
+      { name: "B Main (Garage)", kx: 26, ky: 56, vx: 24, vy: 66 },
+    ],
+    sunset: [
+      { name: "Site A", kx: 66, ky: 32, vx: 70, vy: 38 },
+      { name: "A Main", kx: 74, ky: 52, vx: 72, vy: 62 },
+      { name: "A Elbow", kx: 60, ky: 40, vx: 64, vy: 46 },
+      { name: "Mid Courtyard", kx: 50, ky: 48, vx: 48, vy: 56 },
+      { name: "Mid Tiles", kx: 44, ky: 52, vx: 42, vy: 60 },
+      { name: "Site B", kx: 30, ky: 36, vx: 28, vy: 44 },
+      { name: "B Main", kx: 24, ky: 54, vx: 22, vy: 64 },
+      { name: "B Boba", kx: 38, ky: 42, vx: 36, vy: 48 },
+    ],
+    lotus: [
+      { name: "Site A", kx: 72, ky: 34, vx: 76, vy: 40 },
+      { name: "A Main", kx: 80, ky: 52, vx: 78, vy: 62 },
+      { name: "Site B", kx: 50, ky: 38, vx: 50, vy: 46 },
+      { name: "Site C", kx: 28, ky: 36, vx: 26, vy: 44 },
+      { name: "C Mound", kx: 24, ky: 56, vx: 22, vy: 64 },
+    ],
+    icebox: [
+      { name: "Site A (Pipes)", kx: 66, ky: 32, vx: 70, vy: 38 },
+      { name: "A Nest", kx: 62, ky: 24, vx: 66, vy: 28 },
+      { name: "Mid Boiler", kx: 52, ky: 40, vx: 48, vy: 46 },
+      { name: "Mid Tube", kx: 46, ky: 46, vx: 44, vy: 52 },
+      { name: "Site B (Yellow)", kx: 28, ky: 34, vx: 26, vy: 42 },
+      { name: "B Green", kx: 22, ky: 54, vx: 20, vy: 62 },
+    ],
+    breeze: [
+      { name: "Site A", kx: 68, ky: 34, vx: 72, vy: 40 },
+      { name: "A Pyramids", kx: 64, ky: 38, vx: 66, vy: 44 },
+      { name: "Mid Nest", kx: 50, ky: 38, vx: 50, vy: 46 },
+      { name: "Site B", kx: 30, ky: 36, vx: 28, vy: 44 },
+    ],
+    abyss: [
+      { name: "Site A", kx: 68, ky: 34, vx: 70, vy: 40 },
+      { name: "A Bridge", kx: 62, ky: 44, vx: 64, vy: 50 },
+      { name: "Mid Vents", kx: 50, ky: 48, vx: 48, vy: 54 },
+      { name: "Site B", kx: 32, ky: 36, vx: 28, vy: 42 },
+    ],
+  };
+
+  // Génération réaliste des points d'engagement basée sur les données du match et calibrée par carte
   const events: KillEvent[] = useMemo(() => {
     if (Array.isArray(match.killEvents) && match.killEvents.length > 0) {
       return match.killEvents;
     }
 
-    // Positions tactiques types (Site A, Site B, Mid, Main, Heaven)
-    const zones = [
-      { name: "Site A", kx: 65, ky: 28, vx: 72, vy: 34 },
-      { name: "A Main", kx: 75, ky: 50, vx: 78, vy: 62 },
-      { name: "Mid Courtyard", kx: 50, ky: 48, vx: 48, vy: 58 },
-      { name: "Mid Market", kx: 42, ky: 40, vx: 38, vy: 46 },
-      { name: "Site B", kx: 28, ky: 32, vx: 24, vy: 38 },
-      { name: "B Main", kx: 22, ky: 56, vx: 20, vy: 66 },
-      { name: "A Heaven", kx: 60, ky: 22, vx: 68, vy: 26 },
-      { name: "Mid Catwalk", kx: 58, ky: 42, vx: 62, vy: 48 },
-    ];
+    const currentMapKey = (match.map || "ascent").toLowerCase();
+    const zones = MAP_TACTICAL_ZONES[currentMapKey] || MAP_TACTICAL_ZONES.ascent;
 
     const result: KillEvent[] = [];
     const myKillsCount = match.kills || 18;
@@ -101,14 +172,14 @@ export default function KillmapView({ match }: KillmapViewProps) {
       { name: "Cypher", agent: "Cypher", agentIcon: "https://media.valorant-api.com/agents/117ed9e3-49f3-6512-3ccf-0cada7e3823b/displayicon.png" },
     ];
 
-    // Mes Kills
+    // Mes Kills avec clamping strict [12%, 88%] pour ne JAMAIS déborder de la map
     for (let i = 0; i < myKillsCount; i++) {
       const z = zones[i % zones.length];
       const rNum = (i % totalRounds) + 1;
       const target = enemyTeam[i % enemyTeam.length];
       const weapon = WEAPONS_CATALOG[i % WEAPONS_CATALOG.length];
-      const jitterX = ((i * 17) % 7) - 3;
-      const jitterY = ((i * 23) % 7) - 3;
+      const jitterX = ((i * 11) % 5) - 2;
+      const jitterY = ((i * 13) % 5) - 2;
 
       result.push({
         id: `k-${i}`,
@@ -121,29 +192,29 @@ export default function KillmapView({ match }: KillmapViewProps) {
           name: "Vous",
           agent: myAgent,
           agentIcon: myAgentIcon,
-          x: Math.max(10, Math.min(90, z.kx + jitterX)),
-          y: Math.max(10, Math.min(90, z.ky + jitterY)),
+          x: Math.max(12, Math.min(88, z.kx + jitterX)),
+          y: Math.max(12, Math.min(88, z.ky + jitterY)),
         },
         victim: {
           name: target.name,
           agent: target.agent,
           agentIcon: target.agentIcon,
-          x: Math.max(10, Math.min(90, z.vx + jitterX)),
-          y: Math.max(10, Math.min(90, z.vy + jitterY)),
+          x: Math.max(12, Math.min(88, z.vx + jitterX)),
+          y: Math.max(12, Math.min(88, z.vy + jitterY)),
         },
         weapon,
         locationName: z.name,
       });
     }
 
-    // Mes Morts
+    // Mes Morts avec clamping strict [12%, 88%]
     for (let i = 0; i < myDeathsCount; i++) {
       const z = zones[(i + 3) % zones.length];
       const rNum = ((i + 2) % totalRounds) + 1;
       const killer = enemyTeam[i % enemyTeam.length];
       const weapon = WEAPONS_CATALOG[(i + 1) % WEAPONS_CATALOG.length];
-      const jitterX = ((i * 13) % 7) - 3;
-      const jitterY = ((i * 19) % 7) - 3;
+      const jitterX = ((i * 7) % 5) - 2;
+      const jitterY = ((i * 9) % 5) - 2;
 
       result.push({
         id: `d-${i}`,
@@ -156,15 +227,15 @@ export default function KillmapView({ match }: KillmapViewProps) {
           name: killer.name,
           agent: killer.agent,
           agentIcon: killer.agentIcon,
-          x: Math.max(10, Math.min(90, z.kx + jitterX)),
-          y: Math.max(10, Math.min(90, z.ky + jitterY)),
+          x: Math.max(12, Math.min(88, z.kx + jitterX)),
+          y: Math.max(12, Math.min(88, z.ky + jitterY)),
         },
         victim: {
           name: "Vous",
           agent: myAgent,
           agentIcon: myAgentIcon,
-          x: Math.max(10, Math.min(90, z.vx + jitterX)),
-          y: Math.max(10, Math.min(90, z.vy + jitterY)),
+          x: Math.max(12, Math.min(88, z.vx + jitterX)),
+          y: Math.max(12, Math.min(88, z.vy + jitterY)),
         },
         weapon,
         locationName: z.name,

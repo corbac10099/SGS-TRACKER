@@ -384,6 +384,10 @@ export default function DashboardGrid({
       acs: "ACS",
       hs: "Headshot %",
       spi: "Score SPI",
+      kills: "Frags",
+      adr: "Dégâts / Manche (ADR)",
+      wr: "Taux de Victoire",
+      fb: "Premiers Sangs (FB)",
     };
     const newChartConfig: ChartConfig = {
       id: newChartId,

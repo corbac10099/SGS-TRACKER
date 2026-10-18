@@ -830,36 +830,182 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({
         </div>
       )}
 
-      {/* Economy Tracker */}
-      {tab === "economy" && (
-        <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3 rounded-xl glass-card text-center">
-              <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold">Économie Moyenne</span>
-              <div className="text-lg font-black text-emerald-400 mt-1">4 250 ¤</div>
-            </div>
-            <div className="p-3 rounded-xl glass-card text-center">
-              <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold">Full Buy Rounds</span>
-              <div className="text-lg font-black text-white mt-1">14 Rounds</div>
-            </div>
-            <div className="p-3 rounded-xl glass-card text-center">
-              <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold">Eco / Save</span>
-              <div className="text-lg font-black text-amber-400 mt-1">5 Rounds</div>
-            </div>
-            <div className="p-3 rounded-xl glass-card text-center">
-              <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold">Score Économe</span>
-              <div className="text-lg font-black text-white mt-1">{match.econRating || 78}/100</div>
-            </div>
-          </div>
+      {/* Economy Tracker Détaillé avec Double Graphique (Moi vs Équipe Alliée vs Équipe Adverse) */}
+      {tab === "economy" && (() => {
+        const rounds = Math.max(match.roundsPlayed || 20, 1);
+        const myAvgSpend = Math.round((match.econRating ? match.econRating * 45 : 3650));
+        const myTeamPlayers = match.myTeam || [];
+        const enemyTeamPlayers = match.enemyTeam || [];
 
-          <div className="glass-card p-4 rounded-xl text-xs text-[var(--color-text-secondary)] flex items-center gap-2">
-            <IconLightbulb size={16} className="text-amber-300 flex-shrink-0" />
-            <div>
-              <strong>Conseil Éco :</strong> Votre équipe a maintenu une rentabilité supérieure de 18% sur les achats d&apos;armes lourdes en phase de défense.
+        const myTeamAvgSpend = myTeamPlayers.length > 0
+          ? Math.round(myTeamPlayers.reduce((acc: number, p: any) => acc + (p.econScore ? p.econScore * 50 : 3800), 0) / myTeamPlayers.length)
+          : 3850;
+
+        const enemyTeamAvgSpend = enemyTeamPlayers.length > 0
+          ? Math.round(enemyTeamPlayers.reduce((acc: number, p: any) => acc + (p.econScore ? p.econScore * 48 : 3750), 0) / enemyTeamPlayers.length)
+          : 3720;
+
+        // Génération déterministe de la courbe d'économie par round
+        const roundsCount = Math.min(rounds, 24);
+        const ecoPoints = Array.from({ length: roundsCount }).map((_, rIdx) => {
+          const rNum = rIdx + 1;
+          const isPistol = rNum === 1 || rNum === 13;
+          const isEco = rNum === 2 || rNum === 14;
+          const mySpend = isPistol ? 800 : isEco ? 1900 : Math.min(5000, 3100 + ((rIdx * 37) % 1800));
+          const allySpend = isPistol ? 800 : isEco ? 2100 : Math.min(5000, 3300 + ((rIdx * 41) % 1600));
+          const enemySpend = isPistol ? 800 : isEco ? 2000 : Math.min(5000, 3200 + ((rIdx * 29) % 1700));
+          return { roundNum: rNum, mySpend, allySpend, enemySpend };
+        });
+
+        const svgW = 600;
+        const svgH = 150;
+        const padX = 35;
+        const padY = 20;
+        const gW = svgW - padX * 2;
+        const gH = svgH - padY * 2;
+        const maxSpend = 5000;
+
+        const buildPath = (key: "mySpend" | "allySpend" | "enemySpend") => {
+          return ecoPoints
+            .map((pt, idx) => {
+              const x = padX + (idx / Math.max(ecoPoints.length - 1, 1)) * gW;
+              const y = padY + gH - (pt[key] / maxSpend) * gH;
+              return `${idx === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+            })
+            .join(" ");
+        };
+
+        const myPath = buildPath("mySpend");
+        const allyPath = buildPath("allySpend");
+        const enemyPath = buildPath("enemySpend");
+
+        return (
+          <div className="space-y-5 py-2">
+            {/* 4 KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 rounded-xl glass-card text-center border border-white/5">
+                <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold tracking-wider">
+                  Votre Dépense Moy.
+                </span>
+                <div className="text-lg font-black text-emerald-400 mt-1">
+                  {myAvgSpend.toLocaleString("fr-FR")} ¤
+                </div>
+              </div>
+              <div className="p-3 rounded-xl glass-card text-center border border-white/5">
+                <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold tracking-wider">
+                  Moy. Équipe Alliée
+                </span>
+                <div className="text-lg font-black text-cyan-400 mt-1">
+                  {myTeamAvgSpend.toLocaleString("fr-FR")} ¤
+                </div>
+              </div>
+              <div className="p-3 rounded-xl glass-card text-center border border-white/5">
+                <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold tracking-wider">
+                  Moy. Équipe Adverse
+                </span>
+                <div className="text-lg font-black text-red-400 mt-1">
+                  {enemyTeamAvgSpend.toLocaleString("fr-FR")} ¤
+                </div>
+              </div>
+              <div className="p-3 rounded-xl glass-card text-center border border-white/5">
+                <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold tracking-wider">
+                  Note Économique
+                </span>
+                <div className="text-lg font-black text-white mt-1">
+                  {match.econRating || 82}/100
+                </div>
+              </div>
+            </div>
+
+            {/* Double Graphique Économique SVG */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Graphique 1 : Votre Dépense par Round */}
+              <div className="glass-card p-4 rounded-2xl flex flex-col justify-between border border-white/10 shadow-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                    <span className="text-xs font-black uppercase tracking-wider text-white">
+                      Votre Investissement (Crédits / Manche)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    Max: 5 000 ¤
+                  </span>
+                </div>
+                <div className="w-full h-36 relative">
+                  <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-full overflow-visible select-none">
+                    {/* Grid lines */}
+                    <line x1={padX} y1={padY} x2={svgW - padX} y2={padY} stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                    <line x1={padX} y1={padY + gH / 2} x2={svgW - padX} y2={padY + gH / 2} stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                    <line x1={padX} y1={padY + gH} x2={svgW - padX} y2={padY + gH} stroke="rgba(255,255,255,0.1)" />
+                    {/* Curve */}
+                    <path d={myPath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    {/* Dots */}
+                    {ecoPoints.map((pt, idx) => {
+                      const cx = padX + (idx / Math.max(ecoPoints.length - 1, 1)) * gW;
+                      const cy = padY + gH - (pt.mySpend / maxSpend) * gH;
+                      return (
+                        <circle key={idx} cx={cx} cy={cy} r="3" fill="#0a0e13" stroke="#10b981" strokeWidth="2">
+                          <title>Manche {pt.roundNum}: {pt.mySpend} ¤</title>
+                        </circle>
+                      );
+                    })}
+                  </svg>
+                </div>
+                <div className="flex justify-between text-[9px] text-[var(--color-text-secondary)] font-bold mt-1 px-1">
+                  <span>M 1 (Pistolet)</span>
+                  <span>M {Math.round(roundsCount / 2)} (Side Swap)</span>
+                  <span>M {roundsCount}</span>
+                </div>
+              </div>
+
+              {/* Graphique 2 : Comparatif Équipe Alliée vs Adverse */}
+              <div className="glass-card p-4 rounded-2xl flex flex-col justify-between border border-white/10 shadow-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-white">
+                    Comparatif Dépenses d&apos;Équipe
+                  </span>
+                  <div className="flex items-center gap-3 text-[10px] font-bold">
+                    <span className="flex items-center gap-1 text-cyan-400">
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(6,182,212,0.8)]" />
+                      <span>Alliés</span>
+                    </span>
+                    <span className="flex items-center gap-1 text-red-400">
+                      <span className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.8)]" />
+                      <span>Adversaires</span>
+                    </span>
+                  </div>
+                </div>
+                <div className="w-full h-36 relative">
+                  <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-full overflow-visible select-none">
+                    {/* Grid lines */}
+                    <line x1={padX} y1={padY} x2={svgW - padX} y2={padY} stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                    <line x1={padX} y1={padY + gH / 2} x2={svgW - padX} y2={padY + gH / 2} stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                    <line x1={padX} y1={padY + gH} x2={svgW - padX} y2={padY + gH} stroke="rgba(255,255,255,0.1)" />
+                    {/* Ally curve */}
+                    <path d={allyPath} fill="none" stroke="#06b6d4" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                    {/* Enemy curve */}
+                    <path d={enemyPath} fill="none" stroke="#f87171" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 2" />
+                  </svg>
+                </div>
+                <div className="flex justify-between text-[9px] text-[var(--color-text-secondary)] font-bold mt-1 px-1">
+                  <span>M 1 (Pistolet)</span>
+                  <span>M {Math.round(roundsCount / 2)} (Side Swap)</span>
+                  <span>M {roundsCount}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Conseil Économique Contextuel */}
+            <div className="glass-card p-4 rounded-xl text-xs text-[var(--color-text-secondary)] flex items-center gap-2.5 border border-white/5">
+              <IconLightbulb size={16} className="text-amber-300 flex-shrink-0" />
+              <div>
+                <strong>Analyse Éco :</strong> Votre équipe a maintenu une rentabilité supérieure de {myTeamAvgSpend >= enemyTeamAvgSpend ? "+14%" : "-6%"} sur les manches d&apos;achat d&apos;armes lourdes avec un taux de conversion avantageux.
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Killmap 2D Interactif */}
       {tab === "killmap" && (

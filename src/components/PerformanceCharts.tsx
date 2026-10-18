@@ -5,7 +5,7 @@ import { calculateSingleMatchSPI, PerformanceGrade } from "@/lib/valorant/perfor
 import { sounds } from "@/lib/soundEffects";
 import { IconChart } from "./icons/SpyIcons";
 
-export type MetricType = "kd" | "acs" | "hs" | "spi";
+export type MetricType = "kd" | "acs" | "hs" | "spi" | "kills" | "adr" | "wr" | "fb";
 
 export interface PerformanceChartsProps {
   matchHistory: any[];
@@ -53,7 +53,7 @@ function PerformanceChartsComponent({
   matchHistory,
   chartId = "chart",
   title = "Progression",
-  allowedMetrics = ["kd", "acs", "hs", "spi"],
+  allowedMetrics = ["kd", "acs", "hs", "spi", "kills", "adr", "wr", "fb"],
   initialMetric,
   onActiveMetricChange,
   canDetach = true,
@@ -68,7 +68,7 @@ function PerformanceChartsComponent({
 }: PerformanceChartsProps) {
   // Garantit que si ce graphique est unique, SPI est toujours présent dans la liste autorisée
   const validAllowedMetrics = useMemo(() => {
-    let list = allowedMetrics && allowedMetrics.length > 0 ? allowedMetrics : (["kd", "acs", "hs", "spi"] as MetricType[]);
+    let list = allowedMetrics && allowedMetrics.length > 0 ? allowedMetrics : (["kd", "acs", "hs", "spi", "kills", "adr", "wr", "fb"] as MetricType[]);
     if (chartId === "chart" && (!availableTargetCharts || availableTargetCharts.length === 0)) {
       if (!list.includes("spi")) {
         list = [...list, "spi"];
@@ -268,6 +268,12 @@ function PerformanceChartsComponent({
           ? Math.round((m.headshots / (m.kills + m.assists || 1)) * 100)
           : m.headshotPct || 20;
       const matchSpi = calculateSingleMatchSPI(m, m.role);
+      const rounds = Math.max(m.roundsPlayed || 1, 1);
+      const adr = Math.round((m.damage || m.kills * 155) / rounds);
+      const killsCount = m.kills || 0;
+      const firstBloods = m.firstBloods || 0;
+      const winVal = m.won ? 100 : 0;
+
       return {
         index: idx + 1,
         matchId: m.matchId,
@@ -283,6 +289,10 @@ function PerformanceChartsComponent({
         spi: matchSpi.score,
         spiGrade: matchSpi.grade,
         spiColor: matchSpi.gradeColor,
+        kills: killsCount,
+        adr,
+        wr: winVal,
+        fb: firstBloods,
       };
     });
   }, [matchHistory, matchLimit]);
@@ -300,6 +310,12 @@ function PerformanceChartsComponent({
           ? Math.round((m.headshots / (m.kills + m.assists || 1)) * 100)
           : m.headshotPct || 20;
       const matchSpi = calculateSingleMatchSPI(m, m.role);
+      const rounds = Math.max(m.roundsPlayed || 1, 1);
+      const adr = Math.round((m.damage || m.kills * 155) / rounds);
+      const killsCount = m.kills || 0;
+      const firstBloods = m.firstBloods || 0;
+      const winVal = m.won ? 100 : 0;
+
       return {
         index: idx + 1,
         matchId: m.matchId,
@@ -315,6 +331,10 @@ function PerformanceChartsComponent({
         spi: matchSpi.score,
         spiGrade: matchSpi.grade,
         spiColor: matchSpi.gradeColor,
+        kills: killsCount,
+        adr,
+        wr: winVal,
+        fb: firstBloods,
       };
     });
   }, [comparisonMatchHistory, matchLimit]);
@@ -366,6 +386,26 @@ function PerformanceChartsComponent({
     comparisonValues = comparisonChartData.map((d) => d.spi);
     formatVal = (v: number) => `${Math.round(v)} pts`;
     threshold = 500;
+  } else if (activeMetric === "kills") {
+    values = chartData.map((d) => d.kills);
+    comparisonValues = comparisonChartData.map((d) => d.kills);
+    formatVal = (v: number) => `${Math.round(v)} frags`;
+    threshold = 15;
+  } else if (activeMetric === "adr") {
+    values = chartData.map((d) => d.adr);
+    comparisonValues = comparisonChartData.map((d) => d.adr);
+    formatVal = (v: number) => `${Math.round(v)} dmg`;
+    threshold = 140;
+  } else if (activeMetric === "wr") {
+    values = chartData.map((d) => d.wr);
+    comparisonValues = comparisonChartData.map((d) => d.wr);
+    formatVal = (v: number) => `${Math.round(v)}%`;
+    threshold = 50;
+  } else if (activeMetric === "fb") {
+    values = chartData.map((d) => d.fb);
+    comparisonValues = comparisonChartData.map((d) => d.fb);
+    formatVal = (v: number) => `${Math.round(v)} FB`;
+    threshold = 2;
   } else {
     values = chartData.map((d) => d.hs);
     comparisonValues = comparisonChartData.map((d) => d.hs);
@@ -380,7 +420,14 @@ function PerformanceChartsComponent({
 
   const points = chartData.map((d, i) => {
     const x = padding.left + (i / Math.max(1, chartData.length - 1)) * graphWidth;
-    const val = activeMetric === "kd" ? d.kd : activeMetric === "acs" ? d.acs : activeMetric === "spi" ? d.spi : d.hs;
+    const val =
+      activeMetric === "kd" ? d.kd :
+      activeMetric === "acs" ? d.acs :
+      activeMetric === "spi" ? d.spi :
+      activeMetric === "kills" ? d.kills :
+      activeMetric === "adr" ? d.adr :
+      activeMetric === "wr" ? d.wr :
+      activeMetric === "fb" ? d.fb : d.hs;
     const y = padding.top + graphHeight - ((val - minVal) / valRange) * graphHeight;
     return { ...d, x: Number.isFinite(x) ? x : 0, y: Number.isFinite(y) ? y : 0, currentVal: val };
   });
@@ -396,7 +443,14 @@ function PerformanceChartsComponent({
   // Points & courbe de comparaison pour l'utilisateur visiteur
   const comparisonPoints = comparisonChartData.map((d, i) => {
     const x = padding.left + (i / Math.max(1, comparisonChartData.length - 1)) * graphWidth;
-    const val = activeMetric === "kd" ? d.kd : activeMetric === "acs" ? d.acs : activeMetric === "spi" ? d.spi : d.hs;
+    const val =
+      activeMetric === "kd" ? d.kd :
+      activeMetric === "acs" ? d.acs :
+      activeMetric === "spi" ? d.spi :
+      activeMetric === "kills" ? d.kills :
+      activeMetric === "adr" ? d.adr :
+      activeMetric === "wr" ? d.wr :
+      activeMetric === "fb" ? d.fb : d.hs;
     const y = padding.top + graphHeight - ((val - minVal) / valRange) * graphHeight;
     return { ...d, x: Number.isFinite(x) ? x : 0, y: Number.isFinite(y) ? y : 0, currentVal: val };
   });
@@ -549,6 +603,10 @@ function PerformanceChartsComponent({
               { id: "acs" as MetricType, label: "ACS" },
               { id: "hs" as MetricType, label: "HS%" },
               { id: "spi" as MetricType, label: "SPI" },
+              { id: "kills" as MetricType, label: "Frags" },
+              { id: "adr" as MetricType, label: "ADR" },
+              { id: "wr" as MetricType, label: "Win%" },
+              { id: "fb" as MetricType, label: "FB" },
             ]
               .filter((m) => validAllowedMetrics.includes(m.id))
               .map((m) => {
