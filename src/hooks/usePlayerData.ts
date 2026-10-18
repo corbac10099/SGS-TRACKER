@@ -477,6 +477,11 @@ export function usePlayerData(
         } else {
           nav.setTargetNewsId(null);
         }
+
+        const urlMatchId = new URLSearchParams(window.location.search).get("match");
+        if (urlMatchId) {
+          urlTab = "matches";
+        }
         if (urlTab) nav.setActiveTab(urlTab);
 
         const targetRiotId = urlRiotId || initialRiotId;
@@ -559,6 +564,11 @@ export function usePlayerData(
             urlTab = "performance";
           }
         }
+      }
+
+      const urlMatchId = new URLSearchParams(window.location.search).get("match");
+      if (urlMatchId) {
+        urlTab = "matches";
       }
 
       if (urlTab) nav.setActiveTab(urlTab);

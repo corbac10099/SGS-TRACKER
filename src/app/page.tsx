@@ -250,6 +250,12 @@ export function HomeContent({
       nav.setAgentsView(false);
       nav.setLobbiesView(false);
     }
+
+    const matchParam = searchParams?.get("match");
+    if (matchParam) {
+      setHighlightedMatchId(matchParam);
+      nav.setActiveTab("matches");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 

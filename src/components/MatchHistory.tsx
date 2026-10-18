@@ -1571,13 +1571,15 @@ function MatchHistoryComponent({
       let attempts = 0;
       const scrollInterval = setInterval(() => {
         attempts++;
-        const el = document.getElementById(`match-${highlightedMatchId}`);
+        const el =
+          document.getElementById(`match-${highlightedMatchId}`) ||
+          document.querySelector(`[data-match-id="${highlightedMatchId}"]`);
         if (el) {
           const yOffset = -90; // offset sous le header sticky
           const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
           window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
           clearInterval(scrollInterval);
-        } else if (attempts > 20) {
+        } else if (attempts > 30) {
           clearInterval(scrollInterval);
         }
       }, 100);
@@ -1665,6 +1667,7 @@ function MatchHistoryComponent({
           <React.Fragment key={mId}>
             <div
               id={`match-${mId}`}
+              data-match-id={mId}
               className={`w-full flex flex-col gap-2 rounded-2xl transition-all duration-500 ${
               isTargeted
                 ? "ring-2 ring-[var(--color-val-red)] shadow-[0_0_25px_rgba(255,70,85,0.7)] p-1 bg-[var(--color-val-red)]/10 animate-pulse"
