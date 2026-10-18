@@ -88,11 +88,13 @@ export interface PushUrlOptions {
 
 export function useNavigation(
   initialLobbiesView = false,
-  initialLeaderboardView = false
+  initialLeaderboardView = false,
+  initialNewsView = false,
+  initialAgentsView = false
 ): NavigationState {
   const [activeTab, setActiveTab] = useState("performance");
-  const [newsView, setNewsView] = useState(false);
-  const [agentsView, setAgentsView] = useState(false);
+  const [newsView, setNewsView] = useState(initialNewsView);
+  const [agentsView, setAgentsView] = useState(initialAgentsView);
   const [lobbiesView, setLobbiesView] = useState(initialLobbiesView);
   const [leaderboardView, setLeaderboardView] = useState(
     initialLeaderboardView

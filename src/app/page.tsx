@@ -63,9 +63,13 @@ function DebugPanel() {
 export function HomeContent({
   initialLobbiesView = false,
   initialLeaderboardView = false,
+  initialNewsView = false,
+  initialAgentsView = false,
 }: {
   initialLobbiesView?: boolean;
   initialLeaderboardView?: boolean;
+  initialNewsView?: boolean;
+  initialAgentsView?: boolean;
 } = {}) {
   const searchParams = useSearchParams();
   const { lang: locale, setLanguage: setAppLanguage } = useLanguage();
@@ -73,7 +77,12 @@ export function HomeContent({
   // ─── Hooks Fondamentaux ────────────────────────────────────
   const auth = useAuth(searchParams);
   const settings = useSettings();
-  const nav = useNavigation(initialLobbiesView, initialLeaderboardView);
+  const nav = useNavigation(
+    initialLobbiesView,
+    initialLeaderboardView,
+    initialNewsView,
+    initialAgentsView
+  );
   const favorites = useFavorites(auth.session);
   const player = usePlayerData(auth, nav, settings, setAppLanguage);
   const filters = useFilters(
@@ -327,35 +336,58 @@ export function HomeContent({
   };
 
   // ─── Early returns (Auth & Loading) ───────────────────────
+  // Si déconnecté, on affiche la page d'atterrissage complète (LandingPage)
+  if (auth.status === "unauthenticated" && !auth.isDemo) {
+    return (
+      <>
+        <LandingPage
+          onEnterBeta={auth.handleEnterBeta}
+          onOpenLogin={() => auth.setLoginModalOpen(true)}
+        />
+        <LoginModal
+          isOpen={auth.loginModalOpen}
+          onClose={() => auth.setLoginModalOpen(false)}
+        />
+      </>
+    );
+  }
+
+  // Pendant le chargement initial de la session (SSR / premier affichage) :
+  // Si un joueur ou match spécifique est ciblé dans l'URL, on affiche l'écran de chargement dédié.
+  // Sinon, on pré-rend la LandingPage complète afin que les robots d'indexation (Google, Bing, IA)
+  // disposent de l'intégralité du contenu textuel, des titres H1/H2 et des liens SEO.
   if (auth.status === "loading") {
-    if (auth.loginModalOpen) {
+    const hasSpecificTarget = searchParams?.get("player") || searchParams?.get("match");
+    if (hasSpecificTarget) {
       return (
-        <>
-          <LandingPage
-            onEnterBeta={auth.handleEnterBeta}
-            onOpenLogin={() => auth.setLoginModalOpen(true)}
-          />
-          <LoginModal
-            isOpen={auth.loginModalOpen}
-            onClose={() => auth.setLoginModalOpen(false)}
-          />
-        </>
+        <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-[#0a0e13]">
+          <div className="w-16 h-16 rounded-2xl mb-6 overflow-hidden shadow-[0_0_30px_rgba(255,70,85,0.4)] animate-pulse">
+            <img
+              src="/sgs-icon.jpg"
+              alt="SGS"
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <p className="text-[var(--color-val-red)] font-black tracking-widest uppercase text-sm animate-pulse">
+            Chargement des données de jeu...
+          </p>
+        </div>
       );
     }
 
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-[#0a0e13]">
-        <div className="w-16 h-16 rounded-2xl mb-6 overflow-hidden shadow-[0_0_30px_rgba(255,70,85,0.4)] animate-pulse">
-          <img
-            src="/sgs-icon.jpg"
-            alt="SGS"
-            className="w-full h-full object-cover"
+      <>
+        <LandingPage
+          onEnterBeta={auth.handleEnterBeta}
+          onOpenLogin={() => auth.setLoginModalOpen(true)}
+        />
+        {auth.loginModalOpen && (
+          <LoginModal
+            isOpen={auth.loginModalOpen}
+            onClose={() => auth.setLoginModalOpen(false)}
           />
-        </div>
-        <p className="text-[var(--color-val-red)] font-black tracking-widest uppercase text-sm animate-pulse">
-          Chargement de SGS-Tracker...
-        </p>
-      </div>
+        )}
+      </>
     );
   }
 

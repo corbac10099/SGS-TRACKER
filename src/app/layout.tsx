@@ -8,7 +8,14 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://spycam-tan.vercel.app";
+import seoConfig from "@/data/seo_config.json";
+
+const rawEnvUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL;
+const SITE_URL = (
+  rawEnvUrl && !rawEnvUrl.includes("127.0.0.1") && !rawEnvUrl.includes("localhost")
+    ? rawEnvUrl
+    : (seoConfig?.canonicalUrl || "https://spycam-tan.vercel.app")
+).replace(/\/$/, "");
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
