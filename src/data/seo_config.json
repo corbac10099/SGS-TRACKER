@@ -1,5 +1,5 @@
 {
-  "canonicalUrl": "https://spycam-tan.vercel.app",
+  "canonicalUrl": "https://tracker-sgs.vercel.app",
   "robots": {
     "allowAll": true,
     "disallowPaths": [
@@ -14,7 +14,7 @@
     "pages": [
       {
         "path": "",
-        "priority": 1.0,
+        "priority": 1,
         "changeFrequency": "daily"
       },
       {
