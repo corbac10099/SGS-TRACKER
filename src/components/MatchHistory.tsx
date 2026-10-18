@@ -20,6 +20,7 @@ export interface MatchHistoryProps {
   currentPlayerRankTier?: number;
   highlightedMatchId?: string | null;
   isLoading?: boolean;
+  onMatchToggle?: (matchId: string | null) => void;
 }
 
 export const SkullIcon = React.memo(({ className }: { className?: string }) => (
@@ -1553,6 +1554,7 @@ function MatchHistoryComponent({
   currentPlayerRankTier,
   highlightedMatchId,
   isLoading = false,
+  onMatchToggle,
 }: MatchHistoryProps) {
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(
@@ -1658,7 +1660,9 @@ function MatchHistoryComponent({
               onClick={() => {
                 sounds.playClick();
                 if (activeHighlightId) setActiveHighlightId(null);
-                setExpandedMatchId(isExpanded ? null : mId);
+                const newId = isExpanded ? null : mId;
+                setExpandedMatchId(newId);
+                onMatchToggle?.(newId);
               }}
               className={`w-full glass-panel-interactive rounded-2xl p-4 flex items-center gap-3 sm:gap-4 border-l-4 cursor-pointer select-none ${
                 match.won

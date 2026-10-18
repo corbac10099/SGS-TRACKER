@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 
@@ -137,6 +137,46 @@ export function HomeContent({
     null
   );
 
+  // Lire le matchId depuis l'URL au montage initial (?match=xxx)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlMatchId = new URLSearchParams(window.location.search).get("match");
+    if (urlMatchId) {
+      setHighlightedMatchId(urlMatchId);
+      nav.setActiveTab("matches");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Callback déclenché par MatchHistory quand un match est ouvert/fermé
+  const handleMatchToggle = useCallback(
+    (matchId: string | null) => {
+      const isOwn =
+        player.myRiotId &&
+        player.riotId.toLowerCase() === player.myRiotId.toLowerCase();
+      nav.pushUrl({
+        tab: "matches",
+        playerId: player.riotId || player.myRiotId,
+        isOwnProfile: !!isOwn,
+        matchId: matchId || undefined,
+      });
+    },
+    [nav, player.riotId, player.myRiotId]
+  );
+  // Écouter les changements d'URL (back/forward) pour le matchId
+  useEffect(() => {
+    const handlePopMatch = () => {
+      const urlMatchId = new URLSearchParams(window.location.search).get("match");
+      setHighlightedMatchId(urlMatchId || null);
+      if (urlMatchId) {
+        nav.setActiveTab("matches");
+      }
+    };
+    window.addEventListener("popstate", handlePopMatch);
+    return () => window.removeEventListener("popstate", handlePopMatch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     preloadCriticalDataForOffline();
   }, []);
@@ -236,6 +276,7 @@ export function HomeContent({
       tab: "matches",
       playerId: player.riotId || player.myRiotId,
       isOwnProfile: !!isOwn,
+      matchId,
     });
     setHighlightedMatchId(matchId);
 
@@ -510,6 +551,7 @@ export function HomeContent({
               currentPlayerRankTier={p?.rankTier}
               highlightedMatchId={highlightedMatchId}
               isLoading={player.loading && (!filters.filteredMatches || filters.filteredMatches.length === 0)}
+              onMatchToggle={handleMatchToggle}
             />
           </div>
         )}

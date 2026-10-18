@@ -83,6 +83,7 @@ export interface PushUrlOptions {
   agentSlug?: string | null;
   settingsTab?: string | null;
   newsId?: string | null;
+  matchId?: string | null;
 }
 
 export function useNavigation(
@@ -173,6 +174,7 @@ export function useNavigation(
       const agentSlug = opts?.agentSlug;
       const sTab = opts?.settingsTab;
       const newsId = opts?.newsId;
+      const matchId = opts?.matchId;
 
       let path = "/";
 
@@ -225,6 +227,9 @@ export function useNavigation(
       const query = new URLSearchParams();
       if (view === "news" && newsId) {
         query.set("newsId", newsId);
+      }
+      if (matchId) {
+        query.set("match", matchId);
       }
       const finalPath = query.toString() ? `${path}?${query.toString()}` : path;
       if (
