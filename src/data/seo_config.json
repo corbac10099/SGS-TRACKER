@@ -1,0 +1,77 @@
+{
+  "canonicalUrl": "https://spycam-tan.vercel.app",
+  "robots": {
+    "allowAll": true,
+    "disallowPaths": [
+      "/api/admin",
+      "/api/cron"
+    ],
+    "aiBotsAllowed": true,
+    "customRules": ""
+  },
+  "sitemap": {
+    "includeDynamicAgents": true,
+    "pages": [
+      {
+        "path": "",
+        "priority": 1.0,
+        "changeFrequency": "daily"
+      },
+      {
+        "path": "/download",
+        "priority": 0.95,
+        "changeFrequency": "weekly"
+      },
+      {
+        "path": "/leaderboard",
+        "priority": 0.9,
+        "changeFrequency": "daily"
+      },
+      {
+        "path": "/salons",
+        "priority": 0.85,
+        "changeFrequency": "daily"
+      },
+      {
+        "path": "/actualites",
+        "priority": 0.85,
+        "changeFrequency": "daily"
+      },
+      {
+        "path": "/agents",
+        "priority": 0.85,
+        "changeFrequency": "weekly"
+      },
+      {
+        "path": "/login",
+        "priority": 0.7,
+        "changeFrequency": "monthly"
+      },
+      {
+        "path": "/register",
+        "priority": 0.7,
+        "changeFrequency": "monthly"
+      },
+      {
+        "path": "/onboarding",
+        "priority": 0.5,
+        "changeFrequency": "monthly"
+      },
+      {
+        "path": "/cgu",
+        "priority": 0.3,
+        "changeFrequency": "monthly"
+      },
+      {
+        "path": "/confidentialite",
+        "priority": 0.3,
+        "changeFrequency": "monthly"
+      },
+      {
+        "path": "/mentions-legales",
+        "priority": 0.3,
+        "changeFrequency": "monthly"
+      }
+    ]
+  }
+}
