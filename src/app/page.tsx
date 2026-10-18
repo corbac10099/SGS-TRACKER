@@ -177,6 +177,18 @@ export function HomeContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // S'assurer que le match ciblé est visible dans la pagination si nécessaire
+  useEffect(() => {
+    if (highlightedMatchId && filters.filteredMatches && filters.filteredMatches.length > 0) {
+      const matchIdx = filters.filteredMatches.findIndex(
+        (m: any) => (m.matchId || m.id) === highlightedMatchId
+      );
+      if (matchIdx >= 0 && matchIdx >= filters.visibleMatchesCount) {
+        filters.setVisibleMatchesCount(matchIdx + 10);
+      }
+    }
+  }, [highlightedMatchId, filters.filteredMatches, filters.visibleMatchesCount, filters]);
+
   useEffect(() => {
     preloadCriticalDataForOffline();
   }, []);

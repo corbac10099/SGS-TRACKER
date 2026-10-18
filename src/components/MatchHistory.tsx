@@ -1561,35 +1561,51 @@ function MatchHistoryComponent({
     highlightedMatchId || null
   );
 
-  // Auto-expansion et ouverture animée lorsqu'un match spécifique est ciblé
+  // Auto-expansion, surbrillance et défilement fluide lorsqu'un match spécifique est ciblé (comme les actus)
   useEffect(() => {
-    if (highlightedMatchId) {
+    if (highlightedMatchId && matches && matches.length > 0) {
       setActiveHighlightId(highlightedMatchId);
       setExpandedMatchId(highlightedMatchId);
+
+      // Défilement fluide vers le match ciblé avec retries pour attendre le rendu du DOM
+      let attempts = 0;
+      const scrollInterval = setInterval(() => {
+        attempts++;
+        const el = document.getElementById(`match-${highlightedMatchId}`);
+        if (el) {
+          const yOffset = -90; // offset sous le header sticky
+          const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+          window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+          clearInterval(scrollInterval);
+        } else if (attempts > 20) {
+          clearInterval(scrollInterval);
+        }
+      }, 100);
 
       // Arrêt de l'animation de surbrillance dès le premier clic de souris
       const stopHighlight = () => {
         setActiveHighlightId(null);
       };
 
-      // Délai de 250ms pour ignorer le clic initial de la navigation
+      // Délai pour ignorer le clic initial de la navigation
       const timer = setTimeout(() => {
         window.addEventListener("pointerdown", stopHighlight, { once: true });
         window.addEventListener("click", stopHighlight, { once: true });
-      }, 250);
+      }, 350);
 
       const autoTimer = setTimeout(() => {
         setActiveHighlightId(null);
-      }, 8000);
+      }, 7000);
 
       return () => {
+        clearInterval(scrollInterval);
         clearTimeout(timer);
         clearTimeout(autoTimer);
         window.removeEventListener("pointerdown", stopHighlight);
         window.removeEventListener("click", stopHighlight);
       };
     }
-  }, [highlightedMatchId]);
+  }, [highlightedMatchId, matches]);
 
   if (!matches || matches.length === 0) {
     if (isLoading) {
