@@ -186,11 +186,25 @@ export function getPlayerRank(
   };
 }
 
-export const PlayerRow = React.memo(function PlayerRow({ player, isWinnerTeam }: { player: any; isWinnerTeam?: boolean }) {
-  const spi = calculateSingleMatchSPI({
-    ...player,
-    won: player.won !== undefined ? player.won : isWinnerTeam ?? false,
-  }, player.role);
+export const PlayerRow = React.memo(function PlayerRow({
+  player,
+  isWinnerTeam,
+  mySpi,
+}: {
+  player: any;
+  isWinnerTeam?: boolean;
+  mySpi?: any;
+}) {
+  const spi =
+    player.isMe && mySpi
+      ? mySpi
+      : calculateSingleMatchSPI(
+          {
+            ...player,
+            won: player.won !== undefined ? player.won : isWinnerTeam ?? false,
+          },
+          player.role
+        );
   const pRank = getPlayerRank(player);
 
   return (
@@ -274,7 +288,15 @@ const MATCH_TABS = [
   { id: "killmap", label: "Killmap 2D" },
 ];
 
-export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPlayer }: { match: any; searchPlayer: (id: string) => void }) {
+export const ExpandedMatch = React.memo(function ExpandedMatch({
+  match,
+  searchPlayer,
+  spi,
+}: {
+  match: any;
+  searchPlayer: (id: string) => void;
+  spi?: any;
+}) {
   const modeInfo = resolveGameMode(match.mode);
   const [tab, setTab] = useState<"overview" | "scoreboard" | "timeline" | "duels" | "economy" | "killmap">("overview");
   const [isExporting, setIsExporting] = useState(false);
@@ -485,7 +507,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
               {[...(match.myTeam || []), ...(match.enemyTeam || [])]
                 .sort((a, b) => b.kills - a.kills || b.acs - a.acs)
                 .map((p: any, pIdx: number) => (
-                  <PlayerRow key={p.puuid} player={p} isWinnerTeam={pIdx === 0} />
+                  <PlayerRow key={p.puuid} player={p} isWinnerTeam={pIdx === 0} mySpi={spi} />
                 ))}
             </div>
           </div>
@@ -541,7 +563,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
                     </div>
                     <div className="space-y-1.5">
                       {team.players?.map((p: any) => (
-                        <PlayerRow key={p.puuid} player={p} isWinnerTeam={isTop1} />
+                        <PlayerRow key={p.puuid} player={p} isWinnerTeam={isTop1} mySpi={spi} />
                       ))}
                     </div>
                   </div>
@@ -556,7 +578,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
                 Équipe Victoire
               </h4>
               {(match.won ? match.myTeam : match.enemyTeam)?.map((p: any) => (
-                <PlayerRow key={p.puuid} player={p} isWinnerTeam={true} />
+                <PlayerRow key={p.puuid} player={p} isWinnerTeam={true} mySpi={spi} />
               ))}
             </div>
             <div className="w-px bg-[var(--color-border)] hidden md:block"></div>
@@ -565,7 +587,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
                 Équipe Défaite
               </h4>
               {(match.won ? match.enemyTeam : match.myTeam)?.map((p: any) => (
-                <PlayerRow key={p.puuid} player={p} isWinnerTeam={false} />
+                <PlayerRow key={p.puuid} player={p} isWinnerTeam={false} mySpi={spi} />
               ))}
             </div>
           </div>
@@ -593,10 +615,16 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({ match, searchPl
                 .sort((a, b) => b.acs - a.acs)
                 .map((p: any, idx: number) => {
                   const pWon = p.won !== undefined ? p.won : (match.myTeam?.some((m: any) => m.puuid === p.puuid) ? match.won : !match.won);
-                  const pSpi = calculateSingleMatchSPI({
-                    ...p,
-                    won: pWon,
-                  }, p.role);
+                  const pSpi =
+                    p.isMe && spi
+                      ? spi
+                      : calculateSingleMatchSPI(
+                          {
+                            ...p,
+                            won: pWon,
+                          },
+                          p.role
+                        );
                   const pRank = getPlayerRank(p);
 
                   return (
@@ -1078,7 +1106,7 @@ function MatchHistoryComponent({
               }}
             >
               <div className="overflow-hidden">
-                <ExpandedMatch match={match} searchPlayer={searchPlayer} />
+                <ExpandedMatch match={match} searchPlayer={searchPlayer} spi={spi} />
               </div>
             </div>
           </div>

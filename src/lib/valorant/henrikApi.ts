@@ -330,6 +330,13 @@ export function parseHenrikMatchesList(
         const resolvedPName = p.name || p.game_name || p.riot_id_name || p.player_display_name || (isMePlayer ? realName : `Joueur ${myTeam.length + enemyTeam.length + 1}`);
         const resolvedPTag = p.tag || p.tag_line || p.riot_id_tag || "EU1";
 
+        const pHs = p.stats?.headshots ?? (isMePlayer ? headshots : 0);
+        const pBs = p.stats?.bodyshots ?? (isMePlayer ? bodyshots : 0);
+        const pLs = p.stats?.legshots ?? (isMePlayer ? legshots : 0);
+        const pDamage = p.damage_made ?? (isMePlayer ? damage : pKills * 150);
+        const pTotalShots = pHs + pBs + pLs;
+        const pHsPct = pTotalShots > 0 ? Math.round((pHs / pTotalShots) * 100) : 22;
+
         const teamPlayerObj = {
           puuid: p.puuid || `player-${resolvedPName}-${myTeam.length + enemyTeam.length}`,
           name: resolvedPName,
@@ -344,8 +351,11 @@ export function parseHenrikMatchesList(
           kills: pKills,
           deaths: pDeaths,
           assists: pAssists,
+          headshots: pHs,
+          headshotPct: pHsPct,
+          damage: pDamage,
           team: pTeamKey,
-          econScore: Math.round(p.economy?.spent?.average || (p.damage_made ? p.damage_made / 20 : 65)),
+          econScore: Math.round(p.economy?.spent?.average || (pDamage / 20 || 65)),
           firstBloods: p.first_bloods || (pKills > 15 ? 3 : pKills > 10 ? 2 : 1),
           isMe: isMePlayer,
           isPublicProfile: true,
