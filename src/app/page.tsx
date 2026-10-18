@@ -353,12 +353,19 @@ export function HomeContent({
   }
 
   // Pendant le chargement initial de la session (SSR / premier affichage) :
-  // Si un joueur ou match spécifique est ciblé dans l'URL, on affiche l'écran de chargement dédié.
-  // Sinon, on pré-rend la LandingPage complète afin que les robots d'indexation (Google, Bing, IA)
-  // disposent de l'intégralité du contenu textuel, des titres H1/H2 et des liens SEO.
+  // Si l'utilisateur est déjà connecté dans son navigateur (cookie de session NextAuth ou profil en cache),
+  // on affiche un squelette de profil élégant pour éviter tout flash de la LandingPage au refresh.
+  // Pour un premier visiteur ou un robot d'indexation (SSR sans cookie), on pré-rend la LandingPage complète pour le SEO.
   if (auth.status === "loading") {
     const hasSpecificTarget = searchParams?.get("player") || searchParams?.get("match");
-    if (hasSpecificTarget) {
+    const hasExistingSession =
+      typeof window !== "undefined" &&
+      (document.cookie.includes("next-auth.session-token") ||
+        document.cookie.includes("__Secure-next-auth.session-token") ||
+        sessionStorage.getItem("spycam_guest_mode") === "true" ||
+        localStorage.getItem("spycam_my_riot_id"));
+
+    if (hasSpecificTarget || hasExistingSession) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-[#0a0e13]">
           <div className="w-16 h-16 rounded-2xl mb-6 overflow-hidden shadow-[0_0_30px_rgba(255,70,85,0.4)] animate-pulse">
@@ -369,7 +376,7 @@ export function HomeContent({
             />
           </div>
           <p className="text-[var(--color-val-red)] font-black tracking-widest uppercase text-sm animate-pulse">
-            Chargement des données de jeu...
+            Chargement de votre session SGS...
           </p>
         </div>
       );
