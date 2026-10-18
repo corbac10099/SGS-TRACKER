@@ -1561,11 +1561,18 @@ function MatchHistoryComponent({
     highlightedMatchId || null
   );
 
+  const hasScrolledToRef = useRef<string | null>(null);
+
   // Auto-expansion, surbrillance et défilement fluide lorsqu'un match spécifique est ciblé (comme les actus)
   useEffect(() => {
     if (highlightedMatchId && matches && matches.length > 0) {
       setActiveHighlightId(highlightedMatchId);
       setExpandedMatchId(highlightedMatchId);
+
+      // Si on a déjà défilé vers ce match spécifique, ne pas re-scroller à chaque mise à jour des données
+      if (hasScrolledToRef.current === highlightedMatchId) {
+        return;
+      }
 
       // Défilement fluide vers le match ciblé avec retries pour attendre le rendu du DOM
       let attempts = 0;
@@ -1575,6 +1582,7 @@ function MatchHistoryComponent({
           document.getElementById(`match-${highlightedMatchId}`) ||
           document.querySelector(`[data-match-id="${highlightedMatchId}"]`);
         if (el) {
+          hasScrolledToRef.current = highlightedMatchId;
           const yOffset = -90; // offset sous le header sticky
           const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
           window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
@@ -1582,7 +1590,7 @@ function MatchHistoryComponent({
         } else if (attempts > 30) {
           clearInterval(scrollInterval);
         }
-      }, 100);
+      }, 80);
 
       // Arrêt de l'animation de surbrillance dès le premier clic de souris
       const stopHighlight = () => {
@@ -1606,6 +1614,8 @@ function MatchHistoryComponent({
         window.removeEventListener("pointerdown", stopHighlight);
         window.removeEventListener("click", stopHighlight);
       };
+    } else if (!highlightedMatchId) {
+      hasScrolledToRef.current = null;
     }
   }, [highlightedMatchId, matches]);
 

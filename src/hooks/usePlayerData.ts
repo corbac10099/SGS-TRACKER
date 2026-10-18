@@ -187,9 +187,17 @@ export function usePlayerData(
                     const mergedPlayer = {
                       ...(prev?.player || {}),
                       ...(data.player || data),
+                      matchHistory: (data.player || data).matchHistory || prev?.player?.matchHistory || prev?.matchHistory,
+                      stats: (data.player || data).stats || prev?.player?.stats || prev?.stats,
+                      agentStats: (data.player || data).agentStats || prev?.player?.agentStats || prev?.agentStats,
                     };
                     return {
                       ...(prev || {}),
+                      matchHistory: prev?.matchHistory || mergedPlayer.matchHistory,
+                      stats: prev?.stats || mergedPlayer.stats,
+                      agentStats: prev?.agentStats || mergedPlayer.agentStats,
+                      weapons: prev?.weapons,
+                      mainAgent: prev?.mainAgent,
                       player: mergedPlayer,
                       gameName: mergedPlayer.gameName,
                       tagLine: mergedPlayer.tagLine,
@@ -204,11 +212,19 @@ export function usePlayerData(
                     rank: data.rank,
                     rankUrl: data.rankUrl,
                     rankTier: data.rankTier,
+                    matchHistory: prev?.matchHistory,
+                    stats: prev?.stats,
+                    agentStats: prev?.agentStats,
+                    weapons: prev?.weapons,
+                    mainAgent: prev?.mainAgent,
                     player: {
                       ...(prev?.player || {}),
                       rank: data.rank,
                       rankUrl: data.rankUrl,
                       rankTier: data.rankTier,
+                      matchHistory: prev?.player?.matchHistory || prev?.matchHistory,
+                      stats: prev?.player?.stats || prev?.stats,
+                      agentStats: prev?.player?.agentStats || prev?.agentStats,
                     },
                   }));
                 } else if (type === "stats") {
