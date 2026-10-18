@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 
@@ -136,6 +136,7 @@ export function HomeContent({
   const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(
     null
   );
+  const justToggledMatchRef = useRef<string | null>(null);
 
   // Lire le matchId depuis l'URL au montage initial (?match=xxx)
   useEffect(() => {
@@ -148,9 +149,10 @@ export function HomeContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Callback déclenché par MatchHistory quand un match est ouvert/fermé
+  // Callback déclenché par MatchHistory quand un match est ouvert/fermé manuellement
   const handleMatchToggle = useCallback(
     (matchId: string | null) => {
+      justToggledMatchRef.current = matchId;
       const isOwn =
         player.myRiotId &&
         player.riotId.toLowerCase() === player.myRiotId.toLowerCase();
@@ -253,8 +255,16 @@ export function HomeContent({
 
     const matchParam = searchParams?.get("match");
     if (matchParam) {
-      setHighlightedMatchId(matchParam);
-      nav.setActiveTab("matches");
+      if (justToggledMatchRef.current === matchParam) {
+        // C'est un clic direct sur le match dans la liste : on a déjà ouvert le match, ne pas re-scroller ni ré-animer
+        justToggledMatchRef.current = null;
+      } else {
+        // Arrivée externe via URL ou navigation externe : cibler et faire défiler vers le match
+        setHighlightedMatchId(matchParam);
+        nav.setActiveTab("matches");
+      }
+    } else {
+      justToggledMatchRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
