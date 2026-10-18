@@ -153,6 +153,7 @@ export function HomeContent({
   const handleMatchToggle = useCallback(
     (matchId: string | null) => {
       justToggledMatchRef.current = matchId;
+      setHighlightedMatchId(null);
       const isOwn =
         player.myRiotId &&
         player.riotId.toLowerCase() === player.myRiotId.toLowerCase();

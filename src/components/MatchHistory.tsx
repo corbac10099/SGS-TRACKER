@@ -1563,6 +1563,11 @@ function MatchHistoryComponent({
 
   const hasScrolledToRef = useRef<string | null>(null);
 
+  // Synchroniser la surbrillance si la prop change (ex: réinitialisation à null)
+  useEffect(() => {
+    setActiveHighlightId(highlightedMatchId || null);
+  }, [highlightedMatchId]);
+
   // Auto-expansion, surbrillance et défilement fluide lorsqu'un match spécifique est ciblé (comme les actus)
   useEffect(() => {
     if (highlightedMatchId && matches && matches.length > 0) {
@@ -1574,7 +1579,7 @@ function MatchHistoryComponent({
         return;
       }
 
-      // Défilement fluide vers le match ciblé avec retries pour attendre le rendu du DOM
+      // Attendre un bref cycle de rendu pour que le DOM soit stable avant de scroller
       let attempts = 0;
       const scrollInterval = setInterval(() => {
         attempts++;
@@ -1590,32 +1595,32 @@ function MatchHistoryComponent({
         } else if (attempts > 30) {
           clearInterval(scrollInterval);
         }
-      }, 80);
+      }, 50);
 
-      // Arrêt de l'animation de surbrillance dès le premier clic de souris
+      // Arrêt immédiat de l'animation de surbrillance dès le premier clic ou tap
       const stopHighlight = () => {
         setActiveHighlightId(null);
       };
 
-      // Délai pour ignorer le clic initial de la navigation
       const timer = setTimeout(() => {
-        window.addEventListener("pointerdown", stopHighlight, { once: true });
-        window.addEventListener("click", stopHighlight, { once: true });
-      }, 350);
+        window.addEventListener("pointerdown", stopHighlight, { capture: true, once: true });
+        window.addEventListener("click", stopHighlight, { capture: true, once: true });
+      }, 100);
 
       const autoTimer = setTimeout(() => {
         setActiveHighlightId(null);
-      }, 7000);
+      }, 5000);
 
       return () => {
         clearInterval(scrollInterval);
         clearTimeout(timer);
         clearTimeout(autoTimer);
-        window.removeEventListener("pointerdown", stopHighlight);
-        window.removeEventListener("click", stopHighlight);
+        window.removeEventListener("pointerdown", stopHighlight, { capture: true });
+        window.removeEventListener("click", stopHighlight, { capture: true });
       };
     } else if (!highlightedMatchId) {
       hasScrolledToRef.current = null;
+      setActiveHighlightId(null);
     }
   }, [highlightedMatchId, matches]);
 
