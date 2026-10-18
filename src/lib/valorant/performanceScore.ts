@@ -1,3 +1,5 @@
+import { resolveAgentDisplay } from "@/lib/valorant/agentsCatalog";
+
 export type PerformanceGrade = "SSS" | "SS" | "S" | "A" | "B" | "C";
 
 export type AgentRole = "Duelist" | "Initiator" | "Controller" | "Sentinel" | "Flex";
@@ -76,17 +78,16 @@ export interface TierInfo {
  */
 export function getTierInfo(rankTier?: number): TierInfo {
   const t = typeof rankTier === "number" && rankTier >= 0 ? rankTier : 0;
-  // Non classé / Unranked : niveau débutant non étalonné -> cap strict à 420 pts (Grade C)
-  if (t <= 2) return { name: "Non classé", multiplier: 0.68, maxCap: 420 };
-  if (t <= 5) return { name: "Fer", multiplier: 0.68, maxCap: 420 }; // Iron 1-3
-  if (t <= 8) return { name: "Bronze", multiplier: 0.74, maxCap: 520 }; // Bronze 1-3
-  if (t <= 11) return { name: "Argent", multiplier: 0.82, maxCap: 640 }; // Silver 1-3
-  if (t <= 14) return { name: "Or", multiplier: 0.89, maxCap: 740 }; // Gold 1-3
-  if (t <= 17) return { name: "Platine", multiplier: 0.95, maxCap: 840 }; // Platinum 1-3
-  if (t <= 20) return { name: "Diamant", multiplier: 1.00, maxCap: 910 }; // Diamond 1-3 (Référence)
-  if (t <= 23) return { name: "Ascendant", multiplier: 1.06, maxCap: 960 }; // Ascendant 1-3
-  if (t <= 26) return { name: "Immortel", multiplier: 1.15, maxCap: 1000 }; // Immortal 1-3
-  return { name: "Radiant", multiplier: 1.25, maxCap: 1000 }; // Radiant
+  if (t <= 2) return { name: "Non classé", multiplier: 0.90, maxCap: 850 };
+  if (t <= 5) return { name: "Fer", multiplier: 0.82, maxCap: 680 }; // Iron 1-3
+  if (t <= 8) return { name: "Bronze", multiplier: 0.88, maxCap: 760 }; // Bronze 1-3
+  if (t <= 11) return { name: "Argent", multiplier: 0.94, maxCap: 840 }; // Silver 1-3
+  if (t <= 14) return { name: "Or", multiplier: 0.98, maxCap: 900 }; // Gold 1-3
+  if (t <= 17) return { name: "Platine", multiplier: 1.00, maxCap: 940 }; // Platinum 1-3
+  if (t <= 20) return { name: "Diamant", multiplier: 1.02, maxCap: 970 }; // Diamond 1-3 (Référence)
+  if (t <= 23) return { name: "Ascendant", multiplier: 1.06, maxCap: 990 }; // Ascendant 1-3
+  if (t <= 26) return { name: "Immortel", multiplier: 1.12, maxCap: 1000 }; // Immortal 1-3
+  return { name: "Radiant", multiplier: 1.20, maxCap: 1000 }; // Radiant
 }
 
 /**
@@ -351,21 +352,12 @@ export function calculatePerformanceScore(
     combatMultiplier = Math.min(1.10, 1.0 + (kd - 1.05) * 0.10); // Léger boost haut K/D
   }
 
-  // Plafond statistique pur basé sur le ratio et l'impact général
-  // Ne bride pas sévèrement un joueur d'élite Radiant/Immo qui joue ancre
+  // Plafond statistique d'urgence uniquement en cas de stats critiques très basses
   let statCap = 1000;
-  if (effectiveTier < 21) {
-    if (kd < 0.72 && acs < 135) {
-      statCap = 280; // Plafonné au Grade C bas
-    } else if (kd < 0.85 && acs < 160) {
-      statCap = 380; // Plafonné au Grade C max
-    } else if (kd < 0.98 && acs < 185) {
-      statCap = 540; // Plafonné au Grade B
-    } else if (kd < 1.12 && acs < 215) {
-      statCap = 699; // Plafonné au Grade A
-    } else if (kd < 1.28 && acs < 245) {
-      statCap = 819; // Plafonné au Grade S
-    }
+  if (kd < 0.60 && acs < 110) {
+    statCap = 340; // Match très difficile
+  } else if (kd < 0.75 && acs < 135) {
+    statCap = 480; // Grade B max
   }
 
   // Somme brute des piliers (0 - 1000)
@@ -534,10 +526,13 @@ export interface SingleMatchSPIResult {
 }
 
 /**
- * Calcule le Score de Performance Spycam (SPI) spécifique à un match individuel.
- * Pour un match isolé, on évalue la qualité intrinsèque du match en simulant une pleine maturité d'échantillon.
+ * Calcule le Score de Performance Spycam (SPI) spécifique à un match individuel (0 à 1000).
+ * Évalue la performance réelle et l'impact du joueur dans la partie de manière équitable :
+ * - Pas de pénalité arbitraire de rang (un joueur non-classé ou argent qui carry est justement récompensé).
+ * - Pondération adaptée au rôle (les assists des Initiateurs/Contrôleurs ont un impact majeur).
+ * - Bonus modéré de victoire (+35 pts) qui ne détruit pas la note d'un Match MVP perdant.
  */
-export function calculateSingleMatchSPI(match: any, role?: AgentRole): SingleMatchSPIResult {
+export function calculateSingleMatchSPI(match: any, roleInput?: AgentRole): SingleMatchSPIResult {
   if (!match) {
     return {
       score: 500,
@@ -549,37 +544,108 @@ export function calculateSingleMatchSPI(match: any, role?: AgentRole): SingleMat
     };
   }
 
-  const deaths = match.deaths ?? 0;
-  const kills = match.kills ?? 0;
-  const assists = match.assists ?? 0;
-  const kd = deaths > 0 ? Number((kills / deaths).toFixed(2)) : kills;
-  const acs = match.acs || 180;
-  const hsPct = match.headshotPct || (match.headshots && kills ? Math.round((match.headshots / (kills + assists || 1)) * 100) : 20);
+  // Déterminer le rôle de l'agent
+  let role: AgentRole = roleInput || match.role || "Flex";
+  if ((!role || role === "Flex") && match.agent) {
+    const disp = resolveAgentDisplay(match.agent);
+    if (disp?.role && disp.role !== "Flex") {
+      role = disp.role as AgentRole;
+    }
+  }
+
+  const deaths = Number(match.deaths) || 0;
+  const kills = Number(match.kills) || 0;
+  const assists = Number(match.assists) || 0;
+  const kd = deaths > 0 ? Number((kills / deaths).toFixed(2)) : (kills > 0 ? kills : 1.0);
+  const diff = kills - deaths;
+  const acs = Number(match.acs) || Math.round(((Number(match.score) || 0) / 20) || (kills * 15));
+  const hsPct = Number(match.headshotPct) || (match.headshots && (kills + assists) ? Math.min(60, Math.round((match.headshots / (kills + assists)) * 100)) : 22);
   const won = !!match.won;
+  const firstBloods = Number(match.firstBloods) || 0;
 
-  const matchStats = {
-    kdRatio: kd,
-    kills,
-    deaths,
-    assists,
-    acs,
-    adr: acs * 0.72,
-    headshotPct: hsPct,
-    kast: won ? 76 : 64,
-    winRate: won ? 100 : 0,
-    ddDelta: (kd - 1) * 35,
-    matchesPlayed: 40, // Match unique évalué en pleine maturité
-  };
+  const isSupport = role === "Controller" || role === "Sentinel";
+  const isInitiator = role === "Initiator";
+  const isDuelist = role === "Duelist";
 
-  const matchTier = match.rankTier || match.tier || 20;
-  const res = calculatePerformanceScore(matchStats, [match], role || match.role || "Flex", matchTier);
+  // 1. Pilier Combat & Dégâts (max 350 pts)
+  // Les supports ont une pondération adaptée pour valoriser leur impact de contrôle
+  const effectiveAcs = isSupport ? acs * 1.12 : (isInitiator ? acs * 1.06 : acs);
+  const normCombat = Math.min(1.0, Math.max(0, (effectiveAcs - 70) / 280));
+  const combatScore = normCombat * 350;
+
+  // 2. Pilier Létalité & Duels (max 250 pts)
+  // Ratio K/D avec ajustement basé sur le différentiel net de kills
+  const normKd = Math.min(1.0, Math.max(0, (kd - 0.40) / 1.50));
+  const diffImpact = Math.max(-30, Math.min(30, diff * 2.5));
+  const lethalityScore = Math.max(0, Math.min(250, (normKd * 220) + diffImpact));
+
+  // 3. Pilier Utilité & Collectif (max 200 pts)
+  // Valorisation majeure des assists pour Initiateurs et Contrôleurs
+  const assistTarget = isInitiator ? 12 : (isSupport ? 10 : 8);
+  const normAssists = Math.min(1.0, assists / assistTarget);
+  const assistWeight = isInitiator || isSupport ? 160 : 130;
+  const kastWeight = isInitiator || isSupport ? 40 : 70;
+  const baseKast = won ? 0.78 : 0.68;
+  const teamworkScore = Math.min(200, (normAssists * assistWeight) + (baseKast * kastWeight));
+
+  // 4. Pilier Premiers Engagements (max 100 pts)
+  const fbTarget = isDuelist ? 4 : (isInitiator ? 2.5 : 2);
+  const normFb = Math.min(1.0, firstBloods / fbTarget);
+  const openingsScore = normFb * 100;
+
+  // 5. Précision & Impact Résultat (max 100 pts)
+  const winBonus = won ? 35 : 15;
+  const normHs = Math.min(1.0, Math.max(0, (hsPct - 10) / 28));
+  const precisionScore = winBonus + (normHs * 65);
+
+  const rawTotal = Math.round(combatScore + lethalityScore + teamworkScore + openingsScore + precisionScore);
+  const totalScore = Math.max(120, Math.min(990, rawTotal));
+
+  // Attribution précise et étalonnée des grades
+  let grade: PerformanceGrade = "C";
+  let gradeColor = "#94a3b8";
+  let gradeBg = "rgba(148, 163, 184, 0.15)";
+  let gradeBorder = "rgba(148, 163, 184, 0.4)";
+  let gradeGlow = "rgba(148, 163, 184, 0.25)";
+
+  if (totalScore >= 880) {
+    grade = "SSS";
+    gradeColor = "#fbbf24";
+    gradeBg = "rgba(251, 191, 36, 0.2)";
+    gradeBorder = "rgba(251, 191, 36, 0.6)";
+    gradeGlow = "0 0 25px rgba(251, 191, 36, 0.5)";
+  } else if (totalScore >= 770) {
+    grade = "SS";
+    gradeColor = "#ff4655";
+    gradeBg = "rgba(255, 70, 85, 0.2)";
+    gradeBorder = "rgba(255, 70, 85, 0.6)";
+    gradeGlow = "0 0 20px rgba(255, 70, 85, 0.4)";
+  } else if (totalScore >= 650) {
+    grade = "S";
+    gradeColor = "#a855f7";
+    gradeBg = "rgba(168, 85, 247, 0.2)";
+    gradeBorder = "rgba(168, 85, 247, 0.5)";
+    gradeGlow = "0 0 15px rgba(168, 85, 247, 0.35)";
+  } else if (totalScore >= 520) {
+    grade = "A";
+    gradeColor = "#38bdf8";
+    gradeBg = "rgba(56, 189, 248, 0.18)";
+    gradeBorder = "rgba(56, 189, 248, 0.45)";
+    gradeGlow = "0 0 12px rgba(56, 189, 248, 0.3)";
+  } else if (totalScore >= 380) {
+    grade = "B";
+    gradeColor = "#10b981";
+    gradeBg = "rgba(16, 185, 129, 0.15)";
+    gradeBorder = "rgba(16, 185, 129, 0.4)";
+    gradeGlow = "0 0 10px rgba(16, 185, 129, 0.25)";
+  }
 
   return {
-    score: res.totalScore,
-    grade: res.grade,
-    gradeColor: res.gradeColor,
-    gradeBg: res.gradeBg,
-    gradeBorder: res.gradeBorder,
-    gradeGlow: res.gradeGlow,
+    score: totalScore,
+    grade,
+    gradeColor,
+    gradeBg,
+    gradeBorder,
+    gradeGlow,
   };
 }
