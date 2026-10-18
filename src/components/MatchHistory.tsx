@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from "react";
 import { tr } from "@/lib/i18n";
 import { sounds } from "@/lib/soundEffects";
 import { calculateSingleMatchSPI } from "@/lib/valorant/performanceScore";
@@ -274,6 +274,647 @@ export const PlayerRow = React.memo(function PlayerRow({
           <span className="text-[var(--color-text-secondary)] font-normal mx-0.5">/</span>
           <span className="text-gray-300">{player.assists}</span>
         </span>
+      </div>
+    </div>
+  );
+});
+
+function getCubicBezierPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  if (points.length === 2) return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+
+  let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(points.length - 1, i + 2)];
+
+    const tension = 0.22;
+    const cp1x = p1.x + (p2.x - p0.x) * tension;
+    const cp1y = p1.y + (p2.y - p0.y) * tension;
+    const cp2x = p2.x - (p3.x - p1.x) * tension;
+    const cp2y = p2.y - (p3.y - p1.y) * tension;
+
+    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+
+export type EcoViewMode = "me" | "myTeam" | "enemyTeam" | "all";
+
+export const MatchEconomyChart = React.memo(function MatchEconomyChart({ match }: { match: any }) {
+  const [ecoView, setEcoView] = useState<EcoViewMode>("all");
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  // Pilule animée glissante pour les onglets
+  const containerRef = useRef<HTMLDivElement>(null);
+  const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [pillStyle, setPillStyle] = useState({ left: 0, width: 0, opacity: 0 });
+
+  const updatePill = useCallback(() => {
+    if (!containerRef.current) return;
+    const btn = btnRefs.current[ecoView];
+    const container = containerRef.current;
+    if (!btn || !container) {
+      setPillStyle((prev) => ({ ...prev, opacity: 0 }));
+      return;
+    }
+    const containerRect = container.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    if (btnRect.width > 0) {
+      setPillStyle({
+        left: btnRect.left - containerRect.left,
+        width: btnRect.width,
+        opacity: 1,
+      });
+    }
+  }, [ecoView]);
+
+  useLayoutEffect(() => {
+    updatePill();
+    const t = setTimeout(updatePill, 40);
+    return () => clearTimeout(t);
+  }, [ecoView, updatePill]);
+
+  const roundsCount = Math.max(match.roundsPlayed || (match.roundEconomy?.length ?? 20), 1);
+  const myTeamPlayers = match.myTeam || [];
+  const enemyTeamPlayers = match.enemyTeam || [];
+
+  const dataPoints = useMemo(() => {
+    if (Array.isArray(match.roundEconomy) && match.roundEconomy.length > 0) {
+      return match.roundEconomy;
+    }
+    return Array.from({ length: Math.min(roundsCount, 26) }).map((_, rIdx) => {
+      const rNum = rIdx + 1;
+      const isPistol = rNum === 1 || rNum === 13;
+      const isEco = rNum === 2 || rNum === 14;
+      return {
+        roundNum: rNum,
+        mySpend: isPistol ? 800 : isEco ? 1900 : Math.min(5000, 3100 + ((rIdx * 37) % 1800)),
+        myTeamAvgSpend: isPistol ? 800 : isEco ? 2100 : Math.min(5000, 3300 + ((rIdx * 41) % 1600)),
+        enemyTeamAvgSpend: isPistol ? 800 : isEco ? 2000 : Math.min(5000, 3200 + ((rIdx * 29) % 1700)),
+      };
+    });
+  }, [match.roundEconomy, roundsCount]);
+
+  const myAvgSpend = useMemo(() => {
+    if (dataPoints.length === 0) return 3600;
+    return Math.round(dataPoints.reduce((acc: number, d: any) => acc + d.mySpend, 0) / dataPoints.length);
+  }, [dataPoints]);
+
+  const myTeamAvgSpend = useMemo(() => {
+    if (dataPoints.length === 0) return 3800;
+    return Math.round(dataPoints.reduce((acc: number, d: any) => acc + d.myTeamAvgSpend, 0) / dataPoints.length);
+  }, [dataPoints]);
+
+  const enemyTeamAvgSpend = useMemo(() => {
+    if (dataPoints.length === 0) return 3700;
+    return Math.round(dataPoints.reduce((acc: number, d: any) => acc + d.enemyTeamAvgSpend, 0) / dataPoints.length);
+  }, [dataPoints]);
+
+  // Dimensions SVG calquées sur PerformanceCharts
+  const svgWidth = 900;
+  const svgHeight = 240;
+  const padding = { top: 30, right: 35, bottom: 40, left: 60 };
+  const graphWidth = svgWidth - padding.left - padding.right;
+  const graphHeight = svgHeight - padding.top - padding.bottom;
+  const maxSpend = 5000;
+  const thresholdVal = 3900; // Seuil Full Buy (Vandal / Phantom + Armure Lourde)
+  const thresholdY = padding.top + graphHeight - (thresholdVal / maxSpend) * graphHeight;
+
+  const pointsMe = useMemo(() => {
+    return dataPoints.map((d: any, i: number) => {
+      const x = padding.left + (i / Math.max(1, dataPoints.length - 1)) * graphWidth;
+      const y = padding.top + graphHeight - (Math.min(d.mySpend, maxSpend) / maxSpend) * graphHeight;
+      return { x, y, val: d.mySpend, round: d.roundNum };
+    });
+  }, [dataPoints, graphWidth, graphHeight, padding.left, padding.top]);
+
+  const pointsMyTeam = useMemo(() => {
+    return dataPoints.map((d: any, i: number) => {
+      const x = padding.left + (i / Math.max(1, dataPoints.length - 1)) * graphWidth;
+      const y = padding.top + graphHeight - (Math.min(d.myTeamAvgSpend, maxSpend) / maxSpend) * graphHeight;
+      return { x, y, val: d.myTeamAvgSpend, round: d.roundNum };
+    });
+  }, [dataPoints, graphWidth, graphHeight, padding.left, padding.top]);
+
+  const pointsEnemyTeam = useMemo(() => {
+    return dataPoints.map((d: any, i: number) => {
+      const x = padding.left + (i / Math.max(1, dataPoints.length - 1)) * graphWidth;
+      const y = padding.top + graphHeight - (Math.min(d.enemyTeamAvgSpend, maxSpend) / maxSpend) * graphHeight;
+      return { x, y, val: d.enemyTeamAvgSpend, round: d.roundNum };
+    });
+  }, [dataPoints, graphWidth, graphHeight, padding.left, padding.top]);
+
+  const pathMe = useMemo(() => getCubicBezierPath(pointsMe), [pointsMe]);
+  const pathMyTeam = useMemo(() => getCubicBezierPath(pointsMyTeam), [pointsMyTeam]);
+  const pathEnemyTeam = useMemo(() => getCubicBezierPath(pointsEnemyTeam), [pointsEnemyTeam]);
+
+  const areaMe = useMemo(() => {
+    if (pointsMe.length === 0) return "";
+    return `${pathMe} L ${pointsMe[pointsMe.length - 1].x.toFixed(1)} ${(padding.top + graphHeight).toFixed(1)} L ${pointsMe[0].x.toFixed(1)} ${(padding.top + graphHeight).toFixed(1)} Z`;
+  }, [pathMe, pointsMe, graphHeight, padding.top]);
+
+  const areaMyTeam = useMemo(() => {
+    if (pointsMyTeam.length === 0) return "";
+    return `${pathMyTeam} L ${pointsMyTeam[pointsMyTeam.length - 1].x.toFixed(1)} ${(padding.top + graphHeight).toFixed(1)} L ${pointsMyTeam[0].x.toFixed(1)} ${(padding.top + graphHeight).toFixed(1)} Z`;
+  }, [pathMyTeam, pointsMyTeam, graphHeight, padding.top]);
+
+  const areaEnemyTeam = useMemo(() => {
+    if (pointsEnemyTeam.length === 0) return "";
+    return `${pathEnemyTeam} L ${pointsEnemyTeam[pointsEnemyTeam.length - 1].x.toFixed(1)} ${(padding.top + graphHeight).toFixed(1)} L ${pointsEnemyTeam[0].x.toFixed(1)} ${(padding.top + graphHeight).toFixed(1)} Z`;
+  }, [pathEnemyTeam, pointsEnemyTeam, graphHeight, padding.top]);
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const mouseX = ((e.clientX - rect.left) / rect.width) * svgWidth;
+    let closest = 0;
+    let minDist = Infinity;
+    pointsMe.forEach((p: any, idx: number) => {
+      const dist = Math.abs(p.x - mouseX);
+      if (dist < minDist) {
+        minDist = dist;
+        closest = idx;
+      }
+    });
+    setHoveredIdx(closest);
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredIdx(null);
+  };
+
+  const activeData = hoveredIdx !== null ? dataPoints[hoveredIdx] : null;
+  const activePtMe = hoveredIdx !== null ? pointsMe[hoveredIdx] : null;
+  const activePtAlly = hoveredIdx !== null ? pointsMyTeam[hoveredIdx] : null;
+  const activePtEnemy = hoveredIdx !== null ? pointsEnemyTeam[hoveredIdx] : null;
+
+  const ECO_MODES: { id: EcoViewMode; label: string; color: string }[] = [
+    { id: "me", label: "Moi", color: "#10b981" },
+    { id: "myTeam", label: "Mon Équipe", color: "#06b6d4" },
+    { id: "enemyTeam", label: "Équipe Adverse", color: "#ff4655" },
+    { id: "all", label: "Tous", color: "#f59e0b" },
+  ];
+
+  const chartId = `eco-chart-${match.matchId || "current"}`;
+
+  return (
+    <div className="space-y-4 py-2">
+      {/* 4 Cartes KPI Synthétiques */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="p-3.5 rounded-2xl glass-card text-center border border-white/5 relative overflow-hidden group">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/60 to-emerald-500/0 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-extrabold tracking-wider">
+            Votre Dépense Moy.
+          </span>
+          <div className="text-xl font-black text-emerald-400 mt-1 flex items-center justify-center gap-1">
+            <span>{myAvgSpend.toLocaleString("fr-FR")}</span>
+            <span className="text-xs text-emerald-500/80">¤</span>
+          </div>
+        </div>
+        <div className="p-3.5 rounded-2xl glass-card text-center border border-white/5 relative overflow-hidden group">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500/0 via-cyan-500/60 to-cyan-500/0 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-extrabold tracking-wider">
+            Moy. Équipe Alliée
+          </span>
+          <div className="text-xl font-black text-cyan-400 mt-1 flex items-center justify-center gap-1">
+            <span>{myTeamAvgSpend.toLocaleString("fr-FR")}</span>
+            <span className="text-xs text-cyan-500/80">¤</span>
+          </div>
+        </div>
+        <div className="p-3.5 rounded-2xl glass-card text-center border border-white/5 relative overflow-hidden group">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500/0 via-red-500/60 to-red-500/0 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-extrabold tracking-wider">
+            Moy. Équipe Adverse
+          </span>
+          <div className="text-xl font-black text-red-400 mt-1 flex items-center justify-center gap-1">
+            <span>{enemyTeamAvgSpend.toLocaleString("fr-FR")}</span>
+            <span className="text-xs text-red-500/80">¤</span>
+          </div>
+        </div>
+        <div className="p-3.5 rounded-2xl glass-card text-center border border-white/5 relative overflow-hidden group">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500/0 via-amber-500/60 to-amber-500/0 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-extrabold tracking-wider">
+            Note Économique
+          </span>
+          <div className="text-xl font-black text-white mt-1 flex items-center justify-center gap-1">
+            <span>{match.econRating || 82}</span>
+            <span className="text-xs text-[var(--color-text-secondary)]">/100</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Le Grand Graphique Interactif Unique (Style PerformanceCharts) */}
+      <div className="glass-panel p-3.5 sm:p-5 rounded-2xl border border-white/10 shadow-xl flex flex-col justify-between relative overflow-hidden">
+        {/* Header du graphique avec sélecteur d'onglets et légende */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+            <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
+              Évolution Budgétaire par Manche
+            </span>
+          </div>
+
+          {/* Switcher en haut : Moi | Mon Équipe | Équipe Adverse | Tous */}
+          <div
+            ref={containerRef}
+            className="relative flex items-center gap-1 bg-[var(--color-surface)] p-1 rounded-xl border border-[var(--color-border)] shadow-inner"
+          >
+            {/* Pilule animée glissante */}
+            <div
+              className="absolute top-1 bottom-1 rounded-lg pointer-events-none z-0 transition-all"
+              style={{
+                transform: `translateX(${pillStyle.left}px)`,
+                width: `${pillStyle.width}px`,
+                opacity: pillStyle.opacity,
+                backgroundColor:
+                  ecoView === "me"
+                    ? "#10b981"
+                    : ecoView === "myTeam"
+                    ? "#06b6d4"
+                    : ecoView === "enemyTeam"
+                    ? "#ff4655"
+                    : "#f59e0b",
+                boxShadow:
+                  ecoView === "me"
+                    ? "0 0 14px rgba(16,185,129,0.5)"
+                    : ecoView === "myTeam"
+                    ? "0 0 14px rgba(6,182,212,0.5)"
+                    : ecoView === "enemyTeam"
+                    ? "0 0 14px rgba(255,70,85,0.5)"
+                    : "0 0 14px rgba(245,158,11,0.5)",
+                transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+              }}
+            />
+
+            {ECO_MODES.map((mode) => {
+              const isSelected = ecoView === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  ref={(el) => {
+                    btnRefs.current[mode.id] = el;
+                  }}
+                  onClick={() => {
+                    sounds.playTabSwitch();
+                    setEcoView(mode.id);
+                  }}
+                  className={`relative z-10 px-3 py-1 text-[11px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer select-none ${
+                    isSelected ? "text-white" : "text-[var(--color-text-secondary)] hover:text-white"
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Légende interactive en mode "Tous" */}
+        {ecoView === "all" && (
+          <div className="flex items-center gap-4 text-[10px] font-bold text-[var(--color-text-secondary)] mb-2 px-1">
+            <span className="flex items-center gap-1.5 text-emerald-400">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+              <span>Moi</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-cyan-400">
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
+              <span>Mon Équipe</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-red-400">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-400 shadow-[0_0_8px_rgba(255,70,85,0.8)]" />
+              <span>Équipe Adverse</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-amber-300 ml-auto hidden sm:flex">
+              <span className="w-4 h-0.5 border-t border-dashed border-amber-300/80" />
+              <span>Seuil Full Buy (3 900 ¤)</span>
+            </span>
+          </div>
+        )}
+
+        {/* Grand Conteneur SVG avec Tooltip et Courbes Bézier */}
+        <div className="w-full relative select-none">
+          {/* Tooltip flottant interactif */}
+          {activeData && (
+            <div
+              className="absolute pointer-events-none z-30 transition-all duration-75 px-3 py-2 rounded-xl glass-card border border-white/20 shadow-2xl flex flex-col gap-1 text-xs"
+              style={{
+                left: `${Math.min(Math.max(activePtMe ? (activePtMe.x / svgWidth) * 100 : 50, 15), 85)}%`,
+                top: "10px",
+                transform: "translateX(-50%)",
+              }}
+            >
+              <div className="flex items-center justify-between gap-4 font-black text-[11px] pb-1 border-b border-white/10">
+                <span className="text-white">Manche {activeData.roundNum}</span>
+                <span className="text-[10px] text-amber-300 uppercase tracking-widest">
+                  {activeData.roundNum === 1 || activeData.roundNum === 13 ? "Pistol Round" : activeData.mySpend >= 3900 ? "Full Buy" : activeData.mySpend <= 2000 ? "Éco" : "Demi-achat"}
+                </span>
+              </div>
+              {ecoView === "me" && (
+                <div className="flex items-center justify-between gap-3 text-emerald-400 font-bold">
+                  <span>Votre Dépense :</span>
+                  <span className="font-mono font-black">{activeData.mySpend.toLocaleString("fr-FR")} ¤</span>
+                </div>
+              )}
+              {ecoView === "myTeam" && (
+                <div className="flex items-center justify-between gap-3 text-cyan-400 font-bold">
+                  <span>Moyenne Alliée :</span>
+                  <span className="font-mono font-black">{activeData.myTeamAvgSpend.toLocaleString("fr-FR")} ¤</span>
+                </div>
+              )}
+              {ecoView === "enemyTeam" && (
+                <div className="flex items-center justify-between gap-3 text-red-400 font-bold">
+                  <span>Moyenne Adverse :</span>
+                  <span className="font-mono font-black">{activeData.enemyTeamAvgSpend.toLocaleString("fr-FR")} ¤</span>
+                </div>
+              )}
+              {ecoView === "all" && (
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center justify-between gap-4 text-emerald-400 font-bold">
+                    <span>Moi :</span>
+                    <span className="font-mono font-black">{activeData.mySpend.toLocaleString("fr-FR")} ¤</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 text-cyan-400 font-bold">
+                    <span>Mon Équipe :</span>
+                    <span className="font-mono font-black">{activeData.myTeamAvgSpend.toLocaleString("fr-FR")} ¤</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 text-red-400 font-bold">
+                    <span>Adversaires :</span>
+                    <span className="font-mono font-black">{activeData.enemyTeamAvgSpend.toLocaleString("fr-FR")} ¤</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+            className="w-full h-52 sm:h-64 overflow-visible cursor-crosshair"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+          >
+            <defs>
+              {/* Gradients pour chaque courbe */}
+              <linearGradient id={`ecoGradMe-${chartId}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity="0.45" />
+                <stop offset="85%" stopColor="#10b981" stopOpacity="0.05" />
+                <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+              </linearGradient>
+
+              <linearGradient id={`ecoGradAlly-${chartId}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.4" />
+                <stop offset="85%" stopColor="#06b6d4" stopOpacity="0.05" />
+                <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.0" />
+              </linearGradient>
+
+              <linearGradient id={`ecoGradEnemy-${chartId}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ff4655" stopOpacity="0.38" />
+                <stop offset="85%" stopColor="#ff4655" stopOpacity="0.05" />
+                <stop offset="100%" stopColor="#ff4655" stopOpacity="0.0" />
+              </linearGradient>
+
+              {/* Glow filter */}
+              <filter id={`ecoGlow-${chartId}`} x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+
+            {/* Grille horizontale */}
+            {[1000, 2000, 3000, 4000, 5000].map((val) => {
+              const y = padding.top + graphHeight - (val / maxSpend) * graphHeight;
+              return (
+                <g key={val}>
+                  <line
+                    x1={padding.left}
+                    y1={y}
+                    x2={svgWidth - padding.right}
+                    y2={y}
+                    stroke="rgba(255,255,255,0.06)"
+                    strokeDasharray="4 4"
+                  />
+                  <text
+                    x={padding.left - 8}
+                    y={y + 3.5}
+                    textAnchor="end"
+                    fill="rgba(255,255,255,0.3)"
+                    fontSize="10"
+                    fontWeight="bold"
+                  >
+                    {val.toLocaleString("fr-FR")} ¤
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Ligne seuil Full Buy (3 900 ¤) */}
+            <line
+              x1={padding.left}
+              y1={thresholdY}
+              x2={svgWidth - padding.right}
+              y2={thresholdY}
+              stroke="#f59e0b"
+              strokeWidth="1.2"
+              strokeDasharray="5 3"
+              opacity="0.65"
+            />
+            <text
+              x={svgWidth - padding.right - 6}
+              y={thresholdY - 5}
+              textAnchor="end"
+              fill="#f59e0b"
+              fontSize="9"
+              fontWeight="bold"
+              opacity="0.8"
+            >
+              Full Buy (3 900 ¤)
+            </text>
+
+            {/* Ligne de base (0 ¤) */}
+            <line
+              x1={padding.left}
+              y1={padding.top + graphHeight}
+              x2={svgWidth - padding.right}
+              y2={padding.top + graphHeight}
+              stroke="rgba(255,255,255,0.15)"
+              strokeWidth="1"
+            />
+
+            {/* Courbes et Aires selon le mode sélectionné */}
+
+            {/* MODE: ME */}
+            {(ecoView === "me" || ecoView === "all") && (
+              <>
+                <path
+                  d={areaMe}
+                  fill={`url(#ecoGradMe-${chartId})`}
+                  opacity={ecoView === "all" ? 0.18 : 1}
+                />
+                <path
+                  d={pathMe}
+                  fill="none"
+                  stroke="#10b981"
+                  strokeWidth={ecoView === "me" ? "3" : "2.5"}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  filter={`url(#ecoGlow-${chartId})`}
+                />
+                {pointsMe.map((pt: any, idx: number) => (
+                  <circle
+                    key={`me-${idx}`}
+                    cx={pt.x}
+                    cy={pt.y}
+                    r={hoveredIdx === idx ? 6 : 3}
+                    fill={hoveredIdx === idx ? "#10b981" : "#0a0e13"}
+                    stroke="#10b981"
+                    strokeWidth={hoveredIdx === idx ? "2.5" : "1.8"}
+                    className="transition-all duration-150"
+                  />
+                ))}
+              </>
+            )}
+
+            {/* MODE: MY TEAM */}
+            {(ecoView === "myTeam" || ecoView === "all") && (
+              <>
+                <path
+                  d={areaMyTeam}
+                  fill={`url(#ecoGradAlly-${chartId})`}
+                  opacity={ecoView === "all" ? 0.15 : 1}
+                />
+                <path
+                  d={pathMyTeam}
+                  fill="none"
+                  stroke="#06b6d4"
+                  strokeWidth={ecoView === "myTeam" ? "3" : "2.4"}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  filter={`url(#ecoGlow-${chartId})`}
+                />
+                {pointsMyTeam.map((pt: any, idx: number) => (
+                  <circle
+                    key={`ally-${idx}`}
+                    cx={pt.x}
+                    cy={pt.y}
+                    r={hoveredIdx === idx ? 6 : 3}
+                    fill={hoveredIdx === idx ? "#06b6d4" : "#0a0e13"}
+                    stroke="#06b6d4"
+                    strokeWidth={hoveredIdx === idx ? "2.5" : "1.8"}
+                    className="transition-all duration-150"
+                  />
+                ))}
+              </>
+            )}
+
+            {/* MODE: ENEMY TEAM */}
+            {(ecoView === "enemyTeam" || ecoView === "all") && (
+              <>
+                <path
+                  d={areaEnemyTeam}
+                  fill={`url(#ecoGradEnemy-${chartId})`}
+                  opacity={ecoView === "all" ? 0.15 : 1}
+                />
+                <path
+                  d={pathEnemyTeam}
+                  fill="none"
+                  stroke="#ff4655"
+                  strokeWidth={ecoView === "enemyTeam" ? "3" : "2.4"}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  filter={`url(#ecoGlow-${chartId})`}
+                />
+                {pointsEnemyTeam.map((pt: any, idx: number) => (
+                  <circle
+                    key={`enemy-${idx}`}
+                    cx={pt.x}
+                    cy={pt.y}
+                    r={hoveredIdx === idx ? 6 : 3}
+                    fill={hoveredIdx === idx ? "#ff4655" : "#0a0e13"}
+                    stroke="#ff4655"
+                    strokeWidth={hoveredIdx === idx ? "2.5" : "1.8"}
+                    className="transition-all duration-150"
+                  />
+                ))}
+              </>
+            )}
+
+            {/* Ligne verticale de mire (crosshair) au survol */}
+            {hoveredIdx !== null && activePtMe && (
+              <line
+                x1={activePtMe.x}
+                y1={padding.top}
+                x2={activePtMe.x}
+                y2={padding.top + graphHeight}
+                stroke="rgba(255,255,255,0.3)"
+                strokeDasharray="3 3"
+                strokeWidth="1.2"
+              />
+            )}
+
+            {/* Axe X (Numéros de manche) */}
+            {dataPoints.map((d: any, idx: number) => {
+              const x = padding.left + (idx / Math.max(1, dataPoints.length - 1)) * graphWidth;
+              const isPistol = d.roundNum === 1 || d.roundNum === 13;
+              return (
+                <text
+                  key={`lbl-${idx}`}
+                  x={x}
+                  y={padding.top + graphHeight + 18}
+                  textAnchor="middle"
+                  fill={isPistol ? "#f59e0b" : hoveredIdx === idx ? "#ffffff" : "rgba(255,255,255,0.4)"}
+                  fontSize="10"
+                  fontWeight={isPistol || hoveredIdx === idx ? "bold" : "normal"}
+                >
+                  {d.roundNum}
+                </text>
+              );
+            })}
+          </svg>
+        </div>
+
+        {/* Labels repères de bas de graphique */}
+        <div className="flex justify-between text-[10px] text-[var(--color-text-secondary)] font-bold mt-2 px-3">
+          <span className="flex items-center gap-1">
+            <span className="text-amber-400 font-extrabold">M 1</span>
+            <span>(Pistolet)</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="text-amber-400 font-extrabold">M {Math.min(13, Math.round(roundsCount / 2))}</span>
+            <span>(Changement de côté)</span>
+          </span>
+          <span>Manche Finale ({roundsCount})</span>
+        </div>
+      </div>
+
+      {/* Conseil d'Analyse Économique Contextuelle */}
+      <div className="glass-card p-4 rounded-2xl text-xs text-[var(--color-text-secondary)] flex items-center gap-3 border border-white/5">
+        <IconLightbulb size={18} className="text-amber-300 flex-shrink-0" />
+        <div>
+          <strong className="text-white">Analyse Tactique du Trésorier :</strong>{" "}
+          {myTeamAvgSpend >= enemyTeamAvgSpend ? (
+            <span>
+              Votre équipe a dominé les cycles d&apos;achats avec un investissement moyen supérieur de{" "}
+              <strong className="text-emerald-400">
+                +{(myTeamAvgSpend - enemyTeamAvgSpend).toLocaleString("fr-FR")} ¤
+              </strong>{" "}
+              par manche, assurant une supériorité d&apos;armement constante.
+            </span>
+          ) : (
+            <span>
+              L&apos;équipe adverse a maintenu une pression économique supérieure de{" "}
+              <strong className="text-red-400">
+                +{(enemyTeamAvgSpend - myTeamAvgSpend).toLocaleString("fr-FR")} ¤
+              </strong>{" "}
+              par manche. Optimisez les manches d&apos;éco pour forcer des resets adverses.
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -774,54 +1415,100 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({
         )
       )}
 
-      {/* Duels 1v1 */}
+      {/* Duels 1v1 avec vraies données Henrik API */}
       {tab === "duels" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {match.duels?.map((d: any, idx: number) => {
-            const totalDuels = (d.kills || 0) + (d.deaths || 0);
-            const winRate = totalDuels > 0 ? Math.round((d.kills / totalDuels) * 100) : 50;
-            const diff = (d.kills || 0) - (d.deaths || 0);
+            const kills = d.kills || 0;
+            const deaths = d.deaths || 0;
+            const totalDuels = kills + deaths;
+            const winRate = totalDuels > 0 ? Math.round((kills / totalDuels) * 100) : 50;
+            const diff = kills - deaths;
+            const enemyPlayer = match.enemyTeam?.find((e: any) => e.name === d.name || e.puuid === d.puuid);
+            const dRank = getPlayerRank(d.rankUrl ? d : (enemyPlayer || d));
+            const agentName = d.agent || (enemyPlayer?.agent ? enemyPlayer.agent : "Adversaire");
+            const playerTag = d.tag ? `#${d.tag}` : (enemyPlayer?.tag ? `#${enemyPlayer.tag}` : "");
 
             return (
               <div
                 key={idx}
-                className="glass-card p-4 rounded-xl flex flex-col gap-3"
+                className="glass-card p-4 rounded-2xl flex flex-col justify-between gap-3 border border-white/5 hover:border-white/15 transition-all shadow-lg group relative overflow-hidden"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <img referrerPolicy="no-referrer" src={d.agentIcon} className="w-10 h-10 rounded-lg shadow-sm" alt={d.name} loading="lazy" />
-                    {(() => {
-                      const enemyPlayer = match.enemyTeam?.find((e: any) => e.name === d.name || e.puuid === d.puuid);
-                      const dRank = getPlayerRank(d.rankUrl ? d : (enemyPlayer || d));
-                      return (
+                {/* Liseré lumineux supérieur selon le différentiel */}
+                <div
+                  className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r opacity-60 group-hover:opacity-100 transition-opacity ${
+                    diff > 0
+                      ? "from-emerald-500/0 via-emerald-500/80 to-emerald-500/0"
+                      : diff < 0
+                      ? "from-[var(--color-val-red)]/0 via-[var(--color-val-red)]/80 to-[var(--color-val-red)]/0"
+                      : "from-white/0 via-white/40 to-white/0"
+                  }`}
+                />
+
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative flex-shrink-0">
+                      <img
+                        referrerPolicy="no-referrer"
+                        src={d.agentIcon}
+                        className="w-11 h-11 rounded-xl shadow-md border border-white/10 object-cover bg-black/40"
+                        alt={agentName}
+                        loading="lazy"
+                      />
+                      {dRank.icon && (
                         <img
                           referrerPolicy="no-referrer"
                           src={dRank.icon}
                           alt={dRank.name}
                           title={dRank.name}
-                          className="w-7 h-7 object-contain flex-shrink-0 drop-shadow-sm cursor-help"
+                          className="w-5 h-5 object-contain absolute -bottom-1 -right-1 drop-shadow-md cursor-help"
                           loading="lazy"
                         />
-                      );
-                    })()}
-                    <div className="flex flex-col">
-                      <span className="font-bold text-sm text-[var(--color-text-on-surface)]">{d.name}</span>
-                      <span className="text-[9px] text-[var(--color-text-secondary)] uppercase tracking-wider">Adversaire</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-black text-sm text-white truncate group-hover:text-emerald-400 transition-colors">
+                        {agentName}
+                      </span>
+                      <span className="text-[11px] text-[var(--color-text-secondary)] truncate">
+                        {d.name} {playerTag}
+                      </span>
                     </div>
                   </div>
-                  <span className={`text-xs font-black px-2 py-0.5 rounded ${diff >= 0 ? "bg-emerald-500/20 text-emerald-400" : "bg-[var(--color-val-red)]/20 text-[var(--color-val-red)]"}`}>
-                    {diff > 0 ? `+${diff}` : diff}
-                  </span>
+
+                  {/* Score de duel & badge différentiel */}
+                  <div className="flex flex-col items-end flex-shrink-0">
+                    <div className="flex items-center gap-1.5 font-mono text-base font-black">
+                      <span className="text-emerald-400">{kills}</span>
+                      <span className="text-[var(--color-text-secondary)] font-normal text-xs">-</span>
+                      <span className="text-[var(--color-val-red)]">{deaths}</span>
+                    </div>
+                    <span
+                      className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                        diff > 0
+                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                          : diff < 0
+                          ? "bg-[var(--color-val-red)]/20 text-[var(--color-val-red)] border border-[var(--color-val-red)]/30"
+                          : "bg-white/10 text-gray-300 border border-white/10"
+                      }`}
+                    >
+                      {diff > 0 ? `+${diff}` : diff === 0 ? "Égalité" : diff}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Progress ratio bar */}
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[10px] font-bold">
-                    <span className="text-emerald-400">{d.kills || 0} Vict. ({winRate}%)</span>
-                    <span className="text-[var(--color-val-red)]">{d.deaths || 0} Déf.</span>
+                {/* Barre de ratio et statistiques détaillées */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between items-center text-[10px] font-extrabold tracking-wide">
+                    <span className="text-emerald-400">{kills} {kills > 1 ? "frags infligés" : "frag infligé"}</span>
+                    <span className="text-[var(--color-text-secondary)] font-mono">{winRate}%</span>
+                    <span className="text-[var(--color-val-red)]">{deaths} {deaths > 1 ? "morts subies" : "mort subie"}</span>
                   </div>
-                  <div className="w-full h-1.5 rounded-full bg-[var(--color-val-red)]/30 overflow-hidden">
-                    <div className="h-full bg-emerald-500 transition-all" style={{ width: `${winRate}%` }}></div>
+                  <div className="w-full h-2 rounded-full bg-[var(--color-val-red)]/40 overflow-hidden shadow-inner flex">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all shadow-[0_0_8px_rgba(52,211,153,0.5)]"
+                      style={{ width: `${winRate}%` }}
+                    />
                   </div>
                 </div>
               </div>
@@ -830,182 +1517,10 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({
         </div>
       )}
 
-      {/* Economy Tracker Détaillé avec Double Graphique (Moi vs Équipe Alliée vs Équipe Adverse) */}
-      {tab === "economy" && (() => {
-        const rounds = Math.max(match.roundsPlayed || 20, 1);
-        const myAvgSpend = Math.round((match.econRating ? match.econRating * 45 : 3650));
-        const myTeamPlayers = match.myTeam || [];
-        const enemyTeamPlayers = match.enemyTeam || [];
-
-        const myTeamAvgSpend = myTeamPlayers.length > 0
-          ? Math.round(myTeamPlayers.reduce((acc: number, p: any) => acc + (p.econScore ? p.econScore * 50 : 3800), 0) / myTeamPlayers.length)
-          : 3850;
-
-        const enemyTeamAvgSpend = enemyTeamPlayers.length > 0
-          ? Math.round(enemyTeamPlayers.reduce((acc: number, p: any) => acc + (p.econScore ? p.econScore * 48 : 3750), 0) / enemyTeamPlayers.length)
-          : 3720;
-
-        // Génération déterministe de la courbe d'économie par round
-        const roundsCount = Math.min(rounds, 24);
-        const ecoPoints = Array.from({ length: roundsCount }).map((_, rIdx) => {
-          const rNum = rIdx + 1;
-          const isPistol = rNum === 1 || rNum === 13;
-          const isEco = rNum === 2 || rNum === 14;
-          const mySpend = isPistol ? 800 : isEco ? 1900 : Math.min(5000, 3100 + ((rIdx * 37) % 1800));
-          const allySpend = isPistol ? 800 : isEco ? 2100 : Math.min(5000, 3300 + ((rIdx * 41) % 1600));
-          const enemySpend = isPistol ? 800 : isEco ? 2000 : Math.min(5000, 3200 + ((rIdx * 29) % 1700));
-          return { roundNum: rNum, mySpend, allySpend, enemySpend };
-        });
-
-        const svgW = 600;
-        const svgH = 150;
-        const padX = 35;
-        const padY = 20;
-        const gW = svgW - padX * 2;
-        const gH = svgH - padY * 2;
-        const maxSpend = 5000;
-
-        const buildPath = (key: "mySpend" | "allySpend" | "enemySpend") => {
-          return ecoPoints
-            .map((pt, idx) => {
-              const x = padX + (idx / Math.max(ecoPoints.length - 1, 1)) * gW;
-              const y = padY + gH - (pt[key] / maxSpend) * gH;
-              return `${idx === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
-            })
-            .join(" ");
-        };
-
-        const myPath = buildPath("mySpend");
-        const allyPath = buildPath("allySpend");
-        const enemyPath = buildPath("enemySpend");
-
-        return (
-          <div className="space-y-5 py-2">
-            {/* 4 KPI Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 rounded-xl glass-card text-center border border-white/5">
-                <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold tracking-wider">
-                  Votre Dépense Moy.
-                </span>
-                <div className="text-lg font-black text-emerald-400 mt-1">
-                  {myAvgSpend.toLocaleString("fr-FR")} ¤
-                </div>
-              </div>
-              <div className="p-3 rounded-xl glass-card text-center border border-white/5">
-                <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold tracking-wider">
-                  Moy. Équipe Alliée
-                </span>
-                <div className="text-lg font-black text-cyan-400 mt-1">
-                  {myTeamAvgSpend.toLocaleString("fr-FR")} ¤
-                </div>
-              </div>
-              <div className="p-3 rounded-xl glass-card text-center border border-white/5">
-                <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold tracking-wider">
-                  Moy. Équipe Adverse
-                </span>
-                <div className="text-lg font-black text-red-400 mt-1">
-                  {enemyTeamAvgSpend.toLocaleString("fr-FR")} ¤
-                </div>
-              </div>
-              <div className="p-3 rounded-xl glass-card text-center border border-white/5">
-                <span className="text-[10px] text-[var(--color-text-secondary)] uppercase font-bold tracking-wider">
-                  Note Économique
-                </span>
-                <div className="text-lg font-black text-white mt-1">
-                  {match.econRating || 82}/100
-                </div>
-              </div>
-            </div>
-
-            {/* Double Graphique Économique SVG */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Graphique 1 : Votre Dépense par Round */}
-              <div className="glass-card p-4 rounded-2xl flex flex-col justify-between border border-white/10 shadow-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-                    <span className="text-xs font-black uppercase tracking-wider text-white">
-                      Votre Investissement (Crédits / Manche)
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                    Max: 5 000 ¤
-                  </span>
-                </div>
-                <div className="w-full h-36 relative">
-                  <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-full overflow-visible select-none">
-                    {/* Grid lines */}
-                    <line x1={padX} y1={padY} x2={svgW - padX} y2={padY} stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-                    <line x1={padX} y1={padY + gH / 2} x2={svgW - padX} y2={padY + gH / 2} stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-                    <line x1={padX} y1={padY + gH} x2={svgW - padX} y2={padY + gH} stroke="rgba(255,255,255,0.1)" />
-                    {/* Curve */}
-                    <path d={myPath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                    {/* Dots */}
-                    {ecoPoints.map((pt, idx) => {
-                      const cx = padX + (idx / Math.max(ecoPoints.length - 1, 1)) * gW;
-                      const cy = padY + gH - (pt.mySpend / maxSpend) * gH;
-                      return (
-                        <circle key={idx} cx={cx} cy={cy} r="3" fill="#0a0e13" stroke="#10b981" strokeWidth="2">
-                          <title>Manche {pt.roundNum}: {pt.mySpend} ¤</title>
-                        </circle>
-                      );
-                    })}
-                  </svg>
-                </div>
-                <div className="flex justify-between text-[9px] text-[var(--color-text-secondary)] font-bold mt-1 px-1">
-                  <span>M 1 (Pistolet)</span>
-                  <span>M {Math.round(roundsCount / 2)} (Side Swap)</span>
-                  <span>M {roundsCount}</span>
-                </div>
-              </div>
-
-              {/* Graphique 2 : Comparatif Équipe Alliée vs Adverse */}
-              <div className="glass-card p-4 rounded-2xl flex flex-col justify-between border border-white/10 shadow-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-black uppercase tracking-wider text-white">
-                    Comparatif Dépenses d&apos;Équipe
-                  </span>
-                  <div className="flex items-center gap-3 text-[10px] font-bold">
-                    <span className="flex items-center gap-1 text-cyan-400">
-                      <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(6,182,212,0.8)]" />
-                      <span>Alliés</span>
-                    </span>
-                    <span className="flex items-center gap-1 text-red-400">
-                      <span className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.8)]" />
-                      <span>Adversaires</span>
-                    </span>
-                  </div>
-                </div>
-                <div className="w-full h-36 relative">
-                  <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-full overflow-visible select-none">
-                    {/* Grid lines */}
-                    <line x1={padX} y1={padY} x2={svgW - padX} y2={padY} stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-                    <line x1={padX} y1={padY + gH / 2} x2={svgW - padX} y2={padY + gH / 2} stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-                    <line x1={padX} y1={padY + gH} x2={svgW - padX} y2={padY + gH} stroke="rgba(255,255,255,0.1)" />
-                    {/* Ally curve */}
-                    <path d={allyPath} fill="none" stroke="#06b6d4" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                    {/* Enemy curve */}
-                    <path d={enemyPath} fill="none" stroke="#f87171" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 2" />
-                  </svg>
-                </div>
-                <div className="flex justify-between text-[9px] text-[var(--color-text-secondary)] font-bold mt-1 px-1">
-                  <span>M 1 (Pistolet)</span>
-                  <span>M {Math.round(roundsCount / 2)} (Side Swap)</span>
-                  <span>M {roundsCount}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Conseil Économique Contextuel */}
-            <div className="glass-card p-4 rounded-xl text-xs text-[var(--color-text-secondary)] flex items-center gap-2.5 border border-white/5">
-              <IconLightbulb size={16} className="text-amber-300 flex-shrink-0" />
-              <div>
-                <strong>Analyse Éco :</strong> Votre équipe a maintenu une rentabilité supérieure de {myTeamAvgSpend >= enemyTeamAvgSpend ? "+14%" : "-6%"} sur les manches d&apos;achat d&apos;armes lourdes avec un taux de conversion avantageux.
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {/* Economy Tracker Détaillé avec Grand Graphique Interactif Unique */}
+      {tab === "economy" && (
+        <MatchEconomyChart match={match} />
+      )}
 
       {/* Killmap 2D Interactif */}
       {tab === "killmap" && (

@@ -76,6 +76,8 @@ export interface MatchRoundTimeline {
 export interface MatchPlayerDuel {
   puuid: string;
   name: string;
+  tag?: string;
+  agent?: string;
   agentIcon: string;
   rank?: string;
   rankUrl?: string;
@@ -114,6 +116,13 @@ export interface MatchDuoTeam {
   players: MatchTeamPlayer[];
 }
 
+export interface RoundEconomyData {
+  roundNum: number;
+  mySpend: number;
+  myTeamAvgSpend: number;
+  enemyTeamAvgSpend: number;
+}
+
 export interface ValorantMatchData {
   id?: string;
   matchId: string;
@@ -149,6 +158,7 @@ export interface ValorantMatchData {
   teamFormat?: "standard" | "duos" | "ffa" | string;
   timeline: MatchRoundTimeline[];
   duels: MatchPlayerDuel[];
+  roundEconomy?: RoundEconomyData[];
 }
 
 export interface ValorantProfileResponse {
