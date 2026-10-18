@@ -7,6 +7,7 @@ import {
 import { AGENTS_CATALOG, OFFICIAL_WEAPONS } from "@/lib/valorant/mock";
 import { resolveAgentDisplay, getAgentInfo } from "@/lib/valorant/agentsCatalog";
 import { resolveGameMode } from "@/lib/valorant/gameModes";
+import { calculateSingleMatchSPI, AgentRole } from "@/lib/valorant/performanceScore";
 
 const HENRIK_BASE = "https://api.henrikdev.xyz/valorant";
 
@@ -297,6 +298,29 @@ export function parseHenrikMatchesList(
       agentPlayCounts[agentName].minutes += duration;
     }
 
+    // Détection universelle et exacte des First Bloods pour chaque joueur du match
+    const playerFbMap: Record<string, number> = {};
+    if (Array.isArray(raw.kills) && raw.kills.length > 0) {
+      const firstKillOfRound: Record<number, { killerPuuid: string; killerName: string; time: number }> = {};
+      raw.kills.forEach((k: any) => {
+        const rNum = k.round ?? 0;
+        const time = k.kill_time_in_round ?? k.time_in_round ?? 999999;
+        const kPuuid = k.killer_puuid || k.killer?.puuid || "";
+        const kName = (k.killer_display_name || k.killer?.name || "").toLowerCase().trim();
+        if (!firstKillOfRound[rNum] || time < firstKillOfRound[rNum].time) {
+          firstKillOfRound[rNum] = { killerPuuid: kPuuid, killerName: kName, time };
+        }
+      });
+      Object.values(firstKillOfRound).forEach((fk) => {
+        if (fk.killerPuuid) {
+          playerFbMap[fk.killerPuuid] = (playerFbMap[fk.killerPuuid] || 0) + 1;
+        }
+        if (fk.killerName) {
+          playerFbMap[fk.killerName] = (playerFbMap[fk.killerName] || 0) + 1;
+        }
+      });
+    }
+
     // Construction des équipes myTeam et enemyTeam pour le Scoreboard / Leaderboard du match
     const myTeam: any[] = [];
     const enemyTeam: any[] = [];
@@ -329,6 +353,7 @@ export function parseHenrikMatchesList(
           : "https://media.valorant-api.com/competitivetiers/564d8e28-c226-3180-6285-e48a390db8b1/0/largeicon.png";
         const resolvedPName = p.name || p.game_name || p.riot_id_name || p.player_display_name || (isMePlayer ? realName : `Joueur ${myTeam.length + enemyTeam.length + 1}`);
         const resolvedPTag = p.tag || p.tag_line || p.riot_id_tag || "EU1";
+        const pCleanName = (resolvedPName || "").toLowerCase().trim();
 
         const pHs = p.stats?.headshots ?? (isMePlayer ? headshots : 0);
         const pBs = p.stats?.bodyshots ?? (isMePlayer ? bodyshots : 0);
@@ -336,6 +361,28 @@ export function parseHenrikMatchesList(
         const pDamage = p.damage_made ?? (isMePlayer ? damage : pKills * 150);
         const pTotalShots = pHs + pBs + pLs;
         const pHsPct = pTotalShots > 0 ? Math.round((pHs / pTotalShots) * 100) : 22;
+
+        const pFb = playerFbMap[p.puuid] ?? playerFbMap[pCleanName] ?? (typeof p.first_bloods === "number" ? p.first_bloods : (pKills >= 20 ? 4 : pKills >= 15 ? 3 : pKills >= 10 ? 2 : pKills >= 5 ? 1 : 0));
+        const pWon = isMyTeam ? won : !won;
+
+        const pSpent = p.economy?.spent?.overall || (p.economy?.spent?.average ? p.economy.spent.average * roundsPlayed : 0) || (roundsPlayed * 3600);
+        const pDmgPerK = (pDamage / Math.max(pSpent, 1000)) * 1000;
+        const pEconRating = Math.max(38, Math.min(99, Math.round(pDmgPerK * 0.92 + (pWon ? 4 : 0))));
+
+        const pSpi = calculateSingleMatchSPI({
+          kills: pKills,
+          deaths: pDeaths,
+          assists: pAssists,
+          acs: pAcs,
+          headshotPct: pHsPct,
+          headshots: pHs,
+          damage: pDamage,
+          firstBloods: pFb,
+          won: pWon,
+          role: pAgentDisp.role as AgentRole,
+          agent: pAgentName,
+          score: p.stats?.score || pKills * 200,
+        }, pAgentDisp.role as AgentRole);
 
         const teamPlayerObj = {
           puuid: p.puuid || `player-${resolvedPName}-${myTeam.length + enemyTeam.length}`,
@@ -356,7 +403,10 @@ export function parseHenrikMatchesList(
           damage: pDamage,
           team: pTeamKey,
           econScore: Math.round(p.economy?.spent?.average || (pDamage / 20 || 65)),
-          firstBloods: p.first_bloods || (pKills > 15 ? 3 : pKills > 10 ? 2 : 1),
+          econRating: pEconRating,
+          firstBloods: pFb,
+          won: pWon,
+          spi: pSpi,
           isMe: isMePlayer,
           isPublicProfile: true,
           role: pAgentDisp.role,
@@ -372,6 +422,20 @@ export function parseHenrikMatchesList(
 
     // Si allPlayers était incomplet, s'assurer que myTeam et enemyTeam ont 5 joueurs chacun
     if (myTeam.length === 0) {
+      const myPlayerSpi = calculateSingleMatchSPI({
+        kills,
+        deaths,
+        assists,
+        acs: matchAcs,
+        headshotPct: 25,
+        damage,
+        firstBloods: 2,
+        won,
+        role: agentDisp.role,
+        agent: agentName,
+        score: me?.stats?.score || kills * 205,
+      }, agentDisp.role as AgentRole);
+
       myTeam.push({
         puuid,
         name: realName,
@@ -386,7 +450,10 @@ export function parseHenrikMatchesList(
         deaths,
         assists,
         econScore: 72,
+        econRating: 78,
         firstBloods: 2,
+        won,
+        spi: myPlayerSpi,
         isMe: true,
         isPublicProfile: true,
         role: agentDisp.role,
@@ -395,6 +462,22 @@ export function parseHenrikMatchesList(
       defaultAllies.forEach((agName, aIdx) => {
         const cat = AGENTS_CATALOG[agName] || AGENTS_CATALOG.Jett;
         const pk = Math.max(5, Math.floor(kills * 0.7) + aIdx);
+        const pd = Math.floor(deaths * 0.9) + aIdx;
+        const allyAcs = Math.round((pk * 200) / Math.max(roundsPlayed, 1));
+        const allySpi = calculateSingleMatchSPI({
+          kills: pk,
+          deaths: pd,
+          assists: aIdx + 2,
+          acs: allyAcs,
+          headshotPct: 22,
+          damage: pk * 150,
+          firstBloods: aIdx === 0 ? 1 : 0,
+          won,
+          role: cat.role,
+          agent: agName,
+          score: pk * 200,
+        }, cat.role as AgentRole);
+
         myTeam.push({
           puuid: `ally-${idx}-${aIdx + 1}`,
           name: `Allié ${aIdx + 1}`,
@@ -404,12 +487,15 @@ export function parseHenrikMatchesList(
           rank: rankName,
           rankUrl,
           score: pk * 200,
-          acs: Math.round((pk * 200) / Math.max(roundsPlayed, 1)),
+          acs: allyAcs,
           kills: pk,
-          deaths: Math.floor(deaths * 0.9) + aIdx,
+          deaths: pd,
           assists: aIdx + 2,
           econScore: 65,
+          econRating: 72,
           firstBloods: aIdx === 0 ? 1 : 0,
+          won,
+          spi: allySpi,
           isMe: false,
           isPublicProfile: true,
           role: cat.role,
@@ -422,6 +508,22 @@ export function parseHenrikMatchesList(
       enemyAgents.forEach((agName, aIdx) => {
         const cat = AGENTS_CATALOG[agName] || AGENTS_CATALOG.Clove;
         const pk = Math.max(4, Math.floor(deaths * 0.8) + aIdx);
+        const pd = Math.floor(kills * 0.8) + aIdx;
+        const enemyAcs = Math.round((pk * 200) / Math.max(roundsPlayed, 1));
+        const enemySpi = calculateSingleMatchSPI({
+          kills: pk,
+          deaths: pd,
+          assists: aIdx + 1,
+          acs: enemyAcs,
+          headshotPct: 20,
+          damage: pk * 150,
+          firstBloods: aIdx === 0 ? 2 : 0,
+          won: !won,
+          role: cat.role,
+          agent: agName,
+          score: pk * 200,
+        }, cat.role as AgentRole);
+
         enemyTeam.push({
           puuid: `enemy-${idx}-${aIdx + 1}`,
           name: `Adversaire ${aIdx + 1}`,
@@ -431,12 +533,15 @@ export function parseHenrikMatchesList(
           rank: rankName,
           rankUrl,
           score: pk * 200,
-          acs: Math.round((pk * 200) / Math.max(roundsPlayed, 1)),
+          acs: enemyAcs,
           kills: pk,
-          deaths: Math.floor(kills * 0.8) + aIdx,
+          deaths: pd,
           assists: aIdx + 1,
           econScore: 60,
+          econRating: 70,
           firstBloods: aIdx === 0 ? 2 : 0,
+          won: !won,
+          spi: enemySpi,
           isMe: false,
           isPublicProfile: true,
           role: cat.role,
@@ -768,22 +873,26 @@ export function parseHenrikMatchesList(
       }
     }
 
-    // Calcul déterministe des First Bloods : extraction depuis raw.kills si disponible, sinon calcul stable basé sur les frags
-    let fb = 0;
-    if (Array.isArray(raw.kills) && raw.kills.length > 0) {
-      const firstKillOfRound: Record<number, { killerPuuid: string; time: number }> = {};
-      raw.kills.forEach((k: any) => {
-        const rNum = k.round ?? 0;
-        const time = k.kill_time_in_round ?? k.time_in_round ?? 999999;
-        if (!firstKillOfRound[rNum] || time < firstKillOfRound[rNum].time) {
-          firstKillOfRound[rNum] = { killerPuuid: k.killer_puuid || k.killer?.puuid || "", time };
-        }
-      });
-      fb = Object.values(firstKillOfRound).filter((fk) => fk.killerPuuid === puuid).length;
-    } else {
-      fb = kills >= 20 ? 4 : kills >= 15 ? 3 : kills >= 10 ? 2 : kills >= 5 ? 1 : 0;
-    }
+    // Synchronisation stricte et absolue du joueur connecté avec ses statistiques de match
+    const mePlayerObj = myTeam.find((tp) => tp.isMe);
+    const fb = mePlayerObj?.firstBloods ?? (playerFbMap[puuid] ?? (kills >= 20 ? 4 : kills >= 15 ? 3 : kills >= 10 ? 2 : kills >= 5 ? 1 : 0));
     totalFirstBloods += fb;
+
+    const matchEconRating = mePlayerObj?.econRating ?? Math.max(38, Math.min(99, Math.round(((damage / Math.max(roundsPlayed * 3600, 1000)) * 1000) * 0.92 + (won ? 4 : 0))));
+    const inlineTotalShots = headshots + bodyshots + legshots;
+    const matchSpi = mePlayerObj?.spi ?? calculateSingleMatchSPI({
+      kills,
+      deaths,
+      assists,
+      acs: matchAcs,
+      headshotPct: inlineTotalShots > 0 ? Math.round((headshots / inlineTotalShots) * 100) : 22,
+      damage,
+      firstBloods: fb,
+      won,
+      role: agentDisp.role,
+      agent: agentName,
+      score: me?.stats?.score || kills * 205,
+    }, agentDisp.role as AgentRole);
 
     parsedMatches.push({
       matchId: meta.id || meta.matchid || `henrik-match-${idx}`,
@@ -819,6 +928,8 @@ export function parseHenrikMatchesList(
       timeline,
       duels,
       roundEconomy,
+      econRating: matchEconRating,
+      spi: matchSpi,
     });
   }
 

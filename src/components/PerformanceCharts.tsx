@@ -267,7 +267,7 @@ function PerformanceChartsComponent({
         m.headshots && m.kills
           ? Math.round((m.headshots / (m.kills + m.assists || 1)) * 100)
           : m.headshotPct || 20;
-      const matchSpi = calculateSingleMatchSPI(m, m.role);
+      const matchSpi = m.spi || calculateSingleMatchSPI(m, m.role);
       const rounds = Math.max(m.roundsPlayed || 1, 1);
       const adr = Math.round((m.damage || m.kills * 155) / rounds);
       const killsCount = m.kills || 0;
@@ -309,7 +309,7 @@ function PerformanceChartsComponent({
         m.headshots && m.kills
           ? Math.round((m.headshots / (m.kills + m.assists || 1)) * 100)
           : m.headshotPct || 20;
-      const matchSpi = calculateSingleMatchSPI(m, m.role);
+      const matchSpi = m.spi || calculateSingleMatchSPI(m, m.role);
       const rounds = Math.max(m.roundsPlayed || 1, 1);
       const adr = Math.round((m.damage || m.kills * 155) / rounds);
       const killsCount = m.kills || 0;

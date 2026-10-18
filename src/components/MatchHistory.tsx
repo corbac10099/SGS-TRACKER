@@ -196,7 +196,8 @@ export const PlayerRow = React.memo(function PlayerRow({
   mySpi?: any;
 }) {
   const spi =
-    player.isMe && mySpi
+    player.spi ||
+    (player.isMe && mySpi
       ? mySpi
       : calculateSingleMatchSPI(
           {
@@ -204,7 +205,7 @@ export const PlayerRow = React.memo(function PlayerRow({
             won: player.won !== undefined ? player.won : isWinnerTeam ?? false,
           },
           player.role
-        );
+        ));
   const pRank = getPlayerRank(player);
 
   return (
@@ -375,6 +376,17 @@ export const MatchEconomyChart = React.memo(function MatchEconomyChart({ match }
     return Math.round(dataPoints.reduce((acc: number, d: any) => acc + d.enemyTeamAvgSpend, 0) / dataPoints.length);
   }, [dataPoints]);
 
+  const calculatedEconRating = useMemo(() => {
+    if (typeof match.econRating === "number" && match.econRating > 0) return match.econRating;
+    const totalSpent = dataPoints.reduce((acc: number, d: any) => acc + (d.mySpend || 0), 0);
+    const damage = match.damage || (match.kills || 15) * 150;
+    if (totalSpent <= 0) return 78;
+    const dmgPerThousand = (damage / totalSpent) * 1000;
+    const winBonus = match.won ? 4 : 0;
+    const rating = Math.round(dmgPerThousand * 0.92 + winBonus);
+    return Math.max(38, Math.min(99, rating));
+  }, [match.econRating, match.damage, match.kills, match.won, dataPoints]);
+
   // Dimensions SVG calquées sur PerformanceCharts
   const svgWidth = 900;
   const svgHeight = 240;
@@ -503,7 +515,7 @@ export const MatchEconomyChart = React.memo(function MatchEconomyChart({ match }
             Note Économique
           </span>
           <div className="text-xl font-black text-white mt-1 flex items-center justify-center gap-1">
-            <span>{match.econRating || 82}</span>
+            <span>{calculatedEconRating}</span>
             <span className="text-xs text-[var(--color-text-secondary)]">/100</span>
           </div>
         </div>
@@ -1257,7 +1269,8 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({
                 .map((p: any, idx: number) => {
                   const pWon = p.won !== undefined ? p.won : (match.myTeam?.some((m: any) => m.puuid === p.puuid) ? match.won : !match.won);
                   const pSpi =
-                    p.isMe && spi
+                    p.spi ||
+                    (p.isMe && spi
                       ? spi
                       : calculateSingleMatchSPI(
                           {
@@ -1265,7 +1278,7 @@ export const ExpandedMatch = React.memo(function ExpandedMatch({
                             won: pWon,
                           },
                           p.role
-                        );
+                        ));
                   const pRank = getPlayerRank(p);
 
                   return (
@@ -1622,7 +1635,7 @@ function MatchHistoryComponent({
         const isExpanded =
           expandedMatchId === match.matchId ||
           (match.id && expandedMatchId === match.id);
-        const spi = calculateSingleMatchSPI(match, match.role);
+        const spi = match.spi || calculateSingleMatchSPI(match, match.role);
         const modeInfo = resolveGameMode(match.mode);
         const isDeathmatch = modeInfo.id === "deathmatch";
         const matchRank = getPlayerRank(match, {

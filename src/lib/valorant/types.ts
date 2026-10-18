@@ -101,9 +101,12 @@ export interface MatchTeamPlayer {
   deaths: number;
   assists: number;
   econScore?: number;
+  econRating?: number;
   firstBloods?: number;
   isMe: boolean;
   isPublicProfile?: boolean;
+  won?: boolean;
+  spi?: any;
 }
 
 export interface MatchDuoTeam {
@@ -159,6 +162,8 @@ export interface ValorantMatchData {
   timeline: MatchRoundTimeline[];
   duels: MatchPlayerDuel[];
   roundEconomy?: RoundEconomyData[];
+  econRating?: number;
+  spi?: any;
 }
 
 export interface ValorantProfileResponse {
