@@ -109,6 +109,26 @@ export async function startDragWindow(): Promise<void> {
 }
 
 /**
+ * Déclenche le redimensionnement fluide natif de la fenêtre à la souris (Windows Win32).
+ */
+export async function startResizeWindow(): Promise<void> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) return;
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      await tauri.core.invoke("start_resize_window");
+      return;
+    }
+  } catch {}
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      await internals.invoke("start_resize_window");
+    }
+  } catch {}
+}
+
+/**
  * Modifie la taille de la fenêtre d'overlay en pixels logiques.
  */
 export async function setOverlaySize(width: number, height: number): Promise<void> {

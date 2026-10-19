@@ -279,6 +279,30 @@ fn start_drag_window(window: tauri::WebviewWindow) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn start_resize_window(window: tauri::WebviewWindow) -> Result<(), String> {
+  #[cfg(target_os = "windows")]
+  {
+    if let Ok(hwnd) = window.hwnd() {
+      #[link(name = "user32")]
+      extern "system" {
+        fn ReleaseCapture() -> i32;
+        fn SendMessageW(hwnd: *mut std::ffi::c_void, msg: u32, wparam: usize, lparam: isize) -> isize;
+      }
+      const WM_SYSCOMMAND: u32 = 0x0112;
+      const SC_SIZE: usize = 0xF000;
+      const WMSZ_BOTTOMRIGHT: usize = 8;
+      unsafe {
+        ReleaseCapture();
+        SendMessageW(hwnd.0 as *mut std::ffi::c_void, WM_SYSCOMMAND, SC_SIZE + WMSZ_BOTTOMRIGHT, 0);
+      }
+      return Ok(());
+    }
+  }
+  let _ = window;
+  Ok(())
+}
+
+#[tauri::command]
 fn set_window_visible(app: tauri::AppHandle, label: String, visible: bool) -> Result<(), String> {
   use tauri::Manager;
   if let Some(window) = app.get_webview_window(&label) {
@@ -439,6 +463,7 @@ pub fn run() {
       register_overlay_shortcut,
       toggle_overlay,
       start_drag_window,
+      start_resize_window,
       set_overlay_size,
       move_overlay_window,
       set_overlay_position,

@@ -50,9 +50,14 @@ const nextConfig: NextConfig = {
         source: '/:riotId/agents/:slug',
         destination: '/',
       },
+      // /overlay.html → /overlay
+      {
+        source: '/overlay.html',
+        destination: '/overlay',
+      },
       // /:riotId seul (sans tab) → racine, si pas réservé
       {
-        source: '/:riotId((?!api|auth|login|register|onboarding|_next|favicon).*)',
+        source: '/:riotId((?!api|auth|login|register|onboarding|_next|favicon|overlay).*)',
         destination: '/',
       },
     ];

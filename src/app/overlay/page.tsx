@@ -10,6 +10,7 @@ import {
   setWindowClickThrough,
   isWindowVisible,
   startDragWindow,
+  startResizeWindow,
   isTauriEnvironment,
   getThemeBackgroundColor,
 } from "@/lib/desktop";
@@ -475,6 +476,11 @@ export default function OverlayPage() {
     e.stopPropagation();
     e.preventDefault();
 
+    if (isTauriEnvironment()) {
+      startResizeWindow();
+      return;
+    }
+
     const target = e.currentTarget as HTMLElement;
     try {
       target.setPointerCapture(e.pointerId);
@@ -646,10 +652,7 @@ export default function OverlayPage() {
       </div>
 
         {/* ─── Barre Supérieure Compacte : Statut, Onglets & Contrôles ─── */}
-        <div
-          onPointerDown={handleDragPointerDown}
-          className="flex items-center justify-between gap-2 pb-2 border-b border-white/10 cursor-grab active:cursor-grabbing select-none touch-none flex-shrink-0"
-        >
+        <div className="flex items-center justify-between gap-2 pb-2 border-b border-white/10 select-none flex-shrink-0">
           {/* Statut & Carte */}
           <div className="flex items-center gap-2 pointer-events-none">
             <span className="relative flex h-2 w-2">
@@ -719,11 +722,12 @@ export default function OverlayPage() {
             className="flex items-center gap-1 bg-black/40 p-0.5 rounded-lg border border-white/10"
           >
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => {
                 setActiveTab("match");
                 setInspectedPlayer(null);
               }}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-all ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                 activeTab === "match"
                   ? "text-white shadow-sm"
                   : "text-white/50 hover:text-white/80"
@@ -737,11 +741,12 @@ export default function OverlayPage() {
             </button>
 
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => {
                 setActiveTab("agents");
                 setSelectedAgentDetail(null);
               }}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-all ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                 activeTab === "agents"
                   ? "text-white shadow-sm"
                   : "text-white/50 hover:text-white/80"
@@ -755,8 +760,9 @@ export default function OverlayPage() {
             </button>
 
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => setActiveTab("history")}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-all ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                 activeTab === "history"
                   ? "text-white shadow-sm"
                   : "text-white/50 hover:text-white/80"
@@ -770,11 +776,12 @@ export default function OverlayPage() {
             </button>
 
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => {
                 setActiveTab("aim");
                 setInspectedPlayer(null);
               }}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-all ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                 activeTab === "aim"
                   ? "text-white shadow-sm"
                   : "text-white/50 hover:text-white/80"
@@ -793,11 +800,12 @@ export default function OverlayPage() {
             </button>
 
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => {
                 setActiveTab("overlays");
                 setInspectedPlayer(null);
               }}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-all ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                 activeTab === "overlays"
                   ? "text-white shadow-sm"
                   : "text-white/50 hover:text-white/80"
@@ -815,8 +823,9 @@ export default function OverlayPage() {
           <div data-no-drag className="flex items-center gap-1">
             {/* Bouton Clics Traversants (Click-through) */}
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={toggleClickThrough}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold border transition-all ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold border transition-all cursor-pointer ${
                 isClickThrough
                   ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
                   : "bg-white/5 border-white/10 text-white/60 hover:text-white"
@@ -833,6 +842,7 @@ export default function OverlayPage() {
 
             {/* Bouton de rafraîchissement complet (ré-interroge l'API à zéro) */}
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => fetchLiveMatch(true)}
               disabled={isRefreshing}
               className={`p-1 rounded-md border transition-all cursor-pointer ${
@@ -850,15 +860,17 @@ export default function OverlayPage() {
 
             {/* Préréglages de taille rapides */}
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => setOverlaySize(420, 480)}
-              className="px-1.5 py-0.5 rounded text-[9px] font-mono text-white/40 hover:text-white bg-white/5 border border-white/5 hover:border-white/20 transition-all"
+              className="px-1.5 py-0.5 rounded text-[9px] font-mono text-white/40 hover:text-white bg-white/5 border border-white/5 hover:border-white/20 transition-all cursor-pointer"
               title="Taille Compacte (420p)"
             >
               420p
             </button>
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => setOverlaySize(780, 490)}
-              className="px-1.5 py-0.5 rounded text-[9px] font-mono text-white/40 hover:text-white bg-white/5 border border-white/5 hover:border-white/20 transition-all"
+              className="px-1.5 py-0.5 rounded text-[9px] font-mono text-white/40 hover:text-white bg-white/5 border border-white/5 hover:border-white/20 transition-all cursor-pointer"
               title="Taille Standard (780p)"
             >
               780p
@@ -1352,16 +1364,16 @@ export default function OverlayPage() {
             {/* Poignée de redimensionnement libre dans le coin inférieur droit */}
             <div
               onPointerDown={handleResizePointerDown}
-              className="w-5 h-5 flex items-center justify-center cursor-nwse-resize select-none touch-none text-white/30 hover:text-white transition-colors"
-              title="Glisser pour redimensionner"
+              className="w-6 h-6 -mr-1 -mb-1 flex items-center justify-center cursor-nwse-resize select-none touch-none text-white/40 hover:text-white transition-colors"
+              title="Glisser pour redimensionner la fenêtre"
             >
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <svg width="12" height="12" viewBox="0 0 10 10" fill="none">
                 <circle cx="8" cy="8" r="1.2" fill="currentColor" />
                 <circle cx="5" cy="8" r="1.2" fill="currentColor" />
                 <circle cx="8" cy="5" r="1.2" fill="currentColor" />
-                <circle cx="2" cy="8" r="1" fill="currentColor" opacity="0.5" />
-                <circle cx="5" cy="5" r="1" fill="currentColor" opacity="0.5" />
-                <circle cx="8" cy="2" r="1" fill="currentColor" opacity="0.5" />
+                <circle cx="2" cy="8" r="1" fill="currentColor" opacity="0.6" />
+                <circle cx="5" cy="5" r="1" fill="currentColor" opacity="0.6" />
+                <circle cx="8" cy="2" r="1" fill="currentColor" opacity="0.6" />
               </svg>
             </div>
           </div>
