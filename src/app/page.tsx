@@ -546,14 +546,11 @@ export function HomeContent({
               }}
             />
 
-            <div className="mt-8">
+            <div className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
               <PersonalGoalsWidget
                 currentStats={s}
                 matchesCount={filters.filteredMatches?.length}
               />
-            </div>
-
-            <div className="mt-8">
               <PingPerformanceCard matches={filters.filteredMatches} />
             </div>
           </div>
