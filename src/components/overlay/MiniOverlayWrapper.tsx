@@ -13,6 +13,7 @@ export interface MiniOverlayWrapperProps {
   defaultY?: number;
   minWidth?: number;
   className?: string;
+  noFrame?: boolean;
 }
 
 export default function MiniOverlayWrapper({
@@ -26,6 +27,7 @@ export default function MiniOverlayWrapper({
   defaultY = 40,
   minWidth = 180,
   className = "",
+  noFrame = false,
 }: MiniOverlayWrapperProps) {
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: defaultX, y: defaultY });
   const isDraggingRef = useRef(false);
@@ -44,8 +46,8 @@ export default function MiniOverlayWrapper({
       if (saved) {
         const parsed = JSON.parse(saved);
         if (typeof parsed.x === "number" && typeof parsed.y === "number") {
-          const clampedX = Math.max(10, Math.min(window.innerWidth - 60, parsed.x));
-          const clampedY = Math.max(10, Math.min(window.innerHeight - 60, parsed.y));
+          const clampedX = Math.max(0, Math.min(window.innerWidth - 40, parsed.x));
+          const clampedY = Math.max(0, Math.min(window.innerHeight - 40, parsed.y));
           setPos({ x: clampedX, y: clampedY });
         }
       }
@@ -69,8 +71,8 @@ export default function MiniOverlayWrapper({
       if (!isDraggingRef.current) return;
       const dx = ev.clientX - dragStartRef.current.mouseX;
       const dy = ev.clientY - dragStartRef.current.mouseY;
-      const newX = Math.max(5, Math.min(window.innerWidth - 60, dragStartRef.current.startX + dx));
-      const newY = Math.max(5, Math.min(window.innerHeight - 60, dragStartRef.current.startY + dy));
+      const newX = Math.max(0, Math.min(window.innerWidth - 40, dragStartRef.current.startX + dx));
+      const newY = Math.max(0, Math.min(window.innerHeight - 40, dragStartRef.current.startY + dy));
       setPos({ x: newX, y: newY });
     };
 
@@ -100,57 +102,67 @@ export default function MiniOverlayWrapper({
         position: "fixed",
         left: `${pos.x}px`,
         top: `${pos.y}px`,
-        minWidth: `${minWidth}px`,
+        minWidth: noFrame ? undefined : `${minWidth}px`,
         pointerEvents: isInteractive ? "auto" : "none",
         zIndex: 9999,
+        background: "transparent",
       }}
       className={`select-none transition-opacity duration-150 ${
-        isInteractive ? "opacity-100 ring-1 ring-white/30" : "opacity-90"
+        isInteractive ? "opacity-100 ring-1 ring-white/20 rounded-[22px]" : "opacity-95"
       } ${className}`}
     >
-      <div
-        className="rounded-xl bg-[#0f1923]/90 backdrop-blur-xl border border-white/15 shadow-2xl overflow-hidden flex flex-col text-white"
-        style={{
-          boxShadow: isInteractive
-            ? `0 10px 30px rgba(0,0,0,0.8), 0 0 15px ${accentColor}33`
-            : "0 10px 25px rgba(0,0,0,0.7)",
-        }}
-      >
-        {/* Entête miniature */}
+      {noFrame ? (
         <div
           onPointerDown={handlePointerDown}
-          className={`flex items-center justify-between px-2.5 py-1 text-[10px] font-black uppercase tracking-wider border-b border-white/10 ${
-            isInteractive ? "cursor-grab active:cursor-grabbing bg-white/[0.04]" : "cursor-default bg-transparent"
-          }`}
-          style={{ borderColor: `${accentColor}30` }}
+          className={isInteractive ? "cursor-grab active:cursor-grabbing" : "cursor-default"}
         >
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: accentColor }} />
-            <span className="text-white/80">{title}</span>
-          </div>
-
-          {isInteractive && (
-            <div className="flex items-center gap-1.5 pointer-events-auto">
-              <span className="text-[9px] text-white/40 font-mono">F9 déplace</span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClose();
-                }}
-                className="w-4 h-4 rounded flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
-                title="Fermer"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Corps du contenu */}
-        <div className={`p-2.5 ${isInteractive ? "pointer-events-auto" : "pointer-events-none"}`}>
           {children}
         </div>
-      </div>
+      ) : (
+        <div
+          className="rounded-[20px] bg-[#0c1015]/90 backdrop-blur-xl border border-white/15 shadow-2xl overflow-hidden flex flex-col text-white"
+          style={{
+            boxShadow: isInteractive
+              ? `0 12px 35px rgba(0,0,0,0.85), 0 0 15px ${accentColor}33`
+              : "0 10px 25px rgba(0,0,0,0.75)",
+          }}
+        >
+          {/* Entête miniature */}
+          <div
+            onPointerDown={handlePointerDown}
+            className={`flex items-center justify-between px-3 py-1.5 text-[10px] font-black uppercase tracking-wider border-b border-white/10 ${
+              isInteractive ? "cursor-grab active:cursor-grabbing bg-white/[0.04]" : "cursor-default bg-transparent"
+            }`}
+            style={{ borderColor: `${accentColor}30` }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: accentColor }} />
+              <span className="text-white/80">{title}</span>
+            </div>
+
+            {isInteractive && (
+              <div className="flex items-center gap-1.5 pointer-events-auto">
+                <span className="text-[9px] text-white/40 font-mono">F9</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClose();
+                  }}
+                  className="w-4 h-4 rounded flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Fermer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Corps du contenu */}
+          <div className={`p-3 ${isInteractive ? "pointer-events-auto" : "pointer-events-none"}`}>
+            {children}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

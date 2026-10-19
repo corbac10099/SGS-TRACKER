@@ -13,17 +13,25 @@ export interface OverlayCatalogItem {
 
 export const OVERLAY_CATALOG: OverlayCatalogItem[] = [
   {
+    id: "hud_pill",
+    name: "HUD Compact (Score + HS + KD)",
+    description: "Pilule ultra compacte aux coins arrondis (Score direct, Headshot % et Ratio KD)",
+    icon: "🔥",
+    color: "#ff4655",
+    badge: "Style Tracker Pro",
+  },
+  {
     id: "score",
-    name: "Score Live",
-    description: "Score des manches en temps réel (API Riot locale)",
+    name: "Score Live Seul",
+    description: "Score des manches en direct (API Riot locale)",
     icon: "🏆",
     color: "#22c55e",
     badge: "Temps Réel",
   },
   {
     id: "stats",
-    name: "Stats Joueur (KD / HS)",
-    description: "K/D, Taux Headshot et ACS calculés depuis SGS API",
+    name: "Stats Joueur Détaillées",
+    description: "K/D/A, Taux Headshot avec jauge et ACS (SGS API)",
     icon: "🎯",
     color: "#38bdf8",
     badge: "SGS Cloud",
@@ -45,6 +53,10 @@ interface OverlaySelectorProps {
   isInteractive: boolean;
   onToggleInteractive: () => void;
   shortcutKey?: string;
+  isMainPanelCollapsed?: boolean;
+  onToggleMainPanel?: () => void;
+  isExpandedZone?: boolean;
+  onToggleExpandedZone?: () => void;
 }
 
 export default function OverlaySelector({
@@ -54,6 +66,10 @@ export default function OverlaySelector({
   isInteractive,
   onToggleInteractive,
   shortcutKey = "F9",
+  isMainPanelCollapsed = false,
+  onToggleMainPanel,
+  isExpandedZone = false,
+  onToggleExpandedZone,
 }: OverlaySelectorProps) {
   const handleResetPositions = () => {
     OVERLAY_CATALOG.forEach((item) => {
@@ -99,6 +115,39 @@ export default function OverlaySelector({
         >
           {isInteractive ? "Verrouiller (F9)" : "Déplacer (F9)"}
         </button>
+      </div>
+
+      {/* Options d'affichage avancées (Plein écran & Réduire) */}
+      <div className="grid grid-cols-2 gap-2">
+        {onToggleMainPanel && (
+          <button
+            onClick={onToggleMainPanel}
+            className="p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 flex items-center justify-between text-left transition-colors"
+          >
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-white">Mode HUD Épuré</span>
+              <span className="text-[10px] text-white/40">Masque le gros panneau pour ne laisser que le mini-overlay</span>
+            </div>
+            <span className="text-sm">👁️</span>
+          </button>
+        )}
+
+        {onToggleExpandedZone && (
+          <button
+            onClick={onToggleExpandedZone}
+            className={`p-2.5 rounded-xl border flex items-center justify-between text-left transition-colors ${
+              isExpandedZone
+                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                : "bg-white/[0.03] hover:bg-white/[0.08] border-white/10 text-white"
+            }`}
+          >
+            <div className="flex flex-col">
+              <span className="text-xs font-bold">Zone Tout-Écran</span>
+              <span className="text-[10px] opacity-60">Permet de glisser les mini-overlays partout sur votre écran</span>
+            </div>
+            <span className="text-sm">{isExpandedZone ? "✓" : "⛶"}</span>
+          </button>
+        )}
       </div>
 
       {/* Liste des mini-overlays disponibles */}

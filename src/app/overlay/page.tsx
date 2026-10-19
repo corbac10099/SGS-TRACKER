@@ -36,6 +36,7 @@ import ScoreLiveOverlay from "@/components/overlay/ScoreLiveOverlay";
 import StatsOverlay from "@/components/overlay/StatsOverlay";
 import EcoAdvisorOverlay from "@/components/overlay/EcoAdvisorOverlay";
 import OverlaySelector from "@/components/overlay/OverlaySelector";
+import HudPillOverlay from "@/components/overlay/HudPillOverlay";
 
 const Range3DCanvas = dynamic(() => import("@/components/aim/Range3DCanvas"), { ssr: false });
 
@@ -133,7 +134,7 @@ export default function OverlayPage() {
   const [selectedAgentDetail, setSelectedAgentDetail] = useState<AgentCatalogEntry | null>(null);
   const [shortcutKey, setShortcutKey] = useState("F9");
 
-  // ─── Mini-Overlays Modulaires (Score, Stats, Eco) ───────────────────────────
+  // ─── Mini-Overlays Modulaires (HUD Compact, Score, Stats, Eco) ───────────
   const [activeOverlays, setActiveOverlays] = useState<Record<string, boolean>>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -141,7 +142,21 @@ export default function OverlayPage() {
         if (saved) return JSON.parse(saved);
       } catch {}
     }
-    return { score: true, stats: false, eco: false };
+    return { hud_pill: true, score: false, stats: false, eco: false };
+  });
+
+  const [isMainPanelCollapsed, setIsMainPanelCollapsed] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sgs_overlay_panel_collapsed") === "true";
+    }
+    return false;
+  });
+
+  const [isExpandedZone, setIsExpandedZone] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sgs_overlay_expanded_zone") === "true";
+    }
+    return false;
   });
 
   const toggleOverlayActive = (id: string) => {
@@ -152,6 +167,35 @@ export default function OverlayPage() {
       } catch {}
       return next;
     });
+  };
+
+  const toggleMainPanel = () => {
+    setIsMainPanelCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("sgs_overlay_panel_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const toggleExpandedZone = async () => {
+    const next = !isExpandedZone;
+    setIsExpandedZone(next);
+    try {
+      localStorage.setItem("sgs_overlay_expanded_zone", String(next));
+      if (next) {
+        // Étendre la fenêtre à tout l'écran pour permettre de déplacer partout
+        const screenW = window.screen.availWidth || 1920;
+        const screenH = window.screen.availHeight || 1080;
+        await setOverlayPosition(0, 0);
+        await setOverlaySize(screenW, screenH);
+      } else {
+        // Revenir à la taille compacte standard
+        await setOverlayPosition(30, 30);
+        await setOverlaySize(780, 490);
+      }
+    } catch {}
   };
 
   // ─── Aim Trainer & Refresh Overlay State ─────────────────────────────────────
@@ -509,15 +553,34 @@ export default function OverlayPage() {
   }, [agentsSearch, selectedRole]);
 
   return (
-    <div className="w-full h-full bg-transparent p-2 font-sans select-none overflow-hidden flex flex-col justify-start">
-      <div
-        className="w-full h-full rounded-2xl border border-white/15 backdrop-blur-2xl shadow-2xl p-3 text-white flex flex-col gap-2 relative overflow-hidden transition-colors"
-        style={{
-          backgroundColor: `${bgColor}${Math.round(overlayOpacity * 255).toString(16).padStart(2, "0")}`,
-          boxShadow: `0 20px 50px rgba(0, 0, 0, 0.9), 0 0 20px ${accentColor}25, inset 0 1px 0 rgba(255, 255, 255, 0.12)`,
-          borderColor: `${accentColor}40`,
-        }}
-      >
+    <div className="w-full h-full bg-transparent p-2 font-sans select-none overflow-hidden flex flex-col justify-start relative">
+      {/* Bouton discret de réouverture si le gros panneau est masqué (Mode HUD Seul) */}
+      {isMainPanelCollapsed && (
+        <button
+          onClick={toggleMainPanel}
+          className="fixed bottom-3 left-3 px-3 py-1.5 rounded-full bg-[#0f1923]/90 hover:bg-[#0f1923] border text-xs font-black uppercase tracking-wider text-white shadow-2xl flex items-center gap-2 transition-all cursor-pointer z-50 backdrop-blur-xl"
+          style={{
+            borderColor: `${accentColor}80`,
+            boxShadow: `0 8px 25px rgba(0,0,0,0.8), 0 0 12px ${accentColor}33`,
+          }}
+          title="Ouvrir le panneau complet du match (Joueurs, Rangs, Stratégies)"
+        >
+          <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
+          <span>SGS Tracker</span>
+          <span className="text-[10px] text-white/40 font-mono">F9 pour déplacer</span>
+        </button>
+      )}
+
+      {/* Gros Panneau Principal (affiché uniquement si non rétracté) */}
+      {!isMainPanelCollapsed && (
+        <div
+          className="w-full h-full rounded-[24px] border backdrop-blur-2xl shadow-2xl p-3 text-white flex flex-col gap-2 relative overflow-hidden transition-colors"
+          style={{
+            backgroundColor: `${bgColor}${Math.round(overlayOpacity * 255).toString(16).padStart(2, "0")}`,
+            boxShadow: `0 20px 50px rgba(0, 0, 0, 0.85), 0 0 20px ${accentColor}25`,
+            borderColor: `${accentColor}40`,
+          }}
+        >
         {/* Poignée supérieure de déplacement (Draggable Handle) */}
         <div
           onPointerDown={handleDragPointerDown}
@@ -1206,6 +1269,10 @@ export default function OverlayPage() {
               isInteractive={!isClickThrough}
               onToggleInteractive={toggleClickThrough}
               shortcutKey="F9"
+              isMainPanelCollapsed={isMainPanelCollapsed}
+              onToggleMainPanel={toggleMainPanel}
+              isExpandedZone={isExpandedZone}
+              onToggleExpandedZone={toggleExpandedZone}
             />
           )}
         </div>
@@ -1220,25 +1287,55 @@ export default function OverlayPage() {
             <span className="text-white/40 text-[9px]">(Mode combat / Traversant)</span>
           </div>
 
-          {/* Poignée de redimensionnement libre dans le coin inférieur droit */}
-          <div
-            onPointerDown={handleResizePointerDown}
-            className="w-5 h-5 flex items-center justify-center cursor-nwse-resize select-none touch-none text-white/30 hover:text-white transition-colors"
-            title="Glisser pour redimensionner"
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <circle cx="8" cy="8" r="1.2" fill="currentColor" />
-              <circle cx="5" cy="8" r="1.2" fill="currentColor" />
-              <circle cx="8" cy="5" r="1.2" fill="currentColor" />
-              <circle cx="2" cy="8" r="1" fill="currentColor" opacity="0.5" />
-              <circle cx="5" cy="5" r="1" fill="currentColor" opacity="0.5" />
-              <circle cx="8" cy="2" r="1" fill="currentColor" opacity="0.5" />
-            </svg>
+          <div className="flex items-center gap-2">
+            {/* Bouton pour basculer en mode HUD Épuré sans gros panneau */}
+            <button
+              onClick={toggleMainPanel}
+              className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/15 text-[10px] text-white/80 transition-colors"
+              title="Masquer le panneau pour ne laisser que le mini-overlay"
+            >
+              Mode HUD Seul 👁️
+            </button>
+
+            {/* Poignée de redimensionnement libre dans le coin inférieur droit */}
+            <div
+              onPointerDown={handleResizePointerDown}
+              className="w-5 h-5 flex items-center justify-center cursor-nwse-resize select-none touch-none text-white/30 hover:text-white transition-colors"
+              title="Glisser pour redimensionner"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+                <circle cx="5" cy="8" r="1.2" fill="currentColor" />
+                <circle cx="8" cy="5" r="1.2" fill="currentColor" />
+                <circle cx="2" cy="8" r="1" fill="currentColor" opacity="0.5" />
+                <circle cx="5" cy="5" r="1" fill="currentColor" opacity="0.5" />
+                <circle cx="8" cy="2" r="1" fill="currentColor" opacity="0.5" />
+              </svg>
+            </div>
           </div>
         </div>
       </div>
+      )}
 
       {/* ─── MINI-OVERLAYS FLOTTANTS SUR L'ÉCRAN (Position mémorisée, F9 interactif) ─── */}
+      {/* 1. HUD COMPACT (STYLE IMAGE 1 : SCORE + HS% + K/D) */}
+      {activeOverlays.hud_pill && (
+        <HudPillOverlay
+          allyScore={data?.score?.ally ?? 0}
+          enemyScore={data?.score?.enemy ?? 0}
+          sessionWins={data?.score?.ally}
+          sessionLosses={data?.score?.enemy}
+          hsRate={28}
+          kdRatio={1.55}
+          isInteractive={!isClickThrough}
+          onClose={() => toggleOverlayActive("hud_pill")}
+          accentColor={accentColor}
+          themeBg={bgColor}
+          isLive={isIngame}
+        />
+      )}
+
+      {/* 2. SCORE LIVE SEUL */}
       {activeOverlays.score && (
         <ScoreLiveOverlay
           allyScore={data?.score?.ally ?? 0}
@@ -1253,6 +1350,7 @@ export default function OverlayPage() {
         />
       )}
 
+      {/* 3. STATS MATCH JOUEUR */}
       {activeOverlays.stats && (
         <StatsOverlay
           isInteractive={!isClickThrough}
@@ -1262,6 +1360,7 @@ export default function OverlayPage() {
         />
       )}
 
+      {/* 4. CONSEILLER ÉCONOMIE */}
       {activeOverlays.eco && (
         <EcoAdvisorOverlay
           isInteractive={!isClickThrough}
