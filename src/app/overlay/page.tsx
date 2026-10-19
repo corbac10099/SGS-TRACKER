@@ -32,6 +32,11 @@ import type {
   AimScoreRecord,
 } from "@/components/aim/types";
 
+import ScoreLiveOverlay from "@/components/overlay/ScoreLiveOverlay";
+import StatsOverlay from "@/components/overlay/StatsOverlay";
+import EcoAdvisorOverlay from "@/components/overlay/EcoAdvisorOverlay";
+import OverlaySelector from "@/components/overlay/OverlaySelector";
+
 const Range3DCanvas = dynamic(() => import("@/components/aim/Range3DCanvas"), { ssr: false });
 
 const DEFAULT_CROSSHAIR: CrosshairSettings = {
@@ -98,7 +103,7 @@ interface LiveMatchData {
   riotWsConnected?: boolean;
 }
 
-type OverlayTab = "match" | "agents" | "history" | "aim";
+type OverlayTab = "match" | "agents" | "history" | "aim" | "overlays";
 
 // ─── Extraction de la couleur d'accentuation ────────────────────────────────
 
@@ -127,6 +132,27 @@ export default function OverlayPage() {
   const [selectedRole, setSelectedRole] = useState("all");
   const [selectedAgentDetail, setSelectedAgentDetail] = useState<AgentCatalogEntry | null>(null);
   const [shortcutKey, setShortcutKey] = useState("F9");
+
+  // ─── Mini-Overlays Modulaires (Score, Stats, Eco) ───────────────────────────
+  const [activeOverlays, setActiveOverlays] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("sgs_active_mini_overlays");
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return { score: true, stats: false, eco: false };
+  });
+
+  const toggleOverlayActive = (id: string) => {
+    setActiveOverlays((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try {
+        localStorage.setItem("sgs_active_mini_overlays", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // ─── Aim Trainer & Refresh Overlay State ─────────────────────────────────────
   const [aimScenarioId, setAimScenarioId] = useState<AimScenarioId>("gridshot_3d");
@@ -362,7 +388,7 @@ export default function OverlayPage() {
           (window as any).__TAURI__.core.invoke("toggle_overlay");
         }
       }
-      if (e.key === "F10") {
+      if (e.key === "F9" || e.key === "F10") {
         e.preventDefault();
         toggleClickThrough();
       }
@@ -650,6 +676,24 @@ export default function OverlayPage() {
                 </span>
               )}
             </button>
+
+            <button
+              onClick={() => {
+                setActiveTab("overlays");
+                setInspectedPlayer(null);
+              }}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold transition-all ${
+                activeTab === "overlays"
+                  ? "text-white shadow-sm"
+                  : "text-white/50 hover:text-white/80"
+              }`}
+              style={{
+                backgroundColor: activeTab === "overlays" ? accentColor : "transparent",
+              }}
+            >
+              <span>🪟</span>
+              <span>Overlays</span>
+            </button>
           </div>
 
           {/* Contrôles : Clics Traversants, Tailles & Refresh */}
@@ -817,26 +861,24 @@ export default function OverlayPage() {
                     </div>
                   </div>
 
-                  {/* Statistiques en match */}
+                  {/* Informations certifiées en match */}
                   <div className="grid grid-cols-4 gap-2">
                     <div className="bg-black/30 border border-white/10 rounded-xl p-2 text-center">
-                      <div className="text-[10px] text-white/40 uppercase font-bold">K / D / A</div>
-                      <div className="text-sm font-black text-white mt-0.5 font-mono">
-                        {inspectedPlayer.kills}/{inspectedPlayer.deaths}/{inspectedPlayer.assists}
+                      <div className="text-[10px] text-white/40 uppercase font-bold">Équipe</div>
+                      <div className="text-sm font-black text-white mt-0.5 capitalize">
+                        {inspectedPlayer.team === "ally" ? "Alliée" : "Ennemie"}
                       </div>
                     </div>
                     <div className="bg-black/30 border border-white/10 rounded-xl p-2 text-center">
-                      <div className="text-[10px] text-white/40 uppercase font-bold">Ratio K/D</div>
-                      <div className="text-sm font-black text-white mt-0.5 font-mono">
-                        {inspectedPlayer.deaths > 0
-                          ? (inspectedPlayer.kills / inspectedPlayer.deaths).toFixed(2)
-                          : inspectedPlayer.kills.toFixed(2)}
+                      <div className="text-[10px] text-white/40 uppercase font-bold">Rang Officiel</div>
+                      <div className="text-sm font-black text-white mt-0.5 truncate">
+                        {inspectedPlayer.rank || "Non classé"}
                       </div>
                     </div>
                     <div className="bg-black/30 border border-white/10 rounded-xl p-2 text-center">
-                      <div className="text-[10px] text-white/40 uppercase font-bold">Score ACS</div>
-                      <div className="text-sm font-black text-white mt-0.5 font-mono">
-                        {inspectedPlayer.score || "-"}
+                      <div className="text-[10px] text-white/40 uppercase font-bold">Agent</div>
+                      <div className="text-sm font-black text-white mt-0.5 truncate">
+                        {inspectedPlayer.agentName || "Sélection"}
                       </div>
                     </div>
                     <div className="bg-black/30 border border-white/10 rounded-xl p-2 text-center">
@@ -1152,6 +1194,20 @@ export default function OverlayPage() {
               </div>
             </div>
           )}
+
+          {/* ─────────────────────────────────────────────────────────────
+              ONGLET 5 : GESTIONNAIRE DES MINI-OVERLAYS
+          ───────────────────────────────────────────────────────────── */}
+          {activeTab === "overlays" && (
+            <OverlaySelector
+              activeOverlays={activeOverlays}
+              onToggle={toggleOverlayActive}
+              accentColor={accentColor}
+              isInteractive={!isClickThrough}
+              onToggleInteractive={toggleClickThrough}
+              shortcutKey="F9"
+            />
+          )}
         </div>
 
         {/* ─── Pied de Page Épuré ─── */}
@@ -1161,11 +1217,7 @@ export default function OverlayPage() {
             <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[9px] text-white/70">
               {shortcutKey}
             </kbd>
-            <span className="text-white/20">•</span>
-            <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[9px] text-white/70">
-              F10
-            </kbd>
-            <span className="text-white/40 text-[9px]">(Mode combat)</span>
+            <span className="text-white/40 text-[9px]">(Mode combat / Traversant)</span>
           </div>
 
           {/* Poignée de redimensionnement libre dans le coin inférieur droit */}
@@ -1185,6 +1237,41 @@ export default function OverlayPage() {
           </div>
         </div>
       </div>
+
+      {/* ─── MINI-OVERLAYS FLOTTANTS SUR L'ÉCRAN (Position mémorisée, F9 interactif) ─── */}
+      {activeOverlays.score && (
+        <ScoreLiveOverlay
+          allyScore={data?.score?.ally ?? 0}
+          enemyScore={data?.score?.enemy ?? 0}
+          round={data?.round}
+          mapName={data?.map?.name}
+          queueName={data?.queue}
+          isLive={isIngame}
+          isInteractive={!isClickThrough}
+          onClose={() => toggleOverlayActive("score")}
+          accentColor={accentColor}
+        />
+      )}
+
+      {activeOverlays.stats && (
+        <StatsOverlay
+          isInteractive={!isClickThrough}
+          onClose={() => toggleOverlayActive("stats")}
+          accentColor={accentColor}
+          playerName={data?.players?.find((p) => p.isMe)?.name || "Vous"}
+        />
+      )}
+
+      {activeOverlays.eco && (
+        <EcoAdvisorOverlay
+          isInteractive={!isClickThrough}
+          onClose={() => toggleOverlayActive("eco")}
+          accentColor={accentColor}
+          round={data?.round || (data?.score ? data.score.ally + data.score.enemy + 1 : 1)}
+          allyScore={data?.score?.ally ?? 0}
+          enemyScore={data?.score?.enemy ?? 0}
+        />
+      )}
     </div>
   );
 }
@@ -1278,7 +1365,7 @@ function PlayerRowItem({
         </div>
       </div>
 
-      {/* Droite : Note SPI & K/D/A ou Statut Sélection */}
+      {/* Droite : Note SPI & Rang ou Statut Sélection */}
       <div className="flex items-center gap-2 flex-shrink-0 text-right">
         {player.spi > 0 && (
           <div className="flex items-center gap-0.5 text-[10px] font-bold text-amber-400">
@@ -1291,8 +1378,10 @@ function PlayerRowItem({
             Sélection
           </span>
         ) : (
-          <div className="text-[10px] font-mono text-white/60">
-            {player.kills}/{player.deaths}/{player.assists}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold text-white/80 max-w-[85px] truncate">
+              {player.rank || "Non classé"}
+            </span>
           </div>
         )}
       </div>
