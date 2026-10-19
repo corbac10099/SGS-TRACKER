@@ -3,6 +3,7 @@
 import React from "react";
 import dynamic from "next/dynamic";
 import { signOut } from "next-auth/react";
+import { clearClientSession } from "@/lib/authSessionClient";
 import SgsLegalModal from "@/components/SgsLegalModal";
 import LoginModal from "@/components/LoginModal";
 import PerformanceScoreModal from "@/components/PerformanceScoreModal";
@@ -117,7 +118,10 @@ export default function GlobalModals({
         }}
         onOpenLeaderboard={() => nav.setShowLeaderboardModal(true)}
         onToggleFullscreen={settings.toggleFullscreen}
-        onSignOut={() => signOut({ callbackUrl: "/" })}
+        onSignOut={() => {
+          clearClientSession();
+          signOut({ callbackUrl: "/" });
+        }}
       />
 
       {/* Mentions légales & CGU */}

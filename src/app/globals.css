@@ -66,6 +66,14 @@
   background: var(--color-val-red, #ff4655);
 }
 
+/* ===== Anti-Flash LandingPage pour session active ===== */
+html.sgs-has-session .spycam-landing {
+  display: none !important;
+}
+html.sgs-has-session .sgs-auth-splash-loader {
+  display: flex !important;
+}
+
 /* ===== Mode Sans Animations ===== */
 html.disable-animations,
 html.disable-animations *,

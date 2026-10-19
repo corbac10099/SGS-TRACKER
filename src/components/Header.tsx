@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { clearClientSession } from "@/lib/authSessionClient";
 import NotificationsDropdown from "./NotificationsDropdown";
 import FriendsDropdown from "./FriendsDropdown";
 import DailyQuestsDropdown from "./quests/DailyQuestsDropdown";
@@ -628,6 +629,7 @@ export default function Header({
             <button
               onClick={() => {
                 sounds.playClick();
+                clearClientSession();
                 signOut({ callbackUrl: "/" });
               }}
               onMouseEnter={() => sounds.playHover()}

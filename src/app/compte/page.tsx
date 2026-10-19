@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession, signIn, signOut } from "next-auth/react";
+import { clearClientSession } from "@/lib/authSessionClient";
 import { useRouter } from "next/navigation";
 
 export default function SpycamAccountPage() {
@@ -287,7 +288,10 @@ export default function SpycamAccountPage() {
           </a>
           <button
             type="button"
-            onClick={() => signOut({ callbackUrl: "/" })}
+            onClick={() => {
+              clearClientSession();
+              signOut({ callbackUrl: "/" });
+            }}
             className="px-3.5 py-2 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 hover:text-white font-bold text-xs uppercase transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <span>Déconnexion</span>

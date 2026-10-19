@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { setClientSessionActive, clearClientSession } from "@/lib/authSessionClient";
 
 export interface AuthState {
   session: any;
@@ -45,6 +46,7 @@ export function useAuth(searchParams: any): AuthState {
         if (data.success && data.user) {
           sessionStorage.setItem("spycam_guest_mode", "true");
           sessionStorage.setItem("spycam_guest_id", data.guestId);
+          setClientSessionActive();
           setGuestUser(data.user);
           setIsGuestMode(true);
 
@@ -67,10 +69,16 @@ export function useAuth(searchParams: any): AuthState {
         sessionStorage.removeItem("spycam_guest_mode");
         sessionStorage.removeItem("spycam_guest_id");
       }
+      setClientSessionActive();
       setIsGuestMode(false);
       setGuestUser(null);
       return;
     }
+
+    if (realStatus === "unauthenticated" && !sessionStorage.getItem("spycam_guest_mode")) {
+      clearClientSession();
+    }
+
     if (
       typeof window !== "undefined" &&
       sessionStorage.getItem("spycam_guest_mode") === "true"
@@ -95,8 +103,7 @@ export function useAuth(searchParams: any): AuthState {
         });
       } catch {}
     }
-    sessionStorage.removeItem("spycam_guest_mode");
-    sessionStorage.removeItem("spycam_guest_id");
+    clearClientSession();
     setIsGuestMode(false);
     setGuestUser(null);
   }, []);

@@ -418,7 +418,14 @@ export function usePlayerData(
           initialRiotId = "Shadow#BETA";
         }
 
-        if (initialRiotId) setMyRiotId(initialRiotId);
+        if (initialRiotId) {
+          setMyRiotId(initialRiotId);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("spycam_my_riot_id", initialRiotId);
+            } catch {}
+          }
+        }
         if (auth.isSimulatedNewUser) initialRiotId = null;
 
         // Parse URL for initial routing

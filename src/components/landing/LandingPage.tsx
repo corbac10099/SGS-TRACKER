@@ -4,13 +4,28 @@ import React from "react";
 import "./landing.css";
 
 export interface LandingPageProps {
-  onEnterBeta: () => void;
-  onOpenLogin: () => void;
+  onEnterBeta?: () => void;
+  onOpenLogin?: () => void;
 }
 
 export default function LandingPage({ onEnterBeta, onOpenLogin }: LandingPageProps) {
   return (
-    <div className="spycam-landing">
+    <>
+      {/* Écran de chargement immédiat si session détectée par le script pre-paint */}
+      <div className="sgs-auth-splash-loader hidden fixed inset-0 z-50 flex-col items-center justify-center p-4 bg-[#0a0e13]">
+        <div className="w-16 h-16 rounded-2xl mb-6 overflow-hidden shadow-[0_0_30px_rgba(255,70,85,0.4)] animate-pulse">
+          <img
+            src="/sgs-icon.jpg"
+            alt="SGS"
+            className="w-full h-full object-cover"
+          />
+        </div>
+        <p className="text-[var(--color-val-red,#ff4655)] font-black tracking-widest uppercase text-sm animate-pulse">
+          Chargement de votre session SGS...
+        </p>
+      </div>
+
+      <div className="spycam-landing">
       {/* Background Soft Glow */}
       <div className="sp-bg-glow" />
 
@@ -267,5 +282,6 @@ export default function LandingPage({ onEnterBeta, onOpenLogin }: LandingPagePro
         </div>
       </footer>
     </div>
+    </>
   );
 }

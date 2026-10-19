@@ -24,6 +24,7 @@ import { getWarnings } from "@/lib/warnings";
 import { normalizePlayerData } from "@/lib/playerDataUtils";
 import { exportMatchesToCSV } from "@/lib/exportUtils";
 import { sounds } from "@/lib/soundEffects";
+import { hasClientSession } from "@/lib/authSessionClient";
 
 // Layout & Direct Components (Restent en statique pour un chargement immédiat)
 import Header from "@/components/Header";
@@ -338,6 +339,9 @@ export function HomeContent({
   // ─── Early returns (Auth & Loading) ───────────────────────
   // Si déconnecté, on affiche la page d'atterrissage complète (LandingPage)
   if (auth.status === "unauthenticated" && !auth.isDemo) {
+    if (typeof window !== "undefined") {
+      document.documentElement.classList.remove("sgs-has-session");
+    }
     return (
       <>
         <LandingPage
@@ -353,17 +357,12 @@ export function HomeContent({
   }
 
   // Pendant le chargement initial de la session (SSR / premier affichage) :
-  // Si l'utilisateur est déjà connecté dans son navigateur (cookie de session NextAuth ou profil en cache),
+  // Si l'utilisateur est déjà connecté dans son navigateur (localStorage, cookie sgs_auth ou invité),
   // on affiche un squelette de profil élégant pour éviter tout flash de la LandingPage au refresh.
-  // Pour un premier visiteur ou un robot d'indexation (SSR sans cookie), on pré-rend la LandingPage complète pour le SEO.
+  // Pour un premier visiteur ou un robot d'indexation (SSR sans session), on pré-rend la LandingPage complète pour le SEO.
   if (auth.status === "loading") {
     const hasSpecificTarget = searchParams?.get("player") || searchParams?.get("match");
-    const hasExistingSession =
-      typeof window !== "undefined" &&
-      (document.cookie.includes("next-auth.session-token") ||
-        document.cookie.includes("__Secure-next-auth.session-token") ||
-        sessionStorage.getItem("spycam_guest_mode") === "true" ||
-        localStorage.getItem("spycam_my_riot_id"));
+    const hasExistingSession = hasClientSession();
 
     if (hasSpecificTarget || hasExistingSession) {
       return (
@@ -394,21 +393,6 @@ export function HomeContent({
             onClose={() => auth.setLoginModalOpen(false)}
           />
         )}
-      </>
-    );
-  }
-
-  if (auth.status === "unauthenticated" && !auth.isDemo) {
-    return (
-      <>
-        <LandingPage
-          onEnterBeta={auth.handleEnterBeta}
-          onOpenLogin={() => auth.setLoginModalOpen(true)}
-        />
-        <LoginModal
-          isOpen={auth.loginModalOpen}
-          onClose={() => auth.setLoginModalOpen(false)}
-        />
       </>
     );
   }
@@ -1014,10 +998,18 @@ export default function Home() {
   return (
     <Suspense
       fallback={
-        <LandingPage
-          onEnterBeta={() => {}}
-          onOpenLogin={() => {}}
-        />
+        <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-[#0a0e13]">
+          <div className="w-16 h-16 rounded-2xl mb-6 overflow-hidden shadow-[0_0_30px_rgba(255,70,85,0.4)] animate-pulse">
+            <img
+              src="/sgs-icon.jpg"
+              alt="SGS"
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <p className="text-[var(--color-val-red,#ff4655)] font-black tracking-widest uppercase text-sm animate-pulse">
+            Chargement de SGS-Tracker...
+          </p>
+        </div>
       }
     >
       <HomeContent />

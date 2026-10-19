@@ -151,6 +151,22 @@ export default function RootLayout({
       className={`${inter.variable} h-full antialiased`}
     >
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){
+              try {
+                if (
+                  localStorage.getItem("sgs_user_authenticated") === "true" ||
+                  sessionStorage.getItem("spycam_guest_mode") === "true" ||
+                  document.cookie.indexOf("sgs_auth=1") !== -1 ||
+                  Boolean(localStorage.getItem("spycam_my_riot_id"))
+                ) {
+                  document.documentElement.classList.add("sgs-has-session");
+                }
+              } catch(e) {}
+            })();`,
+          }}
+        />
         <meta name="google-adsense-account" content="ca-pub-3408630373286016" />
         <script
           async
