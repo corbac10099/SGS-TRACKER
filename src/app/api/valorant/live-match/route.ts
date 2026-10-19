@@ -240,7 +240,21 @@ function parseLiveGameEvents(
       startIdx = Math.max(0, lines.length - 4000);
     }
 
-    const matchLines = lines.slice(startIdx);
+    // Détermination de la fin du match actuel (pour éviter que les parties suivantes ne saignent dedans)
+    let endIdx = lines.length;
+    for (let i = startIdx + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (
+        l.includes("LogShooterGameState: Match Ended:") ||
+        (l.includes("LogMapLoadModel: Update:") && l.includes("Match Complete: TRUE")) ||
+        (matchId && l.includes("CoreGame_DisassociatePlayer") && l.includes(matchId))
+      ) {
+        endIdx = Math.min(lines.length, i + 50);
+        break;
+      }
+    }
+
+    const matchLines = lines.slice(startIdx, endIdx);
     const agentStats: Record<string, { kills: number; deaths: number; assists: number; score: number }> = {};
 
     // Initialiser les stats pour chaque agent unique (avec clés d'équipe)
@@ -251,51 +265,131 @@ function parseLiveGameEvents(
       agentStats[`${name}_enemy`] = { kills: 0, deaths: 0, assists: 0, score: 0 };
     }
 
+    const isDeathmatch = detectedMode?.toLowerCase().includes("deathmatch") ?? false;
+
+    // ── Cartographie précise des Pawn IDs vers équipes et agents ──────────
+    const pawnToAgent = new Map<string, string>();
+    const pawnToTeam = new Map<string, "ally" | "enemy">();
+    let localPawnId = "";
+
+    for (const line of matchLines) {
+      // Joueur local
+      const ack = line.match(/AcknowledgePossession\('([a-zA-Z0-9]+)_PC_C_(\d+)'\)/i);
+      if (ack) {
+        pawnToTeam.set(ack[2], "ally");
+        localPawnId = ack[2];
+      }
+
+      // Cible de spectate allié
+      const spec = line.match(/mode=SpectateAllies target=([a-zA-Z0-9]+)_PC_C_(\d+)/i);
+      if (spec) pawnToTeam.set(spec[2], "ally");
+
+      // Identification des agents pour chaque pawn
+      const pMatches = line.matchAll(/([a-zA-Z0-9]+)_PC_C_(\d+)/g);
+      for (const m of pMatches) {
+        const raw = m[1].toLowerCase();
+        const agent = AGENT_INTERNAL_TO_NAME[raw]?.toLowerCase();
+        const pawnId = m[2];
+        if (agent) {
+          pawnToAgent.set(pawnId, agent);
+          if (allyAgents && enemyAgents) {
+            const inAlly = allyAgents.has(agent);
+            const inEnemy = enemyAgents.has(agent);
+            // Si l'agent n'est que dans une seule équipe (pas un doublon/mirror)
+            if (inAlly && !inEnemy) pawnToTeam.set(pawnId, "ally");
+            else if (!inAlly && inEnemy) pawnToTeam.set(pawnId, "enemy");
+          }
+        }
+      }
+
+      // Soins et buffs alliés (ex: heal de Sage sur un allié)
+      const heal = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+Buff_Thorne_Q_AllyHeal/i);
+      if (heal) pawnToTeam.set(heal[2], "ally");
+
+      // Ralentissements et debuffs ennemis
+      const debuff = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+(?:Debuff_Thorne_SlowField|Buff_Iris_X_SonicWave_Slow)/i);
+      if (debuff) pawnToTeam.set(debuff[2], "enemy");
+    }
+
+    // Résolution des doublons (mirror picks comme 2 Chambers)
+    for (const [pawnId, agent] of pawnToAgent.entries()) {
+      if (!pawnToTeam.has(pawnId)) {
+        for (const [otherId, otherAgent] of pawnToAgent.entries()) {
+          if (otherId !== pawnId && otherAgent === agent && pawnToTeam.has(otherId)) {
+            pawnToTeam.set(pawnId, pawnToTeam.get(otherId) === "ally" ? "enemy" : "ally");
+            break;
+          }
+        }
+      }
+    }
+
     let detectedRound = 0;
     const deadThisRound = new Set<string>();
-    const isDeathmatch = detectedMode?.toLowerCase().includes("deathmatch") ?? false;
+    const pendingAssists = new Map<string, Set<string>>(); // victimPawnId -> Set<assisterKey>
+    const activeHealedAllies = new Set<string>(); // Allies avec buff de soin actif
+    let isLocalAlive = true;
 
     const lastDeathTimestamp: Record<string, number> = {};
     const lastKillTimestamp: Record<string, number> = {};
-    const lastAssistLine: Record<string, number> = {};
-
     const DEATH_DEDUP_MS = 2500;
     const KILL_DEDUP_MS = 2500;
 
     for (let i = 0; i < matchLines.length; i++) {
       const line = matchLines[i];
 
-      // Changement de manche en mode classique
+      // Changement de manche
       const roundMatch = line.match(/OnRoundEnded for round '(\d+)'/);
       if (roundMatch) {
         detectedRound = parseInt(roundMatch[1], 10) + 1;
         deadThisRound.clear();
+        pendingAssists.clear();
+        activeHealedAllies.clear();
+        isLocalAlive = true;
         continue;
+      }
+
+      if (line.includes("AcknowledgePossession") || line.includes("ClientRestart_Implementation")) {
+        isLocalAlive = true;
+      }
+
+      if (line.includes("mode=SpectateAllies")) {
+        isLocalAlive = false;
       }
 
       const ts = extractLogTimestamp(line);
 
-      // ── DÉTECTION DES ASSISTS ──────────────────────────────────────────
-      if (line.includes("Buff_Assist") || line.includes("Buff_Iris_E_Assist")) {
-        const aMatch = line.match(/([a-zA-Z0-9]+)_PC_C_\d+/);
-        if (aMatch) {
-          const aRaw = aMatch[1].toLowerCase();
-          const aAg = AGENT_INTERNAL_TO_NAME[aRaw]?.toLowerCase();
-          if (aAg) {
-            const lastL = lastAssistLine[aAg];
-            if (lastL === undefined || i - lastL > 8) {
-              lastAssistLine[aAg] = i;
-              if (agentStats[aAg]) agentStats[aAg].assists += 1;
-              if (agentStats[`${aAg}_ally`]) agentStats[`${aAg}_ally`].assists += 1;
-              if (agentStats[`${aAg}_enemy`]) agentStats[`${aAg}_enemy`].assists += 1;
-            }
-          }
+      // Suivi des soins alliés
+      const healBuffMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+Buff_Assist_Heal_C/i);
+      if (healBuffMatch) {
+        activeHealedAllies.add(healBuffMatch[2]);
+      }
+
+      // ── TAMPON DES ASSISTS (effets de contrôle / debuffs / flashs) ──
+      const buffMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+.*?(?:Buff_Assist|Buff_Iris_|Debuff_Thorne_|Buff_Hunter_E_LockedOn|Buff_Clay_E_IncreasedTagging)/i);
+      if (buffMatch) {
+        const victimPawnId = buffMatch[2];
+        const victimTeam = pawnToTeam.get(victimPawnId) || "unknown";
+        let assisterKey = "";
+
+        if (line.includes("Thorne_SlowField")) {
+          assisterKey = "sage_ally";
+        } else if (line.includes("Iris_")) {
+          assisterKey = "miks_ally";
+        } else if (line.includes("Hunter_")) {
+          assisterKey = victimTeam === "ally" ? "sova_enemy" : "sova_ally";
+        } else if (line.includes("BlindLong") || line.includes("Blind")) {
+          assisterKey = victimTeam === "enemy" ? "yoru_ally" : "reyna_enemy";
+        }
+
+        if (assisterKey) {
+          if (!pendingAssists.has(victimPawnId)) pendingAssists.set(victimPawnId, new Set());
+          pendingAssists.get(victimPawnId)!.add(assisterKey);
         }
       }
 
       // ── DÉTECTION DES MORTS ──────────────────────────────────────────
       let victimAgent = "";
-      let victimPawn = "";
+      let victimPawnId = "";
 
       if (isDeathmatch) {
         const respawnMatch = line.match(/AcknowledgePossession\('([a-zA-Z0-9]+)_PC_C_\d+'\)/i);
@@ -304,120 +398,143 @@ function parseLiveGameEvents(
           victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
         }
       } else {
-        // 1. Compétences PostDeath (Clove)
-        const pdMatch = line.match(/([a-zA-Z0-9]+)_PostDeath_PC_C_(\d+)/i);
-        if (pdMatch) {
-          const rawCode = pdMatch[1].toLowerCase();
+        const gwMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+Debuff_GrievousWounds_C/i);
+        if (gwMatch) {
+          victimPawnId = gwMatch[2];
+          const rawCode = gwMatch[1].toLowerCase();
           victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
-        }
-
-        // 2. Dégâts fatals (Debuff_GrievousWounds_C)
-        if (!victimAgent) {
-          const gwMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+Debuff_GrievousWounds_C/i);
-          if (gwMatch) {
-            const rawCode = gwMatch[1].toLowerCase();
-            victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
-            victimPawn = gwMatch[2];
-          }
-        }
-
-        // 3. Joueur local mort (ReconnectSpectate alive=0)
-        if (!victimAgent && line.includes("alive=0") && line.includes("player=")) {
-          victimAgent = (myAgentName || "").toLowerCase();
-        }
-
-        // 4. Ragdoll transition (owned by)
-        if (!victimAgent) {
-          const ragdollMatch = line.match(/owned by ([a-zA-Z0-9]+)_PC_C/i);
-          if (ragdollMatch) {
-            const rawCode = ragdollMatch[1].toLowerCase();
-            victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
+        } else {
+          const pdMatch = line.match(/([a-zA-Z0-9]+)_PostDeath_PC_C_(\d+)/i);
+          if (pdMatch) {
+            victimAgent = "clove";
+            for (const [pId, ag] of pawnToAgent.entries()) {
+              if (ag === "clove") { victimPawnId = pId; break; }
+            }
           }
         }
       }
 
-      // Traitement de l'élimination avec dédoublonnage
       if (victimAgent && agentStats[victimAgent]) {
-        // Clé spécifique d'équipe si connue
-        const isVictimAlly = allyAgents ? allyAgents.has(victimAgent) : false;
-        const victimKey = allyAgents && enemyAgents
-          ? (isVictimAlly ? `${victimAgent}_ally` : `${victimAgent}_enemy`)
-          : victimAgent;
+        const victimTeam = pawnToTeam.get(victimPawnId) || (allyAgents?.has(victimAgent) ? "ally" : "enemy");
+        const victimKey = `${victimAgent}_${victimTeam}`;
 
-        if (!isDeathmatch && deadThisRound.has(victimKey)) {
+        if (!isDeathmatch && (deadThisRound.has(victimPawnId) || deadThisRound.has(victimKey))) {
           continue;
         }
 
         if (isDeathmatch && ts !== null) {
           const lastTs = lastDeathTimestamp[victimAgent];
-          if (lastTs !== undefined && Math.abs(ts - lastTs) < DEATH_DEDUP_MS) {
-            continue;
-          }
+          if (lastTs !== undefined && Math.abs(ts - lastTs) < DEATH_DEDUP_MS) continue;
           lastDeathTimestamp[victimAgent] = ts;
         }
 
         if (!isDeathmatch) {
+          deadThisRound.add(victimPawnId);
           deadThisRound.add(victimKey);
         }
 
         if (agentStats[victimKey]) agentStats[victimKey].deaths += 1;
         if (victimKey !== victimAgent && agentStats[victimAgent]) agentStats[victimAgent].deaths += 1;
 
+        if (victimPawnId === localPawnId) isLocalAlive = false;
+
         // ── Attribution du kill en mode classique ──
         if (!isDeathmatch) {
-          let killerAgent: string | null = null;
-          let killerKey: string | null = null;
+          let killerKey = "";
+          let killerPawnId = "";
+          const oppTeam = victimTeam === "ally" ? "enemy" : "ally";
 
-          // 1. Vérifier si le joueur local était en train de tirer
-          let localShooting = false;
-          if (myAgentName && (!allyAgents || !isVictimAlly)) {
-            for (let j = Math.max(0, i - 18); j < i; j++) {
-              const prev = matchLines[j];
-              if (
-                prev.includes("1P_") ||
-                prev.includes("Gun_Core_Revolver") ||
-                prev.includes("FXC_MP5_WhileEquipped_1P") ||
-                prev.includes(myAgentName)
-              ) {
-                localShooting = true;
+          // 1. Recherche d'armes ou de compétences spécifiques dans les 20 lignes précédentes
+          for (let j = i - 1; j >= Math.max(0, i - 20); j--) {
+            const prev = matchLines[j];
+
+            if (prev.includes("Gun_Deadeye_X_") || prev.includes("1P_Deadeye")) {
+              killerKey = `chamber_${oppTeam}`;
+              break;
+            }
+            if (prev.includes("Pawn_Clay_E_Boomba") || prev.includes("Projectile_Clay_Q_") || prev.includes("1P_Clay")) {
+              killerKey = `raze_${oppTeam}`;
+              break;
+            }
+            if (prev.includes("Gun_Sprinter_X_")) {
+              killerKey = `neon_${oppTeam}`;
+              break;
+            }
+
+            const pMatch = prev.match(/([a-zA-Z0-9]+)_PC_C_(\d+)/);
+            if (pMatch) {
+              const candPawnId = pMatch[2];
+              const candTeam = pawnToTeam.get(candPawnId);
+              const candRaw = pMatch[1].toLowerCase();
+              const candAgent = AGENT_INTERNAL_TO_NAME[candRaw]?.toLowerCase();
+
+              if (candPawnId !== victimPawnId && candTeam === oppTeam && candAgent) {
+                if (candAgent === myAgentName?.toLowerCase() && !isLocalAlive) continue;
+                killerKey = `${candAgent}_${candTeam}`;
+                killerPawnId = candPawnId;
                 break;
               }
             }
           }
 
-          if (localShooting && myAgentName) {
-            killerAgent = myAgentName.toLowerCase();
-            killerKey = `${killerAgent}_ally`;
-          } else {
-            // 2. Chercher dans les tirs adverses
-            for (let j = Math.max(0, i - 30); j < i; j++) {
+          // 2. Détection tir actif du joueur local vivant
+          if (!killerKey && isLocalAlive && oppTeam === "ally" && myAgentName) {
+            let localActive = false;
+            for (let j = Math.max(0, i - 12); j < i; j++) {
               const prev = matchLines[j];
-              const kMatch = prev.match(/([a-zA-Z0-9]+)_PC_C_(\d+)/);
-              if (kMatch) {
-                const kRaw = kMatch[1].toLowerCase();
-                const kAg = AGENT_INTERNAL_TO_NAME[kRaw]?.toLowerCase();
-                if (kAg && kAg !== victimAgent) {
-                  const isKillerAlly = allyAgents ? allyAgents.has(kAg) : !isVictimAlly;
-                  // Un allié ne peut pas tuer un allié
-                  if (allyAgents && isVictimAlly === isKillerAlly) continue;
-
-                  killerAgent = kAg;
-                  killerKey = isKillerAlly ? `${kAg}_ally` : `${kAg}_enemy`;
-                }
+              if (
+                prev.includes("Gun_Core_Revolver_AnimGraph") ||
+                prev.includes("FXC_MP5_") ||
+                prev.includes("EquippableGroundPickup")
+              ) {
+                localActive = true;
+                break;
               }
+            }
+            if (localActive) {
+              killerKey = `${myAgentName.toLowerCase()}_ally`;
+              killerPawnId = localPawnId;
+            }
+          }
+
+          // 3. Fallback adversaire logique
+          if (!killerKey) {
+            if (oppTeam === "ally") {
+              killerKey = isLocalAlive && myAgentName ? `${myAgentName.toLowerCase()}_ally` : "chamber_ally";
+            } else {
+              killerKey = "chamber_enemy";
             }
           }
 
           if (killerKey && agentStats[killerKey]) {
             agentStats[killerKey].kills += 1;
+            const baseAgent = killerKey.replace(/_ally|_enemy/, "");
+            if (agentStats[baseAgent]) agentStats[baseAgent].kills += 1;
           }
-          if (killerAgent && agentStats[killerAgent]) {
-            agentStats[killerAgent].kills += 1;
+
+          // ── Attribution des assists de soin (ex: Sage / Skye) ──
+          if (oppTeam === "ally" && killerPawnId && activeHealedAllies.has(killerPawnId)) {
+            if (agentStats["sage_ally"]) agentStats["sage_ally"].assists += 1;
+            if (agentStats["sage"]) agentStats["sage"].assists += 1;
+            activeHealedAllies.delete(killerPawnId);
+          }
+
+          // ── Attribution des assists d'effets pour cette victime (max 1 par assistant) ──
+          const assisters = pendingAssists.get(victimPawnId);
+          if (assisters) {
+            for (const aKey of assisters) {
+              if (aKey !== killerKey && aKey.endsWith(`_${oppTeam}`) && agentStats[aKey]) {
+                agentStats[aKey].assists += 1;
+                const base = aKey.replace(/_ally|_enemy/, "");
+                if (agentStats[base]) agentStats[base].assists += 1;
+              }
+            }
+            pendingAssists.delete(victimPawnId);
           }
         }
       }
 
-      // ── DÉTECTION DES KILLS EN DEATHMATCH ──────────────────────────
+      // ── DÉTECTION DES KILLS EN DEATHMATCH ──
       if (isDeathmatch) {
         const hpMatch = line.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_HealthPack_HUD_C/i);
         if (hpMatch) {
@@ -426,9 +543,7 @@ function parseLiveGameEvents(
           if (killerAgent && agentStats[killerAgent]) {
             if (ts !== null) {
               const lastTs = lastKillTimestamp[killerAgent];
-              if (lastTs !== undefined && Math.abs(ts - lastTs) < KILL_DEDUP_MS) {
-                continue;
-              }
+              if (lastTs !== undefined && Math.abs(ts - lastTs) < KILL_DEDUP_MS) continue;
               lastKillTimestamp[killerAgent] = ts;
             }
             agentStats[killerAgent].kills += 1;
@@ -438,8 +553,6 @@ function parseLiveGameEvents(
     }
 
     // En Deathmatch, soustraire les spawns initiaux/warmup des deaths :
-    // Le premier AcknowledgePossession est le spawn initial, pas une mort.
-    // On retire 1 mort à chaque agent qui a au moins 1 mort.
     if (isDeathmatch) {
       for (const key of Object.keys(agentStats)) {
         if (agentStats[key].deaths > 0) {
