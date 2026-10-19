@@ -64,6 +64,9 @@ const VALORANT_AGENTS: Record<string, { name: string; icon: string }> = {
   "569fdd95-4d10-43ab-ca70-79becc718b46": { name: "Sage", icon: "https://media.valorant-api.com/agents/569fdd95-4d10-43ab-ca70-79becc718b46/displayicon.png" },
   "a3bfb853-43b2-7238-a4f1-ad90e9e46bcc": { name: "Reyna", icon: "https://media.valorant-api.com/agents/a3bfb853-43b2-7238-a4f1-ad90e9e46bcc/displayicon.png" },
   "8e253930-4c05-31dd-1b6c-968525494517": { name: "Omen", icon: "https://media.valorant-api.com/agents/8e253930-4c05-31dd-1b6c-968525494517/displayicon.png" },
+  "92eeef5d-43b5-1d4a-8d03-b3927a09034b": { name: "Veto", icon: "https://media.valorant-api.com/agents/92eeef5d-43b5-1d4a-8d03-b3927a09034b/displayicon.png" },
+  "df1cb487-4902-002e-5c17-d28e83e78588": { name: "Waylay", icon: "https://media.valorant-api.com/agents/df1cb487-4902-002e-5c17-d28e83e78588/displayicon.png" },
+  "7c8a4701-4de6-9355-b254-e09bc2a34b72": { name: "Miks", icon: "https://media.valorant-api.com/agents/7c8a4701-4de6-9355-b254-e09bc2a34b72/displayicon.png" },
   "add6443a-41bd-e414-f6ad-e58d267f4e95": { name: "Jett", icon: "https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png" }
 };
 
@@ -80,37 +83,44 @@ function getAgentInfo(characterId: string): { name: string; icon: string } {
 // ─── Dictionnaire Noms Internes Moteur Valorant ──────────────────────────────
 
 const AGENT_INTERNAL_TO_NAME: Record<string, string> = {
-  smonk: "Clove",
-  guide: "Skye",
-  thorne: "Sage",
-  vampire: "Reyna",
-  stealth: "Yoru",
-  bountyhunter: "Fade",
-  grenadier: "KAY/O",
   aggrobot: "Gekko",
-  wushu: "Jett",
+  bountyhunter: "Fade",
+  breach: "Breach",
+  cable: "Deadlock",
+  cashew: "Tejo",
   clay: "Raze",
   deadeye: "Chamber",
-  sprinter: "Neon",
+  grenadier: "KAY/O",
+  guide: "Skye",
   gumshoe: "Cypher",
   hunter: "Sova",
+  iris: "Miks",
   killjoy: "Killjoy",
-  nox: "Deadlock",
-  cable: "Iso",
-  cashew: "Iso",
-  panda: "Harbor",
-  sequoia: "Harbor",
-  mage: "Astra",
-  wraith: "Omen",
-  breach: "Breach",
-  phoenix: "Phoenix",
-  vyse: "Vyse",
-  iris: "Vyse",
-  tejo: "Tejo",
-  pandora: "Viper",
+  mage: "Harbor",
+  nox: "Vyse",
   pandemic: "Viper",
-  viper: "Viper",
+  pandora: "Viper",
+  phoenix: "Phoenix",
+  pine: "Veto",
+  rift: "Astra",
   sarge: "Brimstone",
+  sequoia: "Iso",
+  smonk: "Clove",
+  sprinter: "Neon",
+  stealth: "Yoru",
+  terra: "Waylay",
+  thorne: "Sage",
+  vampire: "Reyna",
+  wraith: "Omen",
+  wushu: "Jett",
+  // Aliases courants et rétrocompatibilité
+  tejo: "Tejo",
+  veto: "Veto",
+  iso: "Iso",
+  harbor: "Harbor",
+  panda: "Harbor",
+  vyse: "Vyse",
+  viper: "Viper",
   brimstone: "Brimstone",
 };
 
@@ -121,6 +131,22 @@ interface LiveCombatSummary {
   detectedMode?: string;
   detectedMap?: string;
   agentStats: Record<string, { kills: number; deaths: number; assists: number; score: number }>;
+}
+
+/**
+ * Extrait le timestamp HH.MM.SS:mmm d'une ligne de log Valorant.
+ * Retourne null si le format n'est pas reconnu.
+ */
+function extractLogTimestamp(line: string): number | null {
+  // Format: [2026.10.19-09.44.27:106][878]
+  const m = line.match(/\[\d{4}\.\d{2}\.\d{2}-(\d{2})\.(\d{2})\.(\d{2}):(\d{3})\]/);
+  if (!m) return null;
+  return (
+    parseInt(m[1], 10) * 3600000 +
+    parseInt(m[2], 10) * 60000 +
+    parseInt(m[3], 10) * 1000 +
+    parseInt(m[4], 10)
+  );
 }
 
 function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
@@ -212,14 +238,25 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
     const matchLines = lines.slice(startIdx);
     const agentStats: Record<string, { kills: number; deaths: number; assists: number; score: number }> = {};
 
-    for (const name of Object.values(AGENT_INTERNAL_TO_NAME)) {
-      agentStats[name.toLowerCase()] = { kills: 0, deaths: 0, assists: 0, score: 0 };
+    // Initialiser les stats pour chaque agent unique
+    const uniqueNames = new Set(Object.values(AGENT_INTERNAL_TO_NAME).map(n => n.toLowerCase()));
+    for (const name of uniqueNames) {
+      agentStats[name] = { kills: 0, deaths: 0, assists: 0, score: 0 };
     }
 
     let detectedRound = 0;
     const deadThisRound = new Set<string>();
     const isDeathmatch = detectedMode?.toLowerCase().includes("deathmatch") ?? false;
-    const lastVictimLine: Record<string, number> = {};
+
+    // Identifiant unique du pawn de chaque agent (ex: Pine_PC_C_2147242064)
+    // pour la déduplication basée sur le timestamp
+    const lastDeathTimestamp: Record<string, number> = {};
+    const lastKillTimestamp: Record<string, number> = {};
+
+    // Déduplication par timestamp : on ignore les événements du même agent
+    // s'ils sont dans un rayon de DEDUP_MS millisecondes
+    const DEATH_DEDUP_MS = 2500;
+    const KILL_DEDUP_MS = 2500;
 
     for (let i = 0; i < matchLines.length; i++) {
       const line = matchLines[i];
@@ -232,23 +269,32 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
         continue;
       }
 
-      // En mode classique : 1 mort par manche par joueur
-      // En Deathmatch : détection continue avec dédoublonnage des logs ragdoll consécutifs
+      const ts = extractLogTimestamp(line);
+
+      // ── DÉTECTION DES MORTS ──────────────────────────────────────────
+      // Indicateur principal de mort : ClientRestart_Implementation suivi de AcknowledgePossession
+      // Cela signifie que le joueur a respawné (donc il est mort juste avant).
+      // En mode classique : ragdoll "May not destroy" est plus fiable (1 mort par round max).
+      // En Deathmatch : on utilise AcknowledgePossession comme preuve de respawn.
+
       let victimAgent = "";
 
-      // 1. Détection via transition ragdoll (LogActorComponent: Error: May not destroy component StaticMeshComponent owned by <Agent>_PC_C)
-      const ragdollMatch = line.match(/owned by ([a-zA-Z0-9]+)_PC_C/i);
-      if (ragdollMatch) {
-        const rawCode = ragdollMatch[1].toLowerCase();
-        victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
-      } else {
-        // 2. Dégâts fatals (Debuff_GrievousWounds_C)
-        const gwMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+Debuff_GrievousWounds_C/i);
-        if (gwMatch) {
-          const rawCode = gwMatch[1].toLowerCase();
+      if (isDeathmatch) {
+        // En Deathmatch : un AcknowledgePossession = le joueur vient de respawner = il était mort
+        const respawnMatch = line.match(/AcknowledgePossession\('([a-zA-Z0-9]+)_PC_C_\d+'\)/i);
+        if (respawnMatch) {
+          const rawCode = respawnMatch[1].toLowerCase();
           victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
-        } else {
-          // 3. PostDeath de compétences (Clove / Smonk)
+        }
+      } else {
+        // En mode classique : détection via ragdoll + GrievousWounds (1 mort par manche max)
+        const ragdollMatch = line.match(/owned by ([a-zA-Z0-9]+)_PC_C/i);
+        if (ragdollMatch) {
+          const rawCode = ragdollMatch[1].toLowerCase();
+          victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
+        }
+        // PostDeath de compétences (Clove / Smonk)
+        if (!victimAgent) {
           const pdMatch = line.match(/([a-zA-Z0-9]+)_PostDeath_PC_C_(\d+)/i);
           if (pdMatch) {
             const rawCode = pdMatch[1].toLowerCase();
@@ -258,60 +304,67 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
       }
 
       // Traitement de l'élimination avec dédoublonnage
-      if (victimAgent) {
+      if (victimAgent && agentStats[victimAgent]) {
         if (!isDeathmatch && deadThisRound.has(victimAgent)) {
+          // En mode classique, 1 mort max par manche par joueur
           continue;
         }
 
-        const lastLine = lastVictimLine[victimAgent];
-        if (lastLine !== undefined && i - lastLine <= 4) {
-          continue;
+        // Dédoublonnage par timestamp : ignorer si même agent mort récemment
+        if (ts !== null) {
+          const lastTs = lastDeathTimestamp[victimAgent];
+          if (lastTs !== undefined && Math.abs(ts - lastTs) < DEATH_DEDUP_MS) {
+            continue;
+          }
+          lastDeathTimestamp[victimAgent] = ts;
         }
-        lastVictimLine[victimAgent] = i;
 
         if (!isDeathmatch) {
           deadThisRound.add(victimAgent);
         }
 
-        if (agentStats[victimAgent]) {
-          agentStats[victimAgent].deaths += 1;
-        }
+        agentStats[victimAgent].deaths += 1;
+      }
 
-        // Attribution du kill et de l'assist
+      // ── DÉTECTION DES KILLS ──────────────────────────────────────────
+      // En Deathmatch : Buff_HealthPack_HUD_C = orbe de soin récupéré après un kill
+      // C'est l'indicateur le plus fiable pour les kills dans le log.
+      // En mode classique : on attribue un kill à chaque mort détectée
+      // en cherchant le tueur probable dans les lignes précédentes.
+
+      if (isDeathmatch) {
+        const hpMatch = line.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_HealthPack_HUD_C/i);
+        if (hpMatch) {
+          const rawCode = hpMatch[1].toLowerCase();
+          const killerAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase();
+          if (killerAgent && agentStats[killerAgent]) {
+            // Dédoublonnage par timestamp
+            if (ts !== null) {
+              const lastTs = lastKillTimestamp[killerAgent];
+              if (lastTs !== undefined && Math.abs(ts - lastTs) < KILL_DEDUP_MS) {
+                continue;
+              }
+              lastKillTimestamp[killerAgent] = ts;
+            }
+            agentStats[killerAgent].kills += 1;
+          }
+        }
+      } else if (victimAgent && agentStats[victimAgent]) {
+        // Mode classique : chercher le tueur dans les lignes précédentes
         let killerAgent: string | null = null;
         const assisters = new Set<string>();
 
-        // En Deathmatch : vérification des orbes de soin (Buff_HealthPack_HUD_C) attribués au tueur
-        const searchRangeStart = Math.max(0, i - 12);
-        const searchRangeEnd = Math.min(matchLines.length - 1, i + 8);
-
-        for (let j = searchRangeStart; j <= searchRangeEnd; j++) {
-          const nearLine = matchLines[j];
-          const hpMatch = nearLine.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_HealthPack_HUD_C/i);
+        // Chercher dans les lignes proches un agent différent ayant déclenché un Buff/tir
+        for (let j = Math.max(0, i - 15); j < i; j++) {
+          const prevLine = matchLines[j];
+          // HealthPack HUD = kill confirmé
+          const hpMatch = prevLine.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_HealthPack_HUD_C/i);
           if (hpMatch) {
             const hpRaw = hpMatch[1].toLowerCase();
             const hpAgent = AGENT_INTERNAL_TO_NAME[hpRaw]?.toLowerCase();
             if (hpAgent && hpAgent !== victimAgent) {
               killerAgent = hpAgent;
               break;
-            }
-          }
-        }
-
-        // Si non trouvé par orbe de soin, chercher les tirs ou compétences de l'agent
-        if (!killerAgent) {
-          for (let j = Math.max(0, i - 20); j < i; j++) {
-            const prevLine = matchLines[j];
-            const killerMatch = prevLine.match(
-              /(?:1P_([a-zA-Z0-9]+)_Mat|Gun_([a-zA-Z0-9]+)_|([a-zA-Z0-9]+)_PC_C_\d+.*(?:Buff_|Debuff_|Equippable|AssaultRifle|Revolver|Shotgun|Sniper))/i
-            );
-            if (killerMatch) {
-              const kRaw = (killerMatch[1] || killerMatch[2] || killerMatch[3]).toLowerCase();
-              const kName = AGENT_INTERNAL_TO_NAME[kRaw]?.toLowerCase();
-              if (kName && kName !== victimAgent) {
-                killerAgent = kName;
-                break;
-              }
             }
           }
         }
@@ -328,6 +381,17 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
       }
     }
 
+    // En Deathmatch, soustraire les spawns initiaux/warmup des deaths :
+    // Le premier AcknowledgePossession est le spawn initial, pas une mort.
+    // On retire 1 mort à chaque agent qui a au moins 1 mort.
+    if (isDeathmatch) {
+      for (const key of Object.keys(agentStats)) {
+        if (agentStats[key].deaths > 0) {
+          agentStats[key].deaths -= 1;
+        }
+      }
+    }
+
     // Calcul du score de combat ACS
     for (const key of Object.keys(agentStats)) {
       const s = agentStats[key];
@@ -337,6 +401,51 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
     return { detectedRound, detectedMode, detectedMap, agentStats };
   } catch (err) {
     console.warn("[LiveCombat] Erreur parsing log:", err);
+    return null;
+  }
+}
+
+// ─── Récupération des stats officielles via match-details API ────────────────
+
+interface MatchDetailsStats {
+  players: Record<string, { kills: number; deaths: number; assists: number; score: number; characterId: string }>;
+}
+
+/**
+ * Tente de récupérer les statistiques officielles d'un match terminé
+ * via l'endpoint Riot match-details/v1/matches/{matchId}.
+ * Retourne null si le match est encore en cours ou si l'appel échoue.
+ */
+async function fetchMatchDetailsStats(
+  matchId: string,
+  accessToken: string,
+  entitlementToken: string,
+  clientVersion: string,
+  pdShard: string
+): Promise<MatchDetailsStats | null> {
+  try {
+    const data = await queryRemoteRiotApi(
+      `https://pd.${pdShard}.a.pvp.net/match-details/v1/matches/${matchId}`,
+      accessToken,
+      entitlementToken,
+      clientVersion
+    );
+    if (!data || !Array.isArray(data.players)) return null;
+
+    const players: MatchDetailsStats["players"] = {};
+    for (const p of data.players) {
+      if (p.subject && p.stats) {
+        players[p.subject] = {
+          kills: p.stats.kills ?? 0,
+          deaths: p.stats.deaths ?? 0,
+          assists: p.stats.assists ?? 0,
+          score: p.stats.score ?? 0,
+          characterId: p.characterId || "",
+        };
+      }
+    }
+    return { players };
+  } catch {
     return null;
   }
 }
@@ -448,6 +557,7 @@ async function queryRemoteRiotApi(
             "X-Riot-Entitlements-JWT": entitlementToken,
             "X-Riot-ClientPlatform": CLIENT_PLATFORM,
             "X-Riot-ClientVersion": clientVersion,
+            "User-Agent": "RiotClient/18.0.0.1234567.1234567 rso-auth (Windows;10;;Professional, x64)",
             "Content-Type": "application/json",
           },
           timeout: 4000,
@@ -541,7 +651,7 @@ function tierToRank(tier: number): { name: string; icon: string } {
 function readGameLogInfo(): { glzUrl: string; clientVersion: string } {
   const defaults = {
     glzUrl: "https://glz-eu-1.eu.a.pvp.net",
-    clientVersion: "release-13.06-shipping-18-5590001",
+    clientVersion: "release-13.08-shipping-19-5698904",
   };
 
   try {
@@ -843,10 +953,23 @@ export async function GET(request: Request) {
             ).catch(() => null)
           );
 
-          const mmrResults = await Promise.all(mmrPromises);
+           const mmrResults = await Promise.all(mmrPromises);
 
           // Analyse des événements de combat en direct depuis ShooterGame.log
           liveCombat = parseLiveGameEvents(targetMatchId);
+
+          // Tenter de récupérer les stats officielles via match-details API
+          // (disponible uniquement quand le match est terminé côté serveur)
+          let matchDetailsData: MatchDetailsStats | null = null;
+          if (targetMatchId) {
+            matchDetailsData = await fetchMatchDetailsStats(
+              targetMatchId,
+              tokensData.accessToken,
+              tokensData.token,
+              clientVersion,
+              pdShard
+            );
+          }
 
           for (let i = 0; i < rawPlayers.length; i++) {
             const p = rawPlayers[i];
@@ -889,13 +1012,15 @@ export async function GET(request: Request) {
             const characterId = p.CharacterID || p.CharacterSelectionResponse || "";
             const agentDetails = getAgentInfo(characterId);
 
+            // Priorité aux stats officielles match-details > stats du log
+            const officialStats = matchDetailsData?.players?.[puuid];
             const agentKey = (agentDetails.name || "").toLowerCase();
-            const liveStats = liveCombat?.agentStats?.[agentKey] || { kills: 0, deaths: 0, assists: 0, score: 0 };
+            const logStats = liveCombat?.agentStats?.[agentKey] || { kills: 0, deaths: 0, assists: 0, score: 0 };
 
-            const finalKills = liveStats.kills;
-            const finalDeaths = liveStats.deaths;
-            const finalAssists = liveStats.assists;
-            const finalScore = liveStats.score;
+            const finalKills = officialStats?.kills ?? logStats.kills;
+            const finalDeaths = officialStats?.deaths ?? logStats.deaths;
+            const finalAssists = officialStats?.assists ?? logStats.assists;
+            const finalScore = officialStats?.score ?? logStats.score;
             const finalSpi = tier > 0
               ? Math.min(100, Math.max(15, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 20 + (tier / 27) * 40)))
               : Math.min(100, Math.max(20, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 30)));
