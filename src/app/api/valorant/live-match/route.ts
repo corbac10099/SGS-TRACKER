@@ -138,9 +138,9 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
     let detectedMode: string | undefined = undefined;
     let detectedMap: string | undefined = undefined;
 
-    // Recherche par matchId en priorité
+    // 1. Recherche de la PREMIÈRE ligne contenant le matchId (début de partie)
     if (matchId) {
-      for (let i = lines.length - 1; i >= 0; i--) {
+      for (let i = 0; i < lines.length; i++) {
         if (lines[i].includes(matchId)) {
           startIdx = i;
           break;
@@ -148,19 +148,48 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
       }
     }
 
-    // Sinon, recherche du dernier chargement de carte de match
+    // 2. Sinon, recherche du début du match actuel (ignorer les lignes Match Complete)
     if (startIdx === -1) {
+      let lastComplete = -1;
       for (let i = lines.length - 1; i >= 0; i--) {
+        if (
+          lines[i].includes("LogMapLoadModel: Update:") &&
+          lines[i].includes("Game/Maps/") &&
+          lines[i].includes("Match Complete: TRUE") &&
+          !lines[i].includes("MainMenu")
+        ) {
+          lastComplete = i;
+          break;
+        }
+      }
+
+      const searchFrom = lastComplete !== -1 ? lastComplete - 1 : lines.length - 1;
+      for (let i = searchFrom; i >= 0; i--) {
         const l = lines[i];
-        if (l.includes("LogMapLoadModel: Update:") && l.includes("Game/Maps/") && !l.includes("MainMenu")) {
+        if (
+          l.includes("LogMapLoadModel: Update:") &&
+          l.includes("Game/Maps/") &&
+          !l.includes("MainMenu") &&
+          (l.includes("Local World: TRUE") || l.includes("Match Setup: TRUE")) &&
+          !l.includes("Match Complete: TRUE")
+        ) {
           startIdx = i;
+          while (
+            startIdx > 0 &&
+            lines[startIdx - 1].includes("LogMapLoadModel: Update:") &&
+            lines[startIdx - 1].includes("Game/Maps/") &&
+            !lines[startIdx - 1].includes("MainMenu")
+          ) {
+            startIdx--;
+          }
           break;
         }
       }
     }
 
     // Détection du mode de jeu et de la carte depuis le log
-    for (let i = Math.max(0, startIdx); i < lines.length; i++) {
+    const scanStart = startIdx !== -1 ? startIdx : Math.max(0, lines.length - 4000);
+    for (let i = scanStart; i < lines.length; i++) {
       const line = lines[i];
       if (line.includes("game=/Game/GameModes/")) {
         const modeMatch = line.match(/game=\/Game\/GameModes\/([^/\s?#]+)/i);
@@ -190,6 +219,7 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
     let detectedRound = 0;
     const deadThisRound = new Set<string>();
     const isDeathmatch = detectedMode?.toLowerCase().includes("deathmatch") ?? false;
+    const lastVictimLine: Record<string, number> = {};
 
     for (let i = 0; i < matchLines.length; i++) {
       const line = matchLines[i];
@@ -202,20 +232,8 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
         continue;
       }
 
-      // En Deathmatch / modes à réapparition : réapparition d'un joueur
-      if (isDeathmatch) {
-        const respawnMatch = line.match(/(?:InternalOnActiveGameplayEffectAdded\s+([a-zA-Z0-9]+)_PC_C_\d+\s+(?:CanPickupBombBuff_C|Buff_Warmup_Spawn_C)|Setting mesh to material)/i);
-        if (respawnMatch && respawnMatch[1]) {
-          const respawnRaw = respawnMatch[1].toLowerCase();
-          const respawnAgent = AGENT_INTERNAL_TO_NAME[respawnRaw]?.toLowerCase();
-          if (respawnAgent) {
-            deadThisRound.delete(respawnAgent);
-          }
-        }
-      }
-
-      // Identification de la victime
-      let victimPawn = "";
+      // En mode classique : 1 mort par manche par joueur
+      // En Deathmatch : détection continue avec dédoublonnage des logs ragdoll consécutifs
       let victimAgent = "";
 
       // 1. Détection via transition ragdoll (LogActorComponent: Error: May not destroy component StaticMeshComponent owned by <Agent>_PC_C)
@@ -223,29 +241,35 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
       if (ragdollMatch) {
         const rawCode = ragdollMatch[1].toLowerCase();
         victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
-        victimPawn = `${rawCode}_ragdoll_${Math.floor(i / 3)}`; // Regroupement des erreurs de composant consécutives
       } else {
         // 2. Dégâts fatals (Debuff_GrievousWounds_C)
         const gwMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+Debuff_GrievousWounds_C/i);
         if (gwMatch) {
           const rawCode = gwMatch[1].toLowerCase();
           victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
-          victimPawn = `${gwMatch[1]}_PC_C_${gwMatch[2]}`;
         } else {
           // 3. PostDeath de compétences (Clove / Smonk)
           const pdMatch = line.match(/([a-zA-Z0-9]+)_PostDeath_PC_C_(\d+)/i);
           if (pdMatch) {
             const rawCode = pdMatch[1].toLowerCase();
             victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
-            victimPawn = `${rawCode}_postdeath_${pdMatch[2]}`;
           }
         }
       }
 
-      // Traitement de l'élimination
-      if (victimAgent && victimPawn && !deadThisRound.has(victimPawn)) {
-        deadThisRound.add(victimPawn);
-        if (isDeathmatch) {
+      // Traitement de l'élimination avec dédoublonnage
+      if (victimAgent) {
+        if (!isDeathmatch && deadThisRound.has(victimAgent)) {
+          continue;
+        }
+
+        const lastLine = lastVictimLine[victimAgent];
+        if (lastLine !== undefined && i - lastLine <= 4) {
+          continue;
+        }
+        lastVictimLine[victimAgent] = i;
+
+        if (!isDeathmatch) {
           deadThisRound.add(victimAgent);
         }
 
@@ -257,14 +281,12 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
         let killerAgent: string | null = null;
         const assisters = new Set<string>();
 
-        // En Deathmatch : vérification si un orbe de soin apparaît juste avant ou après pour un joueur (Buff_HealthPack_HUD_C)
-        const searchRangeStart = Math.max(0, i - 15);
-        const searchRangeEnd = Math.min(matchLines.length, i + 10);
+        // En Deathmatch : vérification des orbes de soin (Buff_HealthPack_HUD_C) attribués au tueur
+        const searchRangeStart = Math.max(0, i - 12);
+        const searchRangeEnd = Math.min(matchLines.length - 1, i + 8);
 
-        for (let j = searchRangeStart; j < searchRangeEnd; j++) {
+        for (let j = searchRangeStart; j <= searchRangeEnd; j++) {
           const nearLine = matchLines[j];
-
-          // Orbe de soin en Deathmatch (attribué au tueur)
           const hpMatch = nearLine.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_HealthPack_HUD_C/i);
           if (hpMatch) {
             const hpRaw = hpMatch[1].toLowerCase();
@@ -274,19 +296,9 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
               break;
             }
           }
-
-          // Buff d'assistance utilitaire
-          const assistMatch = nearLine.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_Assist_/i);
-          if (assistMatch) {
-            const aRaw = assistMatch[1].toLowerCase();
-            const aName = AGENT_INTERNAL_TO_NAME[aRaw]?.toLowerCase();
-            if (aName && aName !== victimAgent) {
-              assisters.add(aName);
-            }
-          }
         }
 
-        // Si non trouvé par orbe de soin, chercher les actions offensives précédentes
+        // Si non trouvé par orbe de soin, chercher les tirs ou compétences de l'agent
         if (!killerAgent) {
           for (let j = Math.max(0, i - 20); j < i; j++) {
             const prevLine = matchLines[j];
