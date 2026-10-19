@@ -287,17 +287,41 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
           victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
         }
       } else {
-        // En mode classique : détection via ragdoll + GrievousWounds (1 mort par manche max)
-        const ragdollMatch = line.match(/owned by ([a-zA-Z0-9]+)_PC_C/i);
-        if (ragdollMatch) {
-          const rawCode = ragdollMatch[1].toLowerCase();
+        // En mode classique :
+        // 1. Compétences PostDeath (Clove)
+        const pdMatch = line.match(/([a-zA-Z0-9]+)_PostDeath_PC_C_(\d+)/i);
+        if (pdMatch) {
+          const rawCode = pdMatch[1].toLowerCase();
           victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
         }
-        // PostDeath de compétences (Clove / Smonk)
+
+        // 2. Dégâts fatals (Debuff_GrievousWounds_C)
         if (!victimAgent) {
-          const pdMatch = line.match(/([a-zA-Z0-9]+)_PostDeath_PC_C_(\d+)/i);
-          if (pdMatch) {
-            const rawCode = pdMatch[1].toLowerCase();
+          const gwMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+Debuff_GrievousWounds_C/i);
+          if (gwMatch) {
+            const rawCode = gwMatch[1].toLowerCase();
+            victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
+          }
+        }
+
+        // 3. Joueur local mort (ReconnectSpectate alive=0)
+        if (!victimAgent && line.includes("alive=0") && line.includes("player=")) {
+          // Trouver l'agent du joueur local
+          for (let j = Math.max(0, i - 200); j < i; j++) {
+            const possMatch = matchLines[j].match(/AcknowledgePossession\('([a-zA-Z0-9]+)_PC_C_\d+'\)/i);
+            if (possMatch) {
+              const raw = possMatch[1].toLowerCase();
+              victimAgent = AGENT_INTERNAL_TO_NAME[raw]?.toLowerCase() || "";
+              break;
+            }
+          }
+        }
+
+        // 4. Ragdoll transition (owned by)
+        if (!victimAgent) {
+          const ragdollMatch = line.match(/owned by ([a-zA-Z0-9]+)_PC_C/i);
+          if (ragdollMatch) {
+            const rawCode = ragdollMatch[1].toLowerCase();
             victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
           }
         }
@@ -310,8 +334,8 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
           continue;
         }
 
-        // Dédoublonnage par timestamp : ignorer si même agent mort récemment
-        if (ts !== null) {
+        // Dédoublonnage par timestamp en Deathmatch
+        if (isDeathmatch && ts !== null) {
           const lastTs = lastDeathTimestamp[victimAgent];
           if (lastTs !== undefined && Math.abs(ts - lastTs) < DEATH_DEDUP_MS) {
             continue;
@@ -324,21 +348,35 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
         }
 
         agentStats[victimAgent].deaths += 1;
+
+        // ── Attribution du kill en mode classique ──
+        if (!isDeathmatch) {
+          let killerAgent: string | null = null;
+          for (let j = Math.max(0, i - 25); j < i; j++) {
+            const prev = matchLines[j];
+            const kMatch = prev.match(/([a-zA-Z0-9]+)_PC_C_\d+/);
+            if (kMatch) {
+              const kRaw = kMatch[1].toLowerCase();
+              const kAg = AGENT_INTERNAL_TO_NAME[kRaw]?.toLowerCase();
+              if (kAg && kAg !== victimAgent) {
+                killerAgent = kAg;
+              }
+            }
+          }
+
+          if (killerAgent && agentStats[killerAgent]) {
+            agentStats[killerAgent].kills += 1;
+          }
+        }
       }
 
-      // ── DÉTECTION DES KILLS ──────────────────────────────────────────
-      // En Deathmatch : Buff_HealthPack_HUD_C = orbe de soin récupéré après un kill
-      // C'est l'indicateur le plus fiable pour les kills dans le log.
-      // En mode classique : on attribue un kill à chaque mort détectée
-      // en cherchant le tueur probable dans les lignes précédentes.
-
+      // ── DÉTECTION DES KILLS EN DEATHMATCH ──────────────────────────
       if (isDeathmatch) {
         const hpMatch = line.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_HealthPack_HUD_C/i);
         if (hpMatch) {
           const rawCode = hpMatch[1].toLowerCase();
           const killerAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase();
           if (killerAgent && agentStats[killerAgent]) {
-            // Dédoublonnage par timestamp
             if (ts !== null) {
               const lastTs = lastKillTimestamp[killerAgent];
               if (lastTs !== undefined && Math.abs(ts - lastTs) < KILL_DEDUP_MS) {
@@ -347,35 +385,6 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
               lastKillTimestamp[killerAgent] = ts;
             }
             agentStats[killerAgent].kills += 1;
-          }
-        }
-      } else if (victimAgent && agentStats[victimAgent]) {
-        // Mode classique : chercher le tueur dans les lignes précédentes
-        let killerAgent: string | null = null;
-        const assisters = new Set<string>();
-
-        // Chercher dans les lignes proches un agent différent ayant déclenché un Buff/tir
-        for (let j = Math.max(0, i - 15); j < i; j++) {
-          const prevLine = matchLines[j];
-          // HealthPack HUD = kill confirmé
-          const hpMatch = prevLine.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_HealthPack_HUD_C/i);
-          if (hpMatch) {
-            const hpRaw = hpMatch[1].toLowerCase();
-            const hpAgent = AGENT_INTERNAL_TO_NAME[hpRaw]?.toLowerCase();
-            if (hpAgent && hpAgent !== victimAgent) {
-              killerAgent = hpAgent;
-              break;
-            }
-          }
-        }
-
-        if (killerAgent && agentStats[killerAgent]) {
-          agentStats[killerAgent].kills += 1;
-        }
-
-        for (const aName of assisters) {
-          if (aName !== killerAgent && agentStats[aName]) {
-            agentStats[aName].assists += 1;
           }
         }
       }
