@@ -19,13 +19,7 @@ export interface PingBracketData {
   avgKd: number;
 }
 
-const SAMPLE_CALIBRATED_DATA: PingBracketData[] = [
-  { bracket: "< 20 ms", key: "under_20", matchesCount: 12, winRate: 67, avgKd: 1.32 },
-  { bracket: "20 - 35 ms", key: "20_35", matchesCount: 28, winRate: 57, avgKd: 1.18 },
-  { bracket: "35 - 50 ms", key: "35_50", matchesCount: 16, winRate: 50, avgKd: 1.02 },
-  { bracket: "50 - 70 ms", key: "50_70", matchesCount: 6, winRate: 40, avgKd: 0.88 },
-  { bracket: "> 70 ms", key: "over_70", matchesCount: 3, winRate: 33, avgKd: 0.75 },
-];
+
 
 export default function PingPerformanceCard({ matches = [] }: { matches?: any[] }) {
   const [pingData, setPingData] = useState<PingBracketData[]>([]);
@@ -33,8 +27,6 @@ export default function PingPerformanceCard({ matches = [] }: { matches?: any[] 
   const [selectedBracket, setSelectedBracket] = useState<string>("20_35");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRetentionRefused, setIsRetentionRefused] = useState<boolean>(false);
-  const [showSamplePreview, setShowSamplePreview] = useState<boolean>(false);
-  const [isSimulating, setIsSimulating] = useState<boolean>(false);
 
   // Vérifier la conformité RGPD / persistance des données
   useEffect(() => {
@@ -66,7 +58,6 @@ export default function PingPerformanceCard({ matches = [] }: { matches?: any[] 
         const hasRealMatches = data.analysis.some((b: any) => b.matchesCount > 0);
         if (hasRealMatches) {
           setPingData(data.analysis);
-          // Sélectionner la tranche la plus représentée par défaut
           const topBracket = [...data.analysis].sort((a, b) => b.matchesCount - a.matchesCount)[0];
           if (topBracket) setSelectedBracket(topBracket.key);
         } else {
@@ -80,50 +71,9 @@ export default function PingPerformanceCard({ matches = [] }: { matches?: any[] 
     }
   };
 
-  // Simulation d'une capture télémétrique de l'overlay (pour tester l'intégration)
-  const handleSimulateOverlayMatch = async () => {
-    sounds.playClick();
-    setIsSimulating(true);
-    try {
-      const randomPing = Math.floor(18 + Math.random() * 32); // entre 18 et 50 ms
-      const won = Math.random() > 0.45;
-      const kd = parseFloat((0.85 + Math.random() * 0.7).toFixed(2));
-
-      const guestId = typeof window !== "undefined" ? sessionStorage.getItem("spycam_guest_id") : null;
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (guestId) headers["x-guest-id"] = guestId;
-
-      const res = await fetch("/api/tracker/ping", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          matchId: `overlay_sim_${Date.now()}`,
-          avgPingMs: randomPing,
-          maxPingMs: randomPing + 6,
-          packetLoss: 0,
-          matchWon: won,
-          kdRatio: kd,
-          serverRegion: "Paris",
-          guestId: guestId || undefined,
-        }),
-      });
-
-      if (res.ok) {
-        await fetchPingTelemetry();
-        setShowSamplePreview(false);
-      }
-    } catch (e) {
-      console.error("Erreur simulation télémétrie:", e);
-    } finally {
-      setIsSimulating(false);
-    }
-  };
-
   const activeData = useMemo(() => {
-    if (pingData.length > 0) return pingData;
-    if (showSamplePreview) return SAMPLE_CALIBRATED_DATA;
-    return [];
-  }, [pingData, showSamplePreview]);
+    return pingData;
+  }, [pingData]);
 
   const totalAnalyzed = useMemo(() => {
     return activeData.reduce((acc, b) => acc + b.matchesCount, 0);
@@ -241,24 +191,10 @@ export default function PingPerformanceCard({ matches = [] }: { matches?: any[] 
             Vos statistiques de ping se calculent automatiquement lorsque vous jouez avec l&apos;<strong>Application Desktop SGS</strong> et l&apos;<strong>Overlay en jeu</strong>.
           </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
-            <button
-              onClick={handleSimulateOverlayMatch}
-              disabled={isSimulating}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md disabled:opacity-50 active:scale-95"
-            >
-              {isSimulating ? "Envoi du match test..." : "⚡ Tester avec un match simulé"}
-            </button>
-
-            <button
-              onClick={() => {
-                sounds.playClick();
-                setShowSamplePreview(true);
-              }}
-              className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 hover:text-white text-xs font-bold border border-white/10 transition-colors cursor-pointer"
-            >
-              Aperçu du calibrage
-            </button>
+          <div className="pt-2">
+            <span className="text-[11px] font-bold text-cyan-300/80 bg-cyan-950/40 border border-cyan-500/20 px-3.5 py-1.5 rounded-xl inline-block">
+              📡 Démarrez l&apos;Overlay en jeu pour enregistrer votre latence réelle
+            </span>
           </div>
         </div>
 
@@ -295,11 +231,7 @@ export default function PingPerformanceCard({ matches = [] }: { matches?: any[] 
         </div>
 
         <div className="flex items-center gap-2">
-          {showSamplePreview && (
-            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-widest">
-              Aperçu
-            </span>
-          )}
+
 
           <div className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-right">
             <div className="text-[9px] font-black uppercase text-[var(--color-text-secondary)]">
@@ -382,12 +314,14 @@ export default function PingPerformanceCard({ matches = [] }: { matches?: any[] 
             </div>
 
             <button
-              onClick={handleSimulateOverlayMatch}
-              disabled={isSimulating}
-              title="Ajouter un match simulé pour enrichir la télémétrie"
+              onClick={() => {
+                sounds.playClick();
+                fetchPingTelemetry();
+              }}
+              title="Actualiser les métriques télémétriques"
               className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-cyan-400 hover:text-white transition-all cursor-pointer"
             >
-              <IconRefresh size={14} className={isSimulating ? "animate-spin" : ""} />
+              <IconRefresh size={14} className={isLoading ? "animate-spin" : ""} />
             </button>
           </div>
         </div>

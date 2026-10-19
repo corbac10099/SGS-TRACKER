@@ -97,19 +97,29 @@ const AGENT_INTERNAL_TO_NAME: Record<string, string> = {
   killjoy: "Killjoy",
   nox: "Deadlock",
   cable: "Iso",
+  cashew: "Iso",
   panda: "Harbor",
+  sequoia: "Harbor",
   mage: "Astra",
   wraith: "Omen",
   breach: "Breach",
   phoenix: "Phoenix",
   vyse: "Vyse",
+  iris: "Vyse",
   tejo: "Tejo",
+  pandora: "Viper",
+  pandemic: "Viper",
+  viper: "Viper",
+  sarge: "Brimstone",
+  brimstone: "Brimstone",
 };
 
 // ─── Extraction des Événements de Combat en Direct (ShooterGame.log) ─────────
 
 interface LiveCombatSummary {
   detectedRound: number;
+  detectedMode?: string;
+  detectedMap?: string;
   agentStats: Record<string, { kills: number; deaths: number; assists: number; score: number }>;
 }
 
@@ -125,6 +135,10 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
 
     // Détection précise du début du match actuel
     let startIdx = -1;
+    let detectedMode: string | undefined = undefined;
+    let detectedMap: string | undefined = undefined;
+
+    // Recherche par matchId en priorité
     if (matchId) {
       for (let i = lines.length - 1; i >= 0; i--) {
         if (lines[i].includes(matchId)) {
@@ -133,17 +147,35 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
         }
       }
     }
+
+    // Sinon, recherche du dernier chargement de carte de match
     if (startIdx === -1) {
       for (let i = lines.length - 1; i >= 0; i--) {
-        if (
-          lines[i].includes("Gameplay started at local time 0.078125") ||
-          (lines[i].includes("Game/Maps/") && lines[i].includes("Gameplay started at local time"))
-        ) {
+        const l = lines[i];
+        if (l.includes("LogMapLoadModel: Update:") && l.includes("Game/Maps/") && !l.includes("MainMenu")) {
           startIdx = i;
           break;
         }
       }
     }
+
+    // Détection du mode de jeu et de la carte depuis le log
+    for (let i = Math.max(0, startIdx); i < lines.length; i++) {
+      const line = lines[i];
+      if (line.includes("game=/Game/GameModes/")) {
+        const modeMatch = line.match(/game=\/Game\/GameModes\/([^/\s?#]+)/i);
+        if (modeMatch) {
+          detectedMode = modeMatch[1];
+        }
+      }
+      if (line.includes("/Game/Maps/")) {
+        const mapMatch = line.match(/\/Game\/Maps\/([^/\s?#]+)/i);
+        if (mapMatch && !mapMatch[1].toLowerCase().includes("menu")) {
+          detectedMap = mapMatch[1];
+        }
+      }
+    }
+
     if (startIdx === -1) {
       startIdx = Math.max(0, lines.length - 4000);
     }
@@ -157,10 +189,12 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
 
     let detectedRound = 0;
     const deadThisRound = new Set<string>();
+    const isDeathmatch = detectedMode?.toLowerCase().includes("deathmatch") ?? false;
 
     for (let i = 0; i < matchLines.length; i++) {
       const line = matchLines[i];
 
+      // Changement de manche en mode classique
       const roundMatch = line.match(/OnRoundEnded for round '(\d+)'/);
       if (roundMatch) {
         detectedRound = parseInt(roundMatch[1], 10) + 1;
@@ -168,51 +202,81 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
         continue;
       }
 
-      // Identification de la victime
-      let victimPawn = "";
-      let victimAgent = "";
-
-      // 1. Dégâts fatals réels (Debuff_GrievousWounds_C)
-      const gwMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+Debuff_GrievousWounds_C/i);
-      if (gwMatch) {
-        const rawCode = gwMatch[1].toLowerCase();
-        victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
-        victimPawn = `${gwMatch[1]}_PC_C_${gwMatch[2]}`;
-      } else {
-        // 2. Équipement désactivé suite à la mort du propriétaire (Cypher, Chamber, Killjoy)
-        const odMatch = line.match(/GameObject_([a-zA-Z0-9]+)_.+Debuff_Disabled_OwnerDead_C/i);
-        if (odMatch) {
-          const rawCode = odMatch[1].toLowerCase();
-          victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
-          victimPawn = `${rawCode}_owner_dead`;
-        } else {
-          // 3. PostDeath de compétences
-          const pdMatch = line.match(/([a-zA-Z0-9]+)_PostDeath/i);
-          if (pdMatch) {
-            const rawCode = pdMatch[1].toLowerCase();
-            victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
-            victimPawn = `${rawCode}_postdeath`;
+      // En Deathmatch / modes à réapparition : réapparition d'un joueur
+      if (isDeathmatch) {
+        const respawnMatch = line.match(/(?:InternalOnActiveGameplayEffectAdded\s+([a-zA-Z0-9]+)_PC_C_\d+\s+(?:CanPickupBombBuff_C|Buff_Warmup_Spawn_C)|Setting mesh to material)/i);
+        if (respawnMatch && respawnMatch[1]) {
+          const respawnRaw = respawnMatch[1].toLowerCase();
+          const respawnAgent = AGENT_INTERNAL_TO_NAME[respawnRaw]?.toLowerCase();
+          if (respawnAgent) {
+            deadThisRound.delete(respawnAgent);
           }
         }
       }
 
-      // Traitement de l'élimination (au plus 1 mort par manche par joueur)
+      // Identification de la victime
+      let victimPawn = "";
+      let victimAgent = "";
+
+      // 1. Détection via transition ragdoll (LogActorComponent: Error: May not destroy component StaticMeshComponent owned by <Agent>_PC_C)
+      const ragdollMatch = line.match(/owned by ([a-zA-Z0-9]+)_PC_C/i);
+      if (ragdollMatch) {
+        const rawCode = ragdollMatch[1].toLowerCase();
+        victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
+        victimPawn = `${rawCode}_ragdoll_${Math.floor(i / 3)}`; // Regroupement des erreurs de composant consécutives
+      } else {
+        // 2. Dégâts fatals (Debuff_GrievousWounds_C)
+        const gwMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+Debuff_GrievousWounds_C/i);
+        if (gwMatch) {
+          const rawCode = gwMatch[1].toLowerCase();
+          victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
+          victimPawn = `${gwMatch[1]}_PC_C_${gwMatch[2]}`;
+        } else {
+          // 3. PostDeath de compétences (Clove / Smonk)
+          const pdMatch = line.match(/([a-zA-Z0-9]+)_PostDeath_PC_C_(\d+)/i);
+          if (pdMatch) {
+            const rawCode = pdMatch[1].toLowerCase();
+            victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
+            victimPawn = `${rawCode}_postdeath_${pdMatch[2]}`;
+          }
+        }
+      }
+
+      // Traitement de l'élimination
       if (victimAgent && victimPawn && !deadThisRound.has(victimPawn)) {
         deadThisRound.add(victimPawn);
+        if (isDeathmatch) {
+          deadThisRound.add(victimAgent);
+        }
 
         if (agentStats[victimAgent]) {
           agentStats[victimAgent].deaths += 1;
         }
 
-        // Attribution du kill et de l'assist via la fenêtre d'action précédant l'élimination (20 lignes)
+        // Attribution du kill et de l'assist
         let killerAgent: string | null = null;
         const assisters = new Set<string>();
 
-        for (let j = Math.max(0, i - 20); j < i; j++) {
-          const prevLine = matchLines[j];
+        // En Deathmatch : vérification si un orbe de soin apparaît juste avant ou après pour un joueur (Buff_HealthPack_HUD_C)
+        const searchRangeStart = Math.max(0, i - 15);
+        const searchRangeEnd = Math.min(matchLines.length, i + 10);
 
-          // Détection d'un buff d'assist utilitaire actif sur l'action
-          const assistMatch = prevLine.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_Assist_/i);
+        for (let j = searchRangeStart; j < searchRangeEnd; j++) {
+          const nearLine = matchLines[j];
+
+          // Orbe de soin en Deathmatch (attribué au tueur)
+          const hpMatch = nearLine.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_HealthPack_HUD_C/i);
+          if (hpMatch) {
+            const hpRaw = hpMatch[1].toLowerCase();
+            const hpAgent = AGENT_INTERNAL_TO_NAME[hpRaw]?.toLowerCase();
+            if (hpAgent && hpAgent !== victimAgent) {
+              killerAgent = hpAgent;
+              break;
+            }
+          }
+
+          // Buff d'assistance utilitaire
+          const assistMatch = nearLine.match(/([a-zA-Z0-9]+)_PC_C_\d+\s+Buff_Assist_/i);
           if (assistMatch) {
             const aRaw = assistMatch[1].toLowerCase();
             const aName = AGENT_INTERNAL_TO_NAME[aRaw]?.toLowerCase();
@@ -220,16 +284,22 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
               assisters.add(aName);
             }
           }
+        }
 
-          // Détection de l'agent infligeant le tir / compétence létale
-          const killerMatch = prevLine.match(
-            /(?:1P_([a-zA-Z0-9]+)_Mat|Gun_([a-zA-Z0-9]+)_|([a-zA-Z0-9]+)_PC_C_\d+.*(?:Buff_|Debuff_|Equippable))/i
-          );
-          if (killerMatch) {
-            const kRaw = (killerMatch[1] || killerMatch[2] || killerMatch[3]).toLowerCase();
-            const kName = AGENT_INTERNAL_TO_NAME[kRaw]?.toLowerCase();
-            if (kName && kName !== victimAgent) {
-              killerAgent = kName;
+        // Si non trouvé par orbe de soin, chercher les actions offensives précédentes
+        if (!killerAgent) {
+          for (let j = Math.max(0, i - 20); j < i; j++) {
+            const prevLine = matchLines[j];
+            const killerMatch = prevLine.match(
+              /(?:1P_([a-zA-Z0-9]+)_Mat|Gun_([a-zA-Z0-9]+)_|([a-zA-Z0-9]+)_PC_C_\d+.*(?:Buff_|Debuff_|Equippable|AssaultRifle|Revolver|Shotgun|Sniper))/i
+            );
+            if (killerMatch) {
+              const kRaw = (killerMatch[1] || killerMatch[2] || killerMatch[3]).toLowerCase();
+              const kName = AGENT_INTERNAL_TO_NAME[kRaw]?.toLowerCase();
+              if (kName && kName !== victimAgent) {
+                killerAgent = kName;
+                break;
+              }
             }
           }
         }
@@ -252,7 +322,7 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
       s.score = s.kills * 200 + s.assists * 75;
     }
 
-    return { detectedRound, agentStats };
+    return { detectedRound, detectedMode, detectedMap, agentStats };
   } catch (err) {
     console.warn("[LiveCombat] Erreur parsing log:", err);
     return null;
@@ -403,13 +473,15 @@ function friendlyQueueName(queueId: string, provisioningFlow = ""): string {
   const p = (provisioningFlow || "").toLowerCase();
   const q = (queueId || "").toLowerCase();
   if (p.includes("custom") || q.includes("custom")) return "Partie personnalisée";
-  if (q.includes("comp")) return "Compétitif";
-  if (q.includes("swift")) return "Swiftplay";
+  if (q.includes("competitive") || q.includes("comp")) return "Compétitif";
+  if (q.includes("swiftplay") || q.includes("swift")) return "Swiftplay";
   if (q.includes("unrated")) return "Non classé";
-  if (q.includes("spike")) return "Spike Rush";
-  if (q.includes("deathmatch")) return "Deathmatch";
-  if (q.includes("hurm") || q.includes("tdm")) return "Match à mort par équipe";
+  if (q.includes("spikerush") || q.includes("spike")) return "Spike Rush";
+  if (q.includes("deathmatch") || q.includes("ggteam")) return "Deathmatch";
+  if (q.includes("hurm") || q.includes("tdm") || q.includes("teamdeathmatch")) return "Match à mort par équipe";
+  if (q.includes("escalation") || q.includes("ggteam")) return "Intensification";
   if (q.includes("premier")) return "Premier";
+  if (q.includes("snowball")) return "Bataille de boules de neige";
   return "Partie standard";
 }
 
@@ -426,7 +498,12 @@ function mapPathToFriendlyName(mapPath: string): { name: string; id: string } {
   if (lower.includes("breeze") || lower.includes("foxtrot")) return { name: "Breeze", id: "breeze" };
   if (lower.includes("fracture") || lower.includes("canyon")) return { name: "Fracture", id: "fracture" };
   if (lower.includes("pearl") || lower.includes("pitt")) return { name: "Pearl", id: "pearl" };
-  return { name: "Sunset", id: "sunset" };
+  if (lower.includes("plummet") || lower.includes("drift")) return { name: "Drift", id: "drift" };
+  if (lower.includes("district") || lower.includes("hurm_district")) return { name: "District", id: "district" };
+  if (lower.includes("kasbah") || lower.includes("hurm_yard")) return { name: "Kasbah", id: "kasbah" };
+  if (lower.includes("piazza") || lower.includes("hurm_alley")) return { name: "Piazza", id: "piazza" };
+  if (lower.includes("glitch") || lower.includes("hurm_glitch")) return { name: "Glitch", id: "glitch" };
+  return { name: "Match Direct", id: "unknown" };
 }
 
 function tierToRank(tier: number): { name: string; icon: string } {
@@ -837,6 +914,9 @@ export async function GET(request: Request) {
 
     // 4. Fallback Présences locales (si GLZ non connecté)
     if (!usedGlz || allPlayers.length === 0) {
+      if (!liveCombat) {
+        liveCombat = parseLiveGameEvents();
+      }
       const seenPuuids = new Set<string>();
       allPlayers = [];
 
@@ -993,6 +1073,14 @@ export async function GET(request: Request) {
       filteredPlayers = allPlayers.filter((pl) => pl.team === "ally");
     }
 
+    const finalMap = (mapInfo.id === "unknown" && liveCombat?.detectedMap)
+      ? mapPathToFriendlyName(liveCombat.detectedMap)
+      : mapInfo;
+
+    const finalQueue = (queueLabel === "Partie standard" && liveCombat?.detectedMode)
+      ? friendlyQueueName(liveCombat.detectedMode)
+      : queueLabel;
+
     return NextResponse.json({
       active: true,
       mode: "live",
@@ -1002,10 +1090,10 @@ export async function GET(request: Request) {
           ? "En match direct"
           : "Sélection des agents (Pregame)",
       map: {
-        id: mapInfo.id,
-        name: mapInfo.name,
+        id: finalMap.id,
+        name: finalMap.name,
       },
-      queue: queueLabel,
+      queue: finalQueue,
       round: Math.max(allyScore + enemyScore + 1, liveCombat?.detectedRound || 1),
       score: {
         ally: allyScore,

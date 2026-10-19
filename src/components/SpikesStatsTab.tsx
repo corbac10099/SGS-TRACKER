@@ -322,7 +322,7 @@ export default function SpikesStatsTab({ matches = [] }: { matches?: any[] }) {
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
   const [liveSpikes, setLiveSpikes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isSimulating, setIsSimulating] = useState<boolean>(false);
+
 
   // 1. Calcul des statistiques réelles du joueur sur la carte depuis ses matchs réels
   const realMatchStats = useMemo(() => {
@@ -420,41 +420,7 @@ export default function SpikesStatsTab({ matches = [] }: { matches?: any[] }) {
     fetchLiveSpikes();
   }, [selectedMap]);
 
-  // Simuler une pose pour tester la persistance
-  const handleSimulateSpike = async () => {
-    sounds.playClick();
-    setIsSimulating(true);
-    try {
-      const guestId = typeof window !== "undefined" ? sessionStorage.getItem("spycam_guest_id") : null;
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (guestId) headers["x-guest-id"] = guestId;
 
-      const res = await fetch("/api/tracker/spikes", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          matchId: `spike_sim_${Date.now()}`,
-          mapName: selectedMap,
-          site: selectedSiteFilter !== "all" ? selectedSiteFilter : "A",
-          plantType: "open",
-          x: 0.65 + (Math.random() * 0.1 - 0.05),
-          y: 0.35 + (Math.random() * 0.1 - 0.05),
-          roundNumber: 6,
-          roundWon: true,
-          defused: false,
-          guestId: guestId || undefined,
-        }),
-      });
-
-      if (res.ok) {
-        fetchLiveSpikes();
-      }
-    } catch (e) {
-      console.error("Erreur simulation spike:", e);
-    } finally {
-      setIsSimulating(false);
-    }
-  };
 
   const activeMapConfig = useMemo(() => {
     return DEFAULT_MAP_DATA[selectedMap] || DEFAULT_MAP_DATA["Ascent"];
@@ -751,14 +717,9 @@ export default function SpikesStatsTab({ matches = [] }: { matches?: any[] }) {
               </span>
             </div>
 
-            <button
-              onClick={handleSimulateSpike}
-              disabled={isSimulating}
-              className="text-[10px] font-bold text-gray-400 hover:text-white px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors cursor-pointer self-start sm:self-auto active:scale-95 flex items-center gap-1.5"
-            >
-              <IconRefresh size={11} className={isSimulating ? "animate-spin" : ""} />
-              {isSimulating ? "Pose en cours..." : "Simuler une pose (Overlay)"}
-            </button>
+            <span className="text-[10px] text-gray-400">
+              Synchronisé avec les événements d&apos;overlay
+            </span>
           </div>
         </div>
 
