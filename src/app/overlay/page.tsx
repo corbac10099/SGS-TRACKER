@@ -899,6 +899,7 @@ export default function OverlayPage() {
                           key={player.puuid || idx}
                           player={player}
                           accentColor={accentColor}
+                          isPregame={isPregame}
                           onInspect={() => {
                             if (!player.isPrivateRank) setInspectedPlayer(player);
                           }}
@@ -936,6 +937,7 @@ export default function OverlayPage() {
                             key={player.puuid || idx}
                             player={player}
                             accentColor={accentColor}
+                            isPregame={isPregame}
                             onInspect={() => {
                               if (!player.isPrivateRank) setInspectedPlayer(player);
                             }}
@@ -1192,10 +1194,12 @@ export default function OverlayPage() {
 function PlayerRowItem({
   player,
   accentColor,
+  isPregame,
   onInspect,
 }: {
   player: LivePlayer;
   accentColor: string;
+  isPregame?: boolean;
   onInspect: () => void;
 }) {
   return (
@@ -1274,7 +1278,7 @@ function PlayerRowItem({
         </div>
       </div>
 
-      {/* Droite : Note SPI & K/D/A */}
+      {/* Droite : Note SPI & K/D/A ou Statut Sélection */}
       <div className="flex items-center gap-2 flex-shrink-0 text-right">
         {player.spi > 0 && (
           <div className="flex items-center gap-0.5 text-[10px] font-bold text-amber-400">
@@ -1282,9 +1286,15 @@ function PlayerRowItem({
             <span>{player.spi}</span>
           </div>
         )}
-        <div className="text-[10px] font-mono text-white/60">
-          {player.kills}/{player.deaths}/{player.assists}
-        </div>
+        {isPregame ? (
+          <span className="text-[9px] font-bold uppercase tracking-wider text-cyan-400/80 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20 font-mono">
+            Sélection
+          </span>
+        ) : (
+          <div className="text-[10px] font-mono text-white/60">
+            {player.kills}/{player.deaths}/{player.assists}
+          </div>
+        )}
       </div>
     </div>
   );
