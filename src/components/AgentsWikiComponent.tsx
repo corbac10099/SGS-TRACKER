@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import AbilityCard from "./AbilityCard";
+import AgentLineupsSection from "./AgentLineupsSection";
 import AdBanner from "./AdBanner";
 import { t, Locale } from "@/lib/i18n";
 import { getAgentInfo } from "@/lib/valorant/agentsCatalog";
@@ -361,6 +362,16 @@ export default function AgentsWikiComponent({
               />
             );
           })}
+        </div>
+
+        {/* SECTION LINEUPS INTERACTIFS */}
+        <div className="mt-14 pt-10 border-t border-white/10">
+          <AgentLineupsSection
+            agentName={selectedAgent.name}
+            agentUuid={selectedAgent.uuid}
+            videoLoop={videoLoop}
+            videoLoopDelay={videoLoopDelay}
+          />
         </div>
       </div>
     );

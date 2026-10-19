@@ -3,6 +3,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BASE_AGENTS_CATALOG } from "@/lib/valorant/agentsCatalog";
+import AgentLineupsSection from "@/components/AgentLineupsSection";
 
 type Props = {
   params: Promise<{ agent: string }> | { agent: string };
@@ -159,6 +160,14 @@ export default async function AgentDetailPage({ params }: Props) {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Section Guide de Lineups & Setups */}
+        <div className="mb-14">
+          <AgentLineupsSection
+            agentName={agent.name}
+            agentUuid={agent.uuid}
+          />
         </div>
 
         {/* Maillage interne SEO : Découvrir d'autres agents */}

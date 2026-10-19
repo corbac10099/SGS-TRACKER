@@ -395,6 +395,20 @@ function parseLiveGameEvents(
       }
 
       // ── TAMPON DES ASSISTS (effets de contrôle / debuffs / flashs) ──
+      const localAssistMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+.*?(Buff_Assist_[a-zA-Z0-9_]+)/i);
+      if (localAssistMatch) {
+        const pId = localAssistMatch[2];
+        if (pId === localPawnId && myAgentName) {
+          // Assist attribué au joueur local par le Gameplay Ability System
+          const myKey = `${myAgentName.toLowerCase()}_ally`;
+          if (agentStats[myKey]) {
+            agentStats[myKey].assists += 1;
+            const plain = myAgentName.toLowerCase();
+            if (agentStats[plain]) agentStats[plain].assists += 1;
+          }
+        }
+      }
+
       const buffMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+.*?(?:Buff_Assist|Buff_Iris_|Debuff_Thorne_|Buff_Hunter_E_LockedOn|Buff_Clay_E_IncreasedTagging)/i);
       if (buffMatch) {
         const victimPawnId = buffMatch[2];
@@ -428,17 +442,37 @@ function parseLiveGameEvents(
           victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
         }
       } else {
-        const gwMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+Debuff_GrievousWounds_C/i);
-        if (gwMatch) {
-          victimPawnId = gwMatch[2];
-          const rawCode = gwMatch[1].toLowerCase();
+        // 1. Détection universelle moteur réseau : TimeIndexDiff was negative
+        const timeIndexMatch = line.match(/TimeIndexDiff was negative.*?Character:\s*([a-zA-Z0-9]+)_PC_C_(\d+)/i);
+        if (timeIndexMatch) {
+          const rawCode = timeIndexMatch[1].toLowerCase();
+          victimPawnId = timeIndexMatch[2];
           victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
         } else {
-          const pdMatch = line.match(/([a-zA-Z0-9]+)_PostDeath_PC_C_(\d+)/i);
-          if (pdMatch) {
-            victimAgent = "clove";
-            for (const [pId, ag] of pawnToAgent.entries()) {
-              if (ag === "clove") { victimPawnId = pId; break; }
+          // 2. Détection mort du joueur local (absent du composant réseau distant)
+          if (
+            isLocalAlive &&
+            localPawnId &&
+            (line.includes("alive=0") || line.includes("mode=SpectateAllies") || line.includes("mode=NoValidViewTarget"))
+          ) {
+            isLocalAlive = false;
+            victimPawnId = localPawnId;
+            victimAgent = myAgentName ? myAgentName.toLowerCase() : (pawnToAgent.get(localPawnId) || "");
+          } else {
+            // 3. Fallbacks historiques (GrievousWounds et Clove PostDeath)
+            const gwMatch = line.match(/([a-zA-Z0-9]+)_PC_C_(\d+)\s+Debuff_GrievousWounds_C/i);
+            if (gwMatch) {
+              victimPawnId = gwMatch[2];
+              const rawCode = gwMatch[1].toLowerCase();
+              victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
+            } else {
+              const pdMatch = line.match(/([a-zA-Z0-9]+)_PostDeath_PC_C_(\d+)/i);
+              if (pdMatch) {
+                victimAgent = "clove";
+                for (const [pId, ag] of pawnToAgent.entries()) {
+                  if (ag === "clove") { victimPawnId = pId; break; }
+                }
+              }
             }
           }
         }
