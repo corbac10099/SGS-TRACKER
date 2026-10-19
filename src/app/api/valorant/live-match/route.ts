@@ -989,6 +989,14 @@ async function getSgsPrivateSet(puuids: string[], names: string[]): Promise<Set<
 // ─── Route GET ──────────────────────────────────────────────────────────────
 
 export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const isForceRefresh = url.searchParams.get("refresh") === "1" || url.searchParams.get("force") === "1";
+
+  if (isForceRefresh) {
+    // Forcer la réinitialisation de la liaison WebSocket locale
+    riotWsManager.init();
+  }
+
   const lockfile = readLockfile();
   if (!lockfile) {
     return NextResponse.json({

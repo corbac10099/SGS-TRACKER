@@ -128,11 +128,13 @@ export default function OverlayPage() {
   const [selectedAgentDetail, setSelectedAgentDetail] = useState<AgentCatalogEntry | null>(null);
   const [shortcutKey, setShortcutKey] = useState("F9");
 
-  // ─── Aim Trainer Overlay State ──────────────────────────────────────────────
+  // ─── Aim Trainer & Refresh Overlay State ─────────────────────────────────────
   const [aimScenarioId, setAimScenarioId] = useState<AimScenarioId>("gridshot_3d");
   const [aimPaused, setAimPaused] = useState(false);
   const [interRoundTimer, setInterRoundTimer] = useState<number | null>(null);
   const [aimNotice, setAimNotice] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshNotice, setRefreshNotice] = useState<string | null>(null);
   const prevRoundRef = useRef<number | null>(null);
 
   const [crosshair, setCrosshair] = useState<CrosshairSettings>(() => {
@@ -284,18 +286,38 @@ export default function OverlayPage() {
     }
   };
 
-  // Récupération des données du match en direct
-  const fetchLiveMatch = async () => {
+  // Récupération des données du match en direct (avec option de ré-interrogation totale)
+  const fetchLiveMatch = async (force: boolean = false) => {
+    if (force) {
+      setIsRefreshing(true);
+      setRefreshNotice("🔄 Synchronisation complète : Ré-interrogation de l'API locale & Riot...");
+    }
     try {
-      const res = await fetch("/api/valorant/live-match", { cache: "no-store" });
+      const url = force
+        ? `/api/valorant/live-match?refresh=1&t=${Date.now()}`
+        : "/api/valorant/live-match";
+      const res = await fetch(url, { cache: "no-store" });
       if (res.ok) {
         const json: LiveMatchData = await res.json();
         setData(json);
+        if (force) {
+          setRefreshNotice("✓ Données 100% synchronisées avec l'API Valorant !");
+          setTimeout(() => setRefreshNotice(null), 3000);
+        }
+      } else if (force) {
+        setRefreshNotice("⚠️ Échec de la synchronisation avec le client Valorant");
+        setTimeout(() => setRefreshNotice(null), 3500);
       }
     } catch {
-      // Ignorer silencieusement en arrière-plan
+      if (force) {
+        setRefreshNotice("⚠️ Erreur de communication avec le service local");
+        setTimeout(() => setRefreshNotice(null), 3500);
+      }
     } finally {
       setLoading(false);
+      if (force) {
+        setTimeout(() => setIsRefreshing(false), 600);
+      }
     }
   };
 
@@ -650,13 +672,21 @@ export default function OverlayPage() {
               <span>{isClickThrough ? "Verrouillé" : "Interactif"}</span>
             </button>
 
-            {/* Bouton de rafraîchissement rapide */}
+            {/* Bouton de rafraîchissement complet (ré-interroge l'API à zéro) */}
             <button
-              onClick={fetchLiveMatch}
-              className="p-1 rounded-md bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border border-white/10 transition-colors"
-              title="Rafraîchir les données"
+              onClick={() => fetchLiveMatch(true)}
+              disabled={isRefreshing}
+              className={`p-1 rounded-md border transition-all cursor-pointer ${
+                isRefreshing
+                  ? "bg-emerald-500/25 border-emerald-500/50 text-emerald-300 shadow-sm"
+                  : "bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border-white/10"
+              }`}
+              title="Rafraîchir & synchroniser à zéro avec l'API locale & distants Riot"
             >
-              <IconRefresh size={12} className={loading ? "animate-spin" : ""} />
+              <IconRefresh
+                size={12}
+                className={isRefreshing ? "animate-spin text-emerald-400" : ""}
+              />
             </button>
 
             {/* Préréglages de taille rapides */}
@@ -687,6 +717,21 @@ export default function OverlayPage() {
             <kbd className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[9px] font-bold">
               F10
             </kbd>
+          </div>
+        )}
+
+        {/* Bannière de notification du rafraîchissement complet de l'API Riot */}
+        {refreshNotice && (
+          <div className="bg-emerald-500/15 border border-emerald-500/40 rounded-lg px-2.5 py-1 flex items-center justify-between text-[10px] text-emerald-200 animate-in fade-in">
+            <span className="flex items-center gap-1.5 font-bold">
+              <span>{refreshNotice}</span>
+            </span>
+            <button
+              onClick={() => setRefreshNotice(null)}
+              className="text-white/40 hover:text-white ml-2 text-xs font-black cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
         )}
 
