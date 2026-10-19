@@ -510,6 +510,18 @@ export default function OverlayPage() {
               </span>
             </div>
 
+            {/* Score des manches en direct (Riot Presence API) */}
+            {data?.score && (isIngame || data.score.ally > 0 || data.score.enemy > 0) && (
+              <div
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/50 border border-white/15 text-[11px] font-black font-mono leading-none tracking-tight shadow-inner"
+                title={`Score en direct : Alliés ${data.score.ally} - ${data.score.enemy} Ennemis`}
+              >
+                <span className="text-emerald-400">{data.score.ally}</span>
+                <span className="text-white/40">-</span>
+                <span className="text-rose-400">{data.score.enemy}</span>
+              </div>
+            )}
+
             {/* Badge de connexion au service Valorant */}
             {data?.riotWsConnected ? (
               <span

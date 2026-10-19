@@ -1241,11 +1241,7 @@ export async function GET(request: Request) {
             }
           }
 
-          // Analyse des événements de combat en direct depuis ShooterGame.log
-          liveCombat = parseLiveGameEvents(targetMatchId, allyAgentNames, enemyAgentNames, myAgentName);
-
-          // Tenter de récupérer les stats officielles via match-details API
-          // (disponible uniquement quand le match est terminé côté serveur)
+          // Tenter de récupérer les stats officielles consolidées via match-details API (Riot API)
           let matchDetailsData: MatchDetailsStats | null = null;
           if (targetMatchId) {
             matchDetailsData = await fetchMatchDetailsStats(
@@ -1298,21 +1294,17 @@ export async function GET(request: Request) {
             const characterId = p.CharacterID || p.CharacterSelectionResponse || "";
             const agentDetails = getAgentInfo(characterId);
 
-            // Priorité aux stats officielles match-details > stats du log (avec différentiation d'équipe)
+            // Statistiques officielles serveur Riot (match-details)
             const officialStats = matchDetailsData?.players?.[puuid];
-            const agentKey = (agentDetails.name || "").toLowerCase();
-            const logStats =
-              liveCombat?.agentStats?.[`${agentKey}_${team}`] ||
-              liveCombat?.agentStats?.[agentKey] ||
-              { kills: 0, deaths: 0, assists: 0, score: 0 };
-
-            const finalKills = officialStats?.kills ?? logStats.kills;
-            const finalDeaths = officialStats?.deaths ?? logStats.deaths;
-            const finalAssists = officialStats?.assists ?? logStats.assists;
+            const finalKills = officialStats?.kills ?? 0;
+            const finalDeaths = officialStats?.deaths ?? 0;
+            const finalAssists = officialStats?.assists ?? 0;
             const finalScore = officialStats?.score ?? (finalKills * 200 + finalAssists * 75);
-            const finalSpi = tier > 0
-              ? Math.min(100, Math.max(15, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 20 + (tier / 27) * 40)))
-              : Math.min(100, Math.max(20, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 30)));
+            const finalSpi = officialStats
+              ? (tier > 0
+                  ? Math.min(100, Math.max(15, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 20 + (tier / 27) * 40)))
+                  : Math.min(100, Math.max(20, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 30))))
+              : (tier > 0 ? Math.min(100, Math.max(20, Math.round((tier / 27) * 80))) : 50);
 
             allPlayers.push({
               puuid,
@@ -1340,9 +1332,6 @@ export async function GET(request: Request) {
 
     // 4. Fallback Présences locales (si GLZ non connecté)
     if (!usedGlz || allPlayers.length === 0) {
-      if (!liveCombat) {
-        liveCombat = parseLiveGameEvents();
-      }
       const seenPuuids = new Set<string>();
       allPlayers = [];
 
@@ -1390,16 +1379,11 @@ export async function GET(request: Request) {
               const characterId = parsed.characterId || "";
               const agentDetails = getAgentInfo(characterId);
 
-              const agentKey = (agentDetails.name || "").toLowerCase();
-              const liveStats = liveCombat?.agentStats?.[agentKey] || { kills: 0, deaths: 0, assists: 0, score: 0 };
-
-              const kills = liveStats.kills;
-              const deaths = liveStats.deaths;
-              const assists = liveStats.assists;
-              const score = liveStats.score;
-              const spi = tier > 0
-                ? Math.min(100, Math.max(15, Math.round(((kills * 2 + assists) / Math.max(1, deaths)) * 20 + (tier / 27) * 40)))
-                : Math.min(100, Math.max(20, Math.round(((kills * 2 + assists) / Math.max(1, deaths)) * 30)));
+              const kills = 0;
+              const deaths = 0;
+              const assists = 0;
+              const score = 0;
+              const spi = tier > 0 ? Math.min(100, Math.max(20, Math.round((tier / 27) * 80))) : 50;
 
               allPlayers.push({
                 puuid,
@@ -1435,17 +1419,6 @@ export async function GET(request: Request) {
         const myRank = tierToRank(myTier);
         const myAgentDetails = getAgentInfo(myPresenceData?.characterId || "");
 
-        const myAgentKey = (myAgentDetails.name || "").toLowerCase();
-        const myLive = liveCombat?.agentStats?.[myAgentKey] || { kills: 0, deaths: 0, assists: 0, score: 0 };
-
-        const myKills = myLive.kills;
-        const myDeaths = myLive.deaths;
-        const myAssists = myLive.assists;
-        const myScore = myLive.score;
-        const mySpi = myTier > 0
-          ? Math.min(100, Math.max(15, Math.round(((myKills * 2 + myAssists) / Math.max(1, myDeaths)) * 20 + (myTier / 27) * 40)))
-          : Math.min(100, Math.max(20, Math.round(((myKills * 2 + myAssists) / Math.max(1, myDeaths)) * 30)));
-
         allPlayers.unshift({
           puuid: localPuuid,
           name: session?.game_name || "Vous",
@@ -1459,11 +1432,11 @@ export async function GET(request: Request) {
           agentName: myAgentDetails.name,
           agentIcon: myAgentDetails.icon,
           isMe: true,
-          kills: myKills,
-          deaths: myDeaths,
-          assists: myAssists,
-          score: myScore,
-          spi: mySpi,
+          kills: 0,
+          deaths: 0,
+          assists: 0,
+          score: 0,
+          spi: myTier > 0 ? Math.min(100, Math.max(20, Math.round((myTier / 27) * 80))) : 50,
         });
       }
     }
@@ -1499,14 +1472,6 @@ export async function GET(request: Request) {
       filteredPlayers = allPlayers.filter((pl) => pl.team === "ally");
     }
 
-    const finalMap = (mapInfo.id === "unknown" && liveCombat?.detectedMap)
-      ? mapPathToFriendlyName(liveCombat.detectedMap)
-      : mapInfo;
-
-    const finalQueue = (queueLabel === "Partie standard" && liveCombat?.detectedMode)
-      ? friendlyQueueName(liveCombat.detectedMode)
-      : queueLabel;
-
     const wsSummary = riotWsManager.getSummary();
 
     return NextResponse.json({
@@ -1518,11 +1483,11 @@ export async function GET(request: Request) {
           ? "En match direct"
           : "Sélection des agents (Pregame)",
       map: {
-        id: finalMap.id,
-        name: finalMap.name,
+        id: mapInfo.id,
+        name: mapInfo.name,
       },
-      queue: finalQueue,
-      round: Math.max(allyScore + enemyScore + 1, liveCombat?.detectedRound || 1),
+      queue: queueLabel,
+      round: allyScore + enemyScore + 1,
       score: {
         ally: allyScore,
         enemy: enemyScore,
