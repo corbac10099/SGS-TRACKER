@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import https from "https";
 import prisma from "@/lib/prisma";
+import { riotWsManager } from "@/lib/valorant/riotWebSocket";
 
 export const dynamic = "force-dynamic";
 
@@ -1506,6 +1507,8 @@ export async function GET(request: Request) {
       ? friendlyQueueName(liveCombat.detectedMode)
       : queueLabel;
 
+    const wsSummary = riotWsManager.getSummary();
+
     return NextResponse.json({
       active: true,
       mode: "live",
@@ -1527,6 +1530,7 @@ export async function GET(request: Request) {
       partySize: myPresenceData?.partySize || 1,
       players: filteredPlayers,
       source: usedGlz ? "glz" : "presences",
+      riotWsConnected: wsSummary.connected,
     });
   } catch (err: any) {
     return NextResponse.json({
