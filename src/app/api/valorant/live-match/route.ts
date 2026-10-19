@@ -557,15 +557,19 @@ function parseLiveGameEvents(
             }
           }
 
-          // 3. Détection tir actif du joueur local vivant
+          // 3. Détection tir ou compétence active du joueur local vivant
           if (!killerKey && isLocalAlive && oppTeam === "ally" && myAgentName) {
             let localActive = false;
-            for (let j = Math.max(0, i - 12); j < i; j++) {
+            for (let j = Math.max(0, i - 15); j < i; j++) {
               const prev = matchLines[j];
               if (
-                prev.includes("Gun_Core_Revolver_AnimGraph") ||
-                prev.includes("FXC_MP5_") ||
-                prev.includes("EquippableGroundPickup")
+                prev.includes("Gun_") ||
+                prev.includes("AnimGraph") ||
+                prev.includes("FXC_") ||
+                prev.includes("Weapon_") ||
+                prev.includes("Ability_") ||
+                prev.includes("Projectile_") ||
+                prev.includes("Equippable")
               ) {
                 localActive = true;
                 break;
@@ -574,28 +578,6 @@ function parseLiveGameEvents(
             if (localActive) {
               killerKey = `${myAgentName.toLowerCase()}_ally`;
               killerPawnId = localPawnId;
-            }
-          }
-
-          // 4. Fallback sur un joueur vivant de l'équipe adverse
-          if (!killerKey) {
-            if (oppTeam === "ally") {
-              killerKey = getAliveAllyKey() || (myAgentName ? `${myAgentName.toLowerCase()}_ally` : "neon_ally");
-              if (killerKey && localPawnId && killerKey.startsWith(myAgentName?.toLowerCase() || "")) {
-                killerPawnId = localPawnId;
-              }
-            } else {
-              for (const [pId, t] of pawnToTeam.entries()) {
-                if (t === "enemy" && !deadThisRound.has(pId)) {
-                  const ag = pawnToAgent.get(pId);
-                  if (ag) {
-                    killerKey = `${ag}_enemy`;
-                    killerPawnId = pId;
-                    break;
-                  }
-                }
-              }
-              if (!killerKey) killerKey = "clove_enemy";
             }
           }
 
@@ -1249,6 +1231,9 @@ export async function GET(request: Request) {
             }
           }
 
+          // Analyse des événements de combat en direct (détection physique stricte, sans déduction aléatoire)
+          liveCombat = parseLiveGameEvents(targetMatchId, allyAgentNames, enemyAgentNames, myAgentName);
+
           // Tenter de récupérer les stats officielles consolidées via match-details API (Riot API)
           let matchDetailsData: MatchDetailsStats | null = null;
           if (targetMatchId) {
@@ -1302,17 +1287,21 @@ export async function GET(request: Request) {
             const characterId = p.CharacterID || p.CharacterSelectionResponse || "";
             const agentDetails = getAgentInfo(characterId);
 
-            // Statistiques officielles serveur Riot (match-details)
+            // Statistiques : match-details officiel > liveCombat en cours de partie
             const officialStats = matchDetailsData?.players?.[puuid];
-            const finalKills = officialStats?.kills ?? 0;
-            const finalDeaths = officialStats?.deaths ?? 0;
-            const finalAssists = officialStats?.assists ?? 0;
+            const agentKey = (agentDetails.name || "").toLowerCase();
+            const livePlayerStats =
+              liveCombat?.agentStats?.[`${agentKey}_${team}`] ||
+              liveCombat?.agentStats?.[agentKey] ||
+              { kills: 0, deaths: 0, assists: 0, score: 0 };
+
+            const finalKills = officialStats?.kills ?? livePlayerStats.kills;
+            const finalDeaths = officialStats?.deaths ?? livePlayerStats.deaths;
+            const finalAssists = officialStats?.assists ?? livePlayerStats.assists;
             const finalScore = officialStats?.score ?? (finalKills * 200 + finalAssists * 75);
-            const finalSpi = officialStats
-              ? (tier > 0
-                  ? Math.min(100, Math.max(15, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 20 + (tier / 27) * 40)))
-                  : Math.min(100, Math.max(20, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 30))))
-              : (tier > 0 ? Math.min(100, Math.max(20, Math.round((tier / 27) * 80))) : 50);
+            const finalSpi = tier > 0
+              ? Math.min(100, Math.max(15, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 20 + (tier / 27) * 40)))
+              : Math.min(100, Math.max(20, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 30)));
 
             allPlayers.push({
               puuid,
