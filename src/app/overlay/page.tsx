@@ -6,6 +6,11 @@ import {
   getOverlayPosition,
   setOverlayPosition,
   setOverlayClickThrough,
+  setWindowVisible,
+  setWindowClickThrough,
+  isWindowVisible,
+  startDragWindow,
+  isTauriEnvironment,
   getThemeBackgroundColor,
 } from "@/lib/desktop";
 import {
@@ -133,6 +138,7 @@ export default function OverlayPage() {
   const [selectedRole, setSelectedRole] = useState("all");
   const [selectedAgentDetail, setSelectedAgentDetail] = useState<AgentCatalogEntry | null>(null);
   const [shortcutKey, setShortcutKey] = useState("F9");
+  const [isTauri, setIsTauri] = useState(false);
 
   // ─── Mini-Overlays Modulaires (HUD Compact, Score, Stats, Eco) ───────────
   const [activeOverlays, setActiveOverlays] = useState<Record<string, boolean>>(() => {
@@ -159,44 +165,28 @@ export default function OverlayPage() {
     return false;
   });
 
-  const toggleOverlayActive = (id: string) => {
-    setActiveOverlays((prev) => {
-      const next = { ...prev, [id]: !prev[id] };
+  const [mainPanelPos, setMainPanelPos] = useState<{ x: number; y: number }>(() => {
+    if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("sgs_active_mini_overlays", JSON.stringify(next));
+        const saved = localStorage.getItem("sgs_main_overlay_pos");
+        if (saved) return JSON.parse(saved);
       } catch {}
-      return next;
-    });
-  };
+    }
+    return { x: 50, y: 50 };
+  });
 
-  const toggleMainPanel = () => {
-    setIsMainPanelCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("sgs_overlay_panel_collapsed", String(next));
-      } catch {}
-      return next;
-    });
-  };
-
-  const toggleExpandedZone = async () => {
-    const next = !isExpandedZone;
-    setIsExpandedZone(next);
+  const toggleOverlayActive = async (id: string) => {
+    const nextState = !activeOverlays[id];
+    const updated = { ...activeOverlays, [id]: nextState };
+    setActiveOverlays(updated);
     try {
-      localStorage.setItem("sgs_overlay_expanded_zone", String(next));
-      if (next) {
-        // Étendre la fenêtre à tout l'écran pour permettre de déplacer partout
-        const screenW = window.screen.availWidth || 1920;
-        const screenH = window.screen.availHeight || 1080;
-        await setOverlayPosition(0, 0);
-        await setOverlaySize(screenW, screenH);
-      } else {
-        // Revenir à la taille compacte standard
-        await setOverlayPosition(30, 30);
-        await setOverlaySize(780, 490);
-      }
+      localStorage.setItem("sgs_active_mini_overlays", JSON.stringify(updated));
     } catch {}
+    const label = id === "hud_pill" ? "overlay-hud" : `overlay-${id}`;
+    await setWindowVisible(label, nextState);
   };
+
+
 
   // ─── Aim Trainer & Refresh Overlay State ─────────────────────────────────────
   const [aimScenarioId, setAimScenarioId] = useState<AimScenarioId>("gridshot_3d");
@@ -234,6 +224,7 @@ export default function OverlayPage() {
   // Initialisation du thème sauvegardé sur le compte SGS
   useEffect(() => {
     if (typeof window !== "undefined") {
+      setIsTauri(isTauriEnvironment());
       const savedTheme = localStorage.getItem("spycam_theme") || "dark";
       setThemeName(savedTheme);
       const savedShortcut = localStorage.getItem("sgs_overlay_shortcut") || "F9";
@@ -434,68 +425,48 @@ export default function OverlayPage() {
       }
       if (e.key === "F9" || e.key === "F10") {
         e.preventDefault();
-        toggleClickThrough();
+        toggleF9Mode();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [inspectedPlayer, selectedAgentDetail, isClickThrough]);
+  }, [inspectedPlayer, selectedAgentDetail, isClickThrough, isMainPanelCollapsed]);
 
-  // Bascule du mode clics traversants (Click-through)
-  const toggleClickThrough = async () => {
-    const nextState = !isClickThrough;
-    setIsClickThrough(nextState);
-    await setOverlayClickThrough(nextState);
+  // Bascule du mode F9 : Le gros overlay part/revient, les mini-overlays restent ouverts et les clics traversent
+  const toggleF9Mode = async () => {
+    if (!isMainPanelCollapsed) {
+      // Le gros overlay était visible -> on le masque et on active les clics traversants vers Valorant
+      setIsMainPanelCollapsed(true);
+      setIsClickThrough(true);
+      await setOverlayClickThrough(true);
+    } else {
+      // Le gros overlay était masqué -> on le réaffiche et on rend l'overlay interactif
+      setIsMainPanelCollapsed(false);
+      setIsClickThrough(false);
+      await setOverlayClickThrough(false);
+    }
   };
 
-  // Déplacement entièrement fluide par positionnement absolu + requestAnimationFrame
+  const toggleMainPanel = toggleF9Mode;
+
+  const toggleExpandedZone = () => {
+    setIsExpandedZone((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("sgs_overlay_expanded_zone", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const toggleClickThrough = toggleF9Mode;
+
+  // Déplacement natif de la fenêtre d'overlay (Tauri OS drag)
   const handleDragPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || isClickThrough) return;
-    if ((e.target as HTMLElement).closest("button, a, input, [data-no-drag]")) return;
-
+    if ((e.target as HTMLElement).closest("button, a, input, select, textarea, [data-no-drag]")) return;
     e.preventDefault();
-    const startMouseX = e.screenX;
-    const startMouseY = e.screenY;
-
-    let initWinX = window.screenX;
-    let initWinY = window.screenY;
-
-    getOverlayPosition().then((pos) => {
-      if (pos && Array.isArray(pos) && pos.length === 2) {
-        initWinX = pos[0];
-        initWinY = pos[1];
-      }
-    });
-
-    let rafId: number | null = null;
-    let latestEv: PointerEvent | null = null;
-
-    const onPointerMove = (ev: PointerEvent) => {
-      latestEv = ev;
-      if (rafId !== null) return;
-
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
-        if (!latestEv) return;
-        const dx = latestEv.screenX - startMouseX;
-        const dy = latestEv.screenY - startMouseY;
-        setOverlayPosition(initWinX + dx, initWinY + dy);
-      });
-    };
-
-    const cleanup = () => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", cleanup);
-      window.removeEventListener("pointercancel", cleanup);
-    };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", cleanup);
-    window.addEventListener("pointercancel", cleanup);
+    startDragWindow();
   };
 
   // Redimensionnement fluide interactif
@@ -552,46 +523,127 @@ export default function OverlayPage() {
     });
   }, [agentsSearch, selectedRole]);
 
-  return (
-    <div className="w-full h-full bg-transparent p-2 font-sans select-none overflow-hidden flex flex-col justify-start relative">
-      {/* Bouton discret de réouverture si le gros panneau est masqué (Mode HUD Seul) */}
-      {isMainPanelCollapsed && (
-        <button
-          onClick={toggleMainPanel}
-          className="fixed bottom-3 left-3 px-3 py-1.5 rounded-full bg-[#0f1923]/90 hover:bg-[#0f1923] border text-xs font-black uppercase tracking-wider text-white shadow-2xl flex items-center gap-2 transition-all cursor-pointer z-50 backdrop-blur-xl"
-          style={{
-            borderColor: `${accentColor}80`,
-            boxShadow: `0 8px 25px rgba(0,0,0,0.8), 0 0 12px ${accentColor}33`,
-          }}
-          title="Ouvrir le panneau complet du match (Joueurs, Rangs, Stratégies)"
-        >
-          <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
-          <span>SGS Tracker</span>
-          <span className="text-[10px] text-white/40 font-mono">F9 pour déplacer</span>
-        </button>
-      )}
+  // Détection du mode de la fenêtre (Overlay Principal vs Mini-Overlay Dédié)
+  const [currentMode, setCurrentMode] = useState<string | null>(null);
 
-      {/* Gros Panneau Principal (affiché uniquement si non rétracté) */}
-      {!isMainPanelCollapsed && (
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const m = params.get("mode");
+    if (m) {
+      setCurrentMode(m);
+      return;
+    }
+    try {
+      const internals = (window as any).__TAURI_INTERNALS__;
+      const metadata = (window as any).__TAURI_METADATA__;
+      const label = internals?.metadata?.currentWindow?.label || metadata?.currentWindow?.label;
+      if (label === "overlay-hud") setCurrentMode("hud");
+      else if (label === "overlay-score") setCurrentMode("score");
+      else if (label === "overlay-stats") setCurrentMode("stats");
+      else if (label === "overlay-eco") setCurrentMode("eco");
+    } catch {}
+  }, []);
+
+  // Synchronisation des fenêtres Tauri natives au démarrage de la fenêtre principale
+  useEffect(() => {
+    if (typeof window === "undefined" || !isTauriEnvironment()) return;
+    for (const [id, active] of Object.entries(activeOverlays)) {
+      const label = id === "hud_pill" ? "overlay-hud" : `overlay-${id}`;
+      setWindowVisible(label, active);
+    }
+  }, []);
+
+  // ─── RENDU SPÉCIFIQUE SI INSTANCIÉ EN MINI-OVERLAY DÉDIÉ (FENÊTRE TAURI DISTINCTE) ───
+  if (currentMode === "hud") {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-transparent select-none p-1">
+        <HudPillOverlay
+          allyScore={data?.score?.ally ?? 0}
+          enemyScore={data?.score?.enemy ?? 0}
+          sessionWins={data?.score?.ally}
+          sessionLosses={data?.score?.enemy}
+          hsRate={28}
+          kdRatio={1.55}
+          isInteractive={!isClickThrough}
+          onClose={() => setWindowVisible("overlay-hud", false)}
+          accentColor={accentColor}
+          themeBg={bgColor}
+          isLive={isIngame}
+        />
+      </div>
+    );
+  }
+
+  if (currentMode === "score") {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-transparent select-none p-1">
+        <ScoreLiveOverlay
+          allyScore={data?.score?.ally ?? 0}
+          enemyScore={data?.score?.enemy ?? 0}
+          round={data?.round}
+          mapName={data?.map?.name}
+          queueName={data?.queue}
+          isLive={isIngame}
+          isInteractive={!isClickThrough}
+          onClose={() => setWindowVisible("overlay-score", false)}
+          accentColor={accentColor}
+        />
+      </div>
+    );
+  }
+
+  if (currentMode === "stats") {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-transparent select-none p-1">
+        <StatsOverlay
+          isInteractive={!isClickThrough}
+          onClose={() => setWindowVisible("overlay-stats", false)}
+          accentColor={accentColor}
+          playerName={data?.players?.find((p) => p.isMe)?.name || "Vous"}
+        />
+      </div>
+    );
+  }
+
+  if (currentMode === "eco") {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-transparent select-none p-1">
+        <EcoAdvisorOverlay
+          isInteractive={!isClickThrough}
+          onClose={() => setWindowVisible("overlay-eco", false)}
+          accentColor={accentColor}
+          round={data?.round || (data?.score ? data.score.ally + data.score.enemy + 1 : 1)}
+          allyScore={data?.score?.ally ?? 0}
+          enemyScore={data?.score?.enemy ?? 0}
+        />
+      </div>
+    );
+  }
+
+  // ─── RENDU DU PANNEAU PRINCIPAL (Fenêtre 780x490) ───
+  return (
+    <>
+      <div
+      className="w-full h-full rounded-[24px] border backdrop-blur-2xl p-3 text-white flex flex-col gap-2 overflow-hidden transition-colors font-sans select-none"
+      style={{
+        backgroundColor: `${bgColor}${Math.round(overlayOpacity * 255).toString(16).padStart(2, "0")}`,
+        boxShadow: `0 20px 50px rgba(0, 0, 0, 0.85), 0 0 20px ${accentColor}25`,
+        borderColor: `${accentColor}40`,
+      }}
+    >
+      {/* Poignée supérieure de déplacement native (Draggable Handle) */}
+      <div
+        onPointerDown={handleDragPointerDown}
+        data-tauri-drag-region
+        className="w-full cursor-grab active:cursor-grabbing py-1 -mt-1 flex flex-col items-center justify-center select-none touch-none shrink-0"
+        title="Glisser pour déplacer l'overlay"
+      >
         <div
-          className="w-full h-full rounded-[24px] border backdrop-blur-2xl shadow-2xl p-3 text-white flex flex-col gap-2 relative overflow-hidden transition-colors"
-          style={{
-            backgroundColor: `${bgColor}${Math.round(overlayOpacity * 255).toString(16).padStart(2, "0")}`,
-            boxShadow: `0 20px 50px rgba(0, 0, 0, 0.85), 0 0 20px ${accentColor}25`,
-            borderColor: `${accentColor}40`,
-          }}
-        >
-        {/* Poignée supérieure de déplacement (Draggable Handle) */}
-        <div
-          onPointerDown={handleDragPointerDown}
-          className="w-full cursor-grab active:cursor-grabbing py-1 -mt-1 flex flex-col items-center select-none touch-none"
-          title="Glisser pour déplacer l'overlay"
-        >
-          <div
-            className="w-12 h-1 rounded-full transition-colors pointer-events-none"
-            style={{ backgroundColor: `${accentColor}60` }}
-          />
-        </div>
+          className="w-12 h-1 rounded-full transition-colors pointer-events-none"
+          style={{ backgroundColor: `${accentColor}60` }}
+        />
+      </div>
 
         {/* ─── Barre Supérieure Compacte : Statut, Onglets & Contrôles ─── */}
         <div
@@ -1315,11 +1367,9 @@ export default function OverlayPage() {
           </div>
         </div>
       </div>
-      )}
 
-      {/* ─── MINI-OVERLAYS FLOTTANTS SUR L'ÉCRAN (Position mémorisée, F9 interactif) ─── */}
-      {/* 1. HUD COMPACT (STYLE IMAGE 1 : SCORE + HS% + K/D) */}
-      {activeOverlays.hud_pill && (
+      {/* ─── MINI-OVERLAYS FLOTTANTS (Prévisualisation navigateur web hors Tauri) ─── */}
+      {!isTauri && activeOverlays.hud_pill && (
         <HudPillOverlay
           allyScore={data?.score?.ally ?? 0}
           enemyScore={data?.score?.enemy ?? 0}
@@ -1335,8 +1385,7 @@ export default function OverlayPage() {
         />
       )}
 
-      {/* 2. SCORE LIVE SEUL */}
-      {activeOverlays.score && (
+      {!isTauri && activeOverlays.score && (
         <ScoreLiveOverlay
           allyScore={data?.score?.ally ?? 0}
           enemyScore={data?.score?.enemy ?? 0}
@@ -1350,8 +1399,7 @@ export default function OverlayPage() {
         />
       )}
 
-      {/* 3. STATS MATCH JOUEUR */}
-      {activeOverlays.stats && (
+      {!isTauri && activeOverlays.stats && (
         <StatsOverlay
           isInteractive={!isClickThrough}
           onClose={() => toggleOverlayActive("stats")}
@@ -1360,8 +1408,7 @@ export default function OverlayPage() {
         />
       )}
 
-      {/* 4. CONSEILLER ÉCONOMIE */}
-      {activeOverlays.eco && (
+      {!isTauri && activeOverlays.eco && (
         <EcoAdvisorOverlay
           isInteractive={!isClickThrough}
           onClose={() => toggleOverlayActive("eco")}
@@ -1371,7 +1418,7 @@ export default function OverlayPage() {
           enemyScore={data?.score?.enemy ?? 0}
         />
       )}
-    </div>
+    </>
   );
 }
 

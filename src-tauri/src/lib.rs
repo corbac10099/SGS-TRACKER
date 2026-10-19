@@ -131,16 +131,29 @@ async fn install_app_update(app: tauri::AppHandle) -> Result<String, String> {
 #[tauri::command]
 fn toggle_overlay(app: tauri::AppHandle) -> Result<bool, String> {
   use tauri::Manager;
+  let mini_overlays = ["overlay-hud", "overlay-score", "overlay-stats", "overlay-eco"];
   if let Some(window) = app.get_webview_window("overlay") {
     let is_visible = window.is_visible().unwrap_or(false);
     if is_visible {
       let _ = window.hide();
+      // Quand le gros overlay se masque, on laisse les mini-overlays ouverts et traversants (mode combat)
+      for label in mini_overlays {
+        if let Some(w) = app.get_webview_window(label) {
+          let _ = w.set_ignore_cursor_events(true);
+        }
+      }
       Ok(false)
     } else {
       let _ = window.show();
       let _ = window.unminimize();
       let _ = window.set_always_on_top(true);
       let _ = window.set_focus();
+      // Quand le gros overlay réapparaît, les mini-overlays redeviennent interactifs (déplaçables)
+      for label in mini_overlays {
+        if let Some(w) = app.get_webview_window(label) {
+          let _ = w.set_ignore_cursor_events(false);
+        }
+      }
       Ok(true)
     }
   } else {
@@ -261,12 +274,45 @@ async fn download_and_launch_installer(app: tauri::AppHandle, url: String) -> Re
 }
 
 #[tauri::command]
-fn start_drag_window(app: tauri::AppHandle) -> Result<(), String> {
+fn start_drag_window(window: tauri::WebviewWindow) -> Result<(), String> {
+  window.start_dragging().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_window_visible(app: tauri::AppHandle, label: String, visible: bool) -> Result<(), String> {
   use tauri::Manager;
-  if let Some(window) = app.get_webview_window("overlay") {
-    window.start_dragging().map_err(|e| e.to_string())
+  if let Some(window) = app.get_webview_window(&label) {
+    if visible {
+      let _ = window.show();
+      let _ = window.unminimize();
+      let _ = window.set_always_on_top(true);
+    } else {
+      let _ = window.hide();
+    }
+    Ok(())
   } else {
-    Err("Overlay window not found".to_string())
+    Err(format!("Window {} not found", label))
+  }
+}
+
+#[tauri::command]
+fn is_window_visible(app: tauri::AppHandle, label: String) -> Result<bool, String> {
+  use tauri::Manager;
+  if let Some(window) = app.get_webview_window(&label) {
+    Ok(window.is_visible().unwrap_or(false))
+  } else {
+    Ok(false)
+  }
+}
+
+#[tauri::command]
+fn set_window_click_through(app: tauri::AppHandle, label: String, enabled: bool) -> Result<(), String> {
+  use tauri::Manager;
+  if let Some(window) = app.get_webview_window(&label) {
+    window.set_ignore_cursor_events(enabled).map_err(|e| e.to_string())?;
+    Ok(())
+  } else {
+    Err(format!("Window {} not found", label))
   }
 }
 
@@ -398,6 +444,9 @@ pub fn run() {
       set_overlay_position,
       get_overlay_position,
       set_overlay_click_through,
+      set_window_visible,
+      is_window_visible,
+      set_window_click_through,
       get_app_version,
       is_valorant_running,
       emergency_close_overlay

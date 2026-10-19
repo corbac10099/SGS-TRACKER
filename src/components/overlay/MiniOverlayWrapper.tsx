@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useRef } from "react";
 
+import { isTauriEnvironment, startDragWindow } from "@/lib/desktop";
+
 export interface MiniOverlayWrapperProps {
   id: string;
   title: string;
@@ -30,6 +32,7 @@ export default function MiniOverlayWrapper({
   noFrame = false,
 }: MiniOverlayWrapperProps) {
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: defaultX, y: defaultY });
+  const [isTauri, setIsTauri] = useState(false);
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; startX: number; startY: number }>({
     mouseX: 0,
@@ -38,9 +41,10 @@ export default function MiniOverlayWrapper({
     startY: defaultY,
   });
 
-  // Charger la position sauvegardée
   useEffect(() => {
     if (typeof window === "undefined") return;
+    setIsTauri(isTauriEnvironment());
+
     try {
       const saved = localStorage.getItem(`sgs_mini_overlay_pos_${id}`);
       if (saved) {
@@ -59,6 +63,14 @@ export default function MiniOverlayWrapper({
     if ((e.target as HTMLElement).closest("button, input, select, textarea")) return;
 
     e.preventDefault();
+
+    // En environnement Tauri natif, déclenche le glissement natif instantané de la fenêtre
+    if (isTauri) {
+      startDragWindow();
+      return;
+    }
+
+    // Fallback navigateur web classique (CSS fixed coordinates)
     isDraggingRef.current = true;
     dragStartRef.current = {
       mouseX: e.clientX,
@@ -96,9 +108,18 @@ export default function MiniOverlayWrapper({
     window.addEventListener("pointercancel", handlePointerUp);
   };
 
-  return (
-    <div
-      style={{
+  // En mode Tauri natif, la fenêtre OS elle-même est le conteneur (pas d'offset CSS absolu supplémentaire)
+  const wrapperStyle: React.CSSProperties = isTauri
+    ? {
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        pointerEvents: isInteractive ? "auto" : "none",
+        background: "transparent",
+      }
+    : {
         position: "fixed",
         left: `${pos.x}px`,
         top: `${pos.y}px`,
@@ -106,15 +127,21 @@ export default function MiniOverlayWrapper({
         pointerEvents: isInteractive ? "auto" : "none",
         zIndex: 9999,
         background: "transparent",
-      }}
-      className={`select-none transition-opacity duration-150 ${
-        isInteractive ? "opacity-100 ring-1 ring-white/20 rounded-[22px]" : "opacity-95"
-      } ${className}`}
+      };
+
+  return (
+    <div
+      style={wrapperStyle}
+      data-tauri-drag-region={isTauri && isInteractive ? "" : undefined}
+      className={`select-none ${noFrame ? "bg-transparent p-0 m-0" : ""} ${className}`}
     >
       {noFrame ? (
         <div
           onPointerDown={handlePointerDown}
-          className={isInteractive ? "cursor-grab active:cursor-grabbing" : "cursor-default"}
+          data-tauri-drag-region={isTauri && isInteractive ? "" : undefined}
+          className={`w-full h-full flex items-center justify-center bg-transparent ${
+            isInteractive ? "cursor-grab active:cursor-grabbing" : "cursor-default"
+          }`}
         >
           {children}
         </div>
@@ -130,6 +157,7 @@ export default function MiniOverlayWrapper({
           {/* Entête miniature */}
           <div
             onPointerDown={handlePointerDown}
+            data-tauri-drag-region={isTauri && isInteractive ? "" : undefined}
             className={`flex items-center justify-between px-3 py-1.5 text-[10px] font-black uppercase tracking-wider border-b border-white/10 ${
               isInteractive ? "cursor-grab active:cursor-grabbing bg-white/[0.04]" : "cursor-default bg-transparent"
             }`}

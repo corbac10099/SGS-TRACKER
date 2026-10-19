@@ -212,6 +212,69 @@ export async function setOverlayClickThrough(enabled: boolean): Promise<void> {
   } catch {}
 }
 
+/**
+ * Affiche ou masque une fenêtre native Tauri par son label (ex: "overlay-hud").
+ */
+export async function setWindowVisible(label: string, visible: boolean): Promise<void> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) return;
+  const payload = { label, visible };
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      await tauri.core.invoke("set_window_visible", payload);
+      return;
+    }
+  } catch {}
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      await internals.invoke("set_window_visible", payload);
+    }
+  } catch {}
+}
+
+/**
+ * Vérifie si une fenêtre native Tauri est actuellement visible.
+ */
+export async function isWindowVisible(label: string): Promise<boolean> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) return false;
+  const payload = { label };
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      return await tauri.core.invoke("is_window_visible", payload);
+    }
+  } catch {}
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      return await internals.invoke("is_window_visible", payload);
+    }
+  } catch {}
+  return false;
+}
+
+/**
+ * Définit si une fenêtre native spécifique doit ignorer les clics souris (traversante).
+ */
+export async function setWindowClickThrough(label: string, enabled: boolean): Promise<void> {
+  if (typeof window === "undefined" || !isTauriEnvironment()) return;
+  const payload = { label, enabled };
+  try {
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.invoke) {
+      await tauri.core.invoke("set_window_click_through", payload);
+      return;
+    }
+  } catch {}
+  try {
+    const internals = (window as any).__TAURI_INTERNALS__;
+    if (internals?.invoke) {
+      await internals.invoke("set_window_click_through", payload);
+    }
+  } catch {}
+}
+
 
 /**
  * Retourne la couleur de fond hexadécimale associée à un thème utilisateur.

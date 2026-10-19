@@ -10,7 +10,7 @@ export default function OverlayLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="overlay-window-root w-screen h-screen bg-transparent overflow-hidden select-none p-2 flex flex-col justify-start">
+    <div className="overlay-window-root w-full h-full bg-transparent overflow-hidden select-none p-0 m-0 flex flex-col">
       <style>{`
         html, body {
           background: transparent !important;

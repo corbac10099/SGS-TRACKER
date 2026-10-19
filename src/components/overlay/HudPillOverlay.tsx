@@ -60,11 +60,11 @@ export default function HudPillOverlay({
       noFrame={true}
     >
       <div
-        className="relative px-3.5 py-2 rounded-[20px] border shadow-2xl flex flex-col gap-0.5 select-none transition-all duration-200"
+        className="relative px-3.5 py-1.5 rounded-[22px] border shadow-2xl flex flex-col gap-0.5 select-none transition-all duration-200"
         style={{
-          backgroundColor: `${themeBg}ea`,
-          borderColor: `${accentColor}cc`,
-          boxShadow: `0 8px 30px rgba(0, 0, 0, 0.8), 0 0 16px ${accentColor}33`,
+          backgroundColor: `${themeBg}f2`,
+          borderColor: `${accentColor}90`,
+          boxShadow: `0 10px 35px rgba(0, 0, 0, 0.85), 0 0 16px ${accentColor}30`,
         }}
       >
         {/* En-tête : Point pulsant + SESSION ou MATCH */}
@@ -83,9 +83,21 @@ export default function HudPillOverlay({
           </div>
 
           {isInteractive && (
-            <span className="text-[8px] text-white/30 uppercase tracking-wider font-mono">
-              F9 déplace
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[8px] text-white/35 uppercase tracking-wider font-mono">
+                F9 déplace
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose();
+                }}
+                className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/15 transition-colors cursor-pointer text-[9px]"
+                title="Fermer ce mini-overlay"
+              >
+                ✕
+              </button>
+            </div>
           )}
         </div>
 
