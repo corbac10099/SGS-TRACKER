@@ -149,7 +149,12 @@ function extractLogTimestamp(line: string): number | null {
   );
 }
 
-function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
+function parseLiveGameEvents(
+  matchId?: string,
+  allyAgents?: Set<string>,
+  enemyAgents?: Set<string>,
+  myAgentName?: string
+): LiveCombatSummary | null {
   try {
     const localAppData = process.env.LOCALAPPDATA;
     if (!localAppData) return null;
@@ -238,23 +243,22 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
     const matchLines = lines.slice(startIdx);
     const agentStats: Record<string, { kills: number; deaths: number; assists: number; score: number }> = {};
 
-    // Initialiser les stats pour chaque agent unique
+    // Initialiser les stats pour chaque agent unique (avec clés d'équipe)
     const uniqueNames = new Set(Object.values(AGENT_INTERNAL_TO_NAME).map(n => n.toLowerCase()));
     for (const name of uniqueNames) {
       agentStats[name] = { kills: 0, deaths: 0, assists: 0, score: 0 };
+      agentStats[`${name}_ally`] = { kills: 0, deaths: 0, assists: 0, score: 0 };
+      agentStats[`${name}_enemy`] = { kills: 0, deaths: 0, assists: 0, score: 0 };
     }
 
     let detectedRound = 0;
     const deadThisRound = new Set<string>();
     const isDeathmatch = detectedMode?.toLowerCase().includes("deathmatch") ?? false;
 
-    // Identifiant unique du pawn de chaque agent (ex: Pine_PC_C_2147242064)
-    // pour la déduplication basée sur le timestamp
     const lastDeathTimestamp: Record<string, number> = {};
     const lastKillTimestamp: Record<string, number> = {};
+    const lastAssistLine: Record<string, number> = {};
 
-    // Déduplication par timestamp : on ignore les événements du même agent
-    // s'ils sont dans un rayon de DEDUP_MS millisecondes
     const DEATH_DEDUP_MS = 2500;
     const KILL_DEDUP_MS = 2500;
 
@@ -271,23 +275,35 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
 
       const ts = extractLogTimestamp(line);
 
-      // ── DÉTECTION DES MORTS ──────────────────────────────────────────
-      // Indicateur principal de mort : ClientRestart_Implementation suivi de AcknowledgePossession
-      // Cela signifie que le joueur a respawné (donc il est mort juste avant).
-      // En mode classique : ragdoll "May not destroy" est plus fiable (1 mort par round max).
-      // En Deathmatch : on utilise AcknowledgePossession comme preuve de respawn.
+      // ── DÉTECTION DES ASSISTS ──────────────────────────────────────────
+      if (line.includes("Buff_Assist") || line.includes("Buff_Iris_E_Assist")) {
+        const aMatch = line.match(/([a-zA-Z0-9]+)_PC_C_\d+/);
+        if (aMatch) {
+          const aRaw = aMatch[1].toLowerCase();
+          const aAg = AGENT_INTERNAL_TO_NAME[aRaw]?.toLowerCase();
+          if (aAg) {
+            const lastL = lastAssistLine[aAg];
+            if (lastL === undefined || i - lastL > 8) {
+              lastAssistLine[aAg] = i;
+              if (agentStats[aAg]) agentStats[aAg].assists += 1;
+              if (agentStats[`${aAg}_ally`]) agentStats[`${aAg}_ally`].assists += 1;
+              if (agentStats[`${aAg}_enemy`]) agentStats[`${aAg}_enemy`].assists += 1;
+            }
+          }
+        }
+      }
 
+      // ── DÉTECTION DES MORTS ──────────────────────────────────────────
       let victimAgent = "";
+      let victimPawn = "";
 
       if (isDeathmatch) {
-        // En Deathmatch : un AcknowledgePossession = le joueur vient de respawner = il était mort
         const respawnMatch = line.match(/AcknowledgePossession\('([a-zA-Z0-9]+)_PC_C_\d+'\)/i);
         if (respawnMatch) {
           const rawCode = respawnMatch[1].toLowerCase();
           victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
         }
       } else {
-        // En mode classique :
         // 1. Compétences PostDeath (Clove)
         const pdMatch = line.match(/([a-zA-Z0-9]+)_PostDeath_PC_C_(\d+)/i);
         if (pdMatch) {
@@ -301,20 +317,13 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
           if (gwMatch) {
             const rawCode = gwMatch[1].toLowerCase();
             victimAgent = AGENT_INTERNAL_TO_NAME[rawCode]?.toLowerCase() || "";
+            victimPawn = gwMatch[2];
           }
         }
 
         // 3. Joueur local mort (ReconnectSpectate alive=0)
         if (!victimAgent && line.includes("alive=0") && line.includes("player=")) {
-          // Trouver l'agent du joueur local
-          for (let j = Math.max(0, i - 200); j < i; j++) {
-            const possMatch = matchLines[j].match(/AcknowledgePossession\('([a-zA-Z0-9]+)_PC_C_\d+'\)/i);
-            if (possMatch) {
-              const raw = possMatch[1].toLowerCase();
-              victimAgent = AGENT_INTERNAL_TO_NAME[raw]?.toLowerCase() || "";
-              break;
-            }
-          }
+          victimAgent = (myAgentName || "").toLowerCase();
         }
 
         // 4. Ragdoll transition (owned by)
@@ -329,12 +338,16 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
 
       // Traitement de l'élimination avec dédoublonnage
       if (victimAgent && agentStats[victimAgent]) {
-        if (!isDeathmatch && deadThisRound.has(victimAgent)) {
-          // En mode classique, 1 mort max par manche par joueur
+        // Clé spécifique d'équipe si connue
+        const isVictimAlly = allyAgents ? allyAgents.has(victimAgent) : false;
+        const victimKey = allyAgents && enemyAgents
+          ? (isVictimAlly ? `${victimAgent}_ally` : `${victimAgent}_enemy`)
+          : victimAgent;
+
+        if (!isDeathmatch && deadThisRound.has(victimKey)) {
           continue;
         }
 
-        // Dédoublonnage par timestamp en Deathmatch
         if (isDeathmatch && ts !== null) {
           const lastTs = lastDeathTimestamp[victimAgent];
           if (lastTs !== undefined && Math.abs(ts - lastTs) < DEATH_DEDUP_MS) {
@@ -344,26 +357,60 @@ function parseLiveGameEvents(matchId?: string): LiveCombatSummary | null {
         }
 
         if (!isDeathmatch) {
-          deadThisRound.add(victimAgent);
+          deadThisRound.add(victimKey);
         }
 
-        agentStats[victimAgent].deaths += 1;
+        if (agentStats[victimKey]) agentStats[victimKey].deaths += 1;
+        if (victimKey !== victimAgent && agentStats[victimAgent]) agentStats[victimAgent].deaths += 1;
 
         // ── Attribution du kill en mode classique ──
         if (!isDeathmatch) {
           let killerAgent: string | null = null;
-          for (let j = Math.max(0, i - 25); j < i; j++) {
-            const prev = matchLines[j];
-            const kMatch = prev.match(/([a-zA-Z0-9]+)_PC_C_\d+/);
-            if (kMatch) {
-              const kRaw = kMatch[1].toLowerCase();
-              const kAg = AGENT_INTERNAL_TO_NAME[kRaw]?.toLowerCase();
-              if (kAg && kAg !== victimAgent) {
-                killerAgent = kAg;
+          let killerKey: string | null = null;
+
+          // 1. Vérifier si le joueur local était en train de tirer
+          let localShooting = false;
+          if (myAgentName && (!allyAgents || !isVictimAlly)) {
+            for (let j = Math.max(0, i - 18); j < i; j++) {
+              const prev = matchLines[j];
+              if (
+                prev.includes("1P_") ||
+                prev.includes("Gun_Core_Revolver") ||
+                prev.includes("FXC_MP5_WhileEquipped_1P") ||
+                prev.includes(myAgentName)
+              ) {
+                localShooting = true;
+                break;
               }
             }
           }
 
+          if (localShooting && myAgentName) {
+            killerAgent = myAgentName.toLowerCase();
+            killerKey = `${killerAgent}_ally`;
+          } else {
+            // 2. Chercher dans les tirs adverses
+            for (let j = Math.max(0, i - 30); j < i; j++) {
+              const prev = matchLines[j];
+              const kMatch = prev.match(/([a-zA-Z0-9]+)_PC_C_(\d+)/);
+              if (kMatch) {
+                const kRaw = kMatch[1].toLowerCase();
+                const kAg = AGENT_INTERNAL_TO_NAME[kRaw]?.toLowerCase();
+                if (kAg && kAg !== victimAgent) {
+                  const isKillerAlly = allyAgents ? allyAgents.has(kAg) : !isVictimAlly;
+                  // Un allié ne peut pas tuer un allié
+                  if (allyAgents && isVictimAlly === isKillerAlly) continue;
+
+                  killerAgent = kAg;
+                  killerKey = isKillerAlly ? `${kAg}_ally` : `${kAg}_enemy`;
+                }
+              }
+            }
+          }
+
+          if (killerKey && agentStats[killerKey]) {
+            agentStats[killerKey].kills += 1;
+          }
           if (killerAgent && agentStats[killerAgent]) {
             agentStats[killerAgent].kills += 1;
           }
@@ -962,10 +1009,34 @@ export async function GET(request: Request) {
             ).catch(() => null)
           );
 
-           const mmrResults = await Promise.all(mmrPromises);
+          const mmrResults = await Promise.all(mmrPromises);
+
+          // Construire les ensembles d'agents par équipe pour éviter la confusion des doublons (ex: 2 Chamber)
+          const allyAgentNames = new Set<string>();
+          const enemyAgentNames = new Set<string>();
+          let myAgentName = "";
+
+          for (const rawP of rawPlayers) {
+            const charId = rawP.CharacterID || rawP.CharacterSelectionResponse || "";
+            const aInfo = getAgentInfo(charId);
+            const aName = (aInfo.name || "").toLowerCase();
+            let isAlly = false;
+            if (matchData.Players) {
+              const myTeam = matchData.Players.find((x: any) => x.Subject === localPuuid)?.TeamID;
+              isAlly = rawP.TeamID === myTeam;
+            } else {
+              isAlly = (matchData.AllyTeam?.Players || []).some((x: any) => x.Subject === rawP.Subject);
+            }
+            if (isAlly) {
+              allyAgentNames.add(aName);
+              if (rawP.Subject === localPuuid) myAgentName = aInfo.name;
+            } else {
+              enemyAgentNames.add(aName);
+            }
+          }
 
           // Analyse des événements de combat en direct depuis ShooterGame.log
-          liveCombat = parseLiveGameEvents(targetMatchId);
+          liveCombat = parseLiveGameEvents(targetMatchId, allyAgentNames, enemyAgentNames, myAgentName);
 
           // Tenter de récupérer les stats officielles via match-details API
           // (disponible uniquement quand le match est terminé côté serveur)
@@ -1021,15 +1092,18 @@ export async function GET(request: Request) {
             const characterId = p.CharacterID || p.CharacterSelectionResponse || "";
             const agentDetails = getAgentInfo(characterId);
 
-            // Priorité aux stats officielles match-details > stats du log
+            // Priorité aux stats officielles match-details > stats du log (avec différentiation d'équipe)
             const officialStats = matchDetailsData?.players?.[puuid];
             const agentKey = (agentDetails.name || "").toLowerCase();
-            const logStats = liveCombat?.agentStats?.[agentKey] || { kills: 0, deaths: 0, assists: 0, score: 0 };
+            const logStats =
+              liveCombat?.agentStats?.[`${agentKey}_${team}`] ||
+              liveCombat?.agentStats?.[agentKey] ||
+              { kills: 0, deaths: 0, assists: 0, score: 0 };
 
             const finalKills = officialStats?.kills ?? logStats.kills;
             const finalDeaths = officialStats?.deaths ?? logStats.deaths;
             const finalAssists = officialStats?.assists ?? logStats.assists;
-            const finalScore = officialStats?.score ?? logStats.score;
+            const finalScore = officialStats?.score ?? (finalKills * 200 + finalAssists * 75);
             const finalSpi = tier > 0
               ? Math.min(100, Math.max(15, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 20 + (tier / 27) * 40)))
               : Math.min(100, Math.max(20, Math.round(((finalKills * 2 + finalAssists) / Math.max(1, finalDeaths)) * 30)));
