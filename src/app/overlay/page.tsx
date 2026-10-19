@@ -95,6 +95,7 @@ interface LiveMatchData {
     enemy: number;
   };
   players?: LivePlayer[];
+  riotWsConnected?: boolean;
 }
 
 type OverlayTab = "match" | "agents" | "history" | "aim";
@@ -508,6 +509,33 @@ export default function OverlayPage() {
                 {data?.queue || (isWaiting ? "En attente" : isPregame ? "Sélection" : "Match")}
               </span>
             </div>
+
+            {/* Badge de connexion au service Valorant */}
+            {data?.riotWsConnected ? (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                title="Connecté au service local Valorant (WebSocket Push WAMP)"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Service Valo Actif
+              </span>
+            ) : data?.active ? (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                title="Service local en mode secours (API REST & Log)"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                Mode Log & API
+              </span>
+            ) : (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium uppercase tracking-wider bg-white/5 text-white/40 border border-white/10"
+                title="En attente du lancement de Valorant ou du Riot Client"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                Valo Déconnecté
+              </span>
+            )}
           </div>
 
           {/* Onglets épurés : Match / Agents / Historique */}
@@ -787,7 +815,13 @@ export default function OverlayPage() {
                     En attente d'une partie
                   </h3>
                   <p className="text-[11px] text-white/40 mt-1 max-w-xs">
-                    Lancez un match ou une partie personnalisée sur Valorant pour afficher la composition.
+                    {data?.riotWsConnected ? (
+                      <span className="text-emerald-400/90 font-medium">
+                        ✓ Connecté au service local Valorant (WAMP actif) — En attente du lancement du match.
+                      </span>
+                    ) : (
+                      "Lancez Valorant ou le Riot Client pour activer la synchronisation automatique en direct."
+                    )}
                   </p>
                 </div>
               ) : (

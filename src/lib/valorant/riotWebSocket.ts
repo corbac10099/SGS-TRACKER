@@ -3,8 +3,9 @@ import fs from 'fs';
 import path from 'path';
 
 // ─── Service WebSocket Local Riot Client (Sécurisé & Persistant) ────────────
-// Écoute en continu wss://127.0.0.1:{port}/ pour recevoir les événements push
-// du client Valorant (kills, morts, assists, scoreboard, sessions).
+// Écoute wss://127.0.0.1:{port}/ pour recevoir les événements push du client Riot.
+// Gère la rotation du lockfile (changements de port/mot de passe au redémarrage),
+// le filtrage strict des événements et un buffer circulaire borné.
 
 export interface RiotEventPayload {
   uri: string;
@@ -24,23 +25,28 @@ export interface RiotLiveStatsSummary {
 class RiotWebSocketManager {
   private ws: WebSocket | null = null;
   private isConnected = false;
-  private reconnectTimer: NodeJS.Timeout | null = null;
   private isConnecting = false;
+  private reconnectTimer: NodeJS.Timeout | null = null;
   private port: string | null = null;
   private password: string | null = null;
   private lastEventTime: number | null = null;
   private eventsCount = 0;
-  private recentCombatEvents: RiotEventPayload[] = [];
-  private readonly MAX_RECENT_EVENTS = 150;
+  
+  // Buffer circulaire strictement borné (50 derniers événements)
+  private readonly MAX_RECENT_EVENTS = 50;
+  private recentEvents: RiotEventPayload[] = [];
 
   constructor() {
-    // Ne pas démarrer automatiquement lors de la génération statique Next.js
     if (typeof window === 'undefined' && process.env.NEXT_PHASE !== 'phase-production-build') {
       this.init();
     }
   }
 
-  private readLockfile(): { port: string; password: string } | null {
+  /**
+   * Lit le lockfile écrit par RiotClientServices.exe.
+   * Gère le cas où le launcher Riot n'est pas encore démarré (fichier absent).
+   */
+  private readFreshLockfile(): { port: string; password: string } | null {
     try {
       const localAppData = process.env.LOCALAPPDATA;
       if (!localAppData) return null;
@@ -53,18 +59,20 @@ class RiotWebSocketManager {
         'lockfile'
       );
 
-      if (!fs.existsSync(lockfilePath)) return null;
+      if (!fs.existsSync(lockfilePath)) {
+        return null; // Launcher Riot fermé
+      }
 
       const content = fs.readFileSync(lockfilePath, 'utf-8').trim();
       const parts = content.split(':');
-      if (parts.length >= 5) {
+      if (parts.length >= 5 && parts[2] && parts[3]) {
         return {
           port: parts[2],
           password: parts[3],
         };
       }
     } catch {
-      // Ignorer silencieusement si inaccessible
+      // Ignorer silencieusement si inaccessible en cours d'écriture
     }
     return null;
   }
@@ -72,8 +80,12 @@ class RiotWebSocketManager {
   public init() {
     if (this.isConnected || this.isConnecting) return;
 
-    const lock = this.readLockfile();
+    // Toujours relire le lockfile frais du disque (rotation de port/password)
+    const lock = this.readFreshLockfile();
     if (!lock) {
+      // RiotClientServices pas encore lancé : réessai périodique doux
+      this.port = null;
+      this.password = null;
       this.scheduleReconnect(5000);
       return;
     }
@@ -96,13 +108,13 @@ class RiotWebSocketManager {
           Authorization: `Basic ${auth}`,
         },
         rejectUnauthorized: false, // Certificat auto-signé local du Riot Client
-        handshakeTimeout: 4000,
+        handshakeTimeout: 3500,
       });
 
       this.ws.on('open', () => {
         this.isConnected = true;
         this.isConnecting = false;
-        // Protocole WAMP : Abonnement à tous les événements de l'API locale
+        // WAMP Subscribe : OnJsonApiEvent
         try {
           if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify([5, 'OnJsonApiEvent']));
@@ -117,12 +129,13 @@ class RiotWebSocketManager {
       });
 
       this.ws.on('error', () => {
-        // Erreur réseau locale silencieuse
+        // En cas d'erreur (ex: 401 si le client a redémarré avec de nouveaux credentials), nettoyer et forcer la relecture
         this.cleanup();
-        this.scheduleReconnect(4000);
+        this.scheduleReconnect(3000);
       });
 
       this.ws.on('close', () => {
+        // En cas de fermeture, réinitialiser pour forcer la rotation du lockfile
         this.cleanup();
         this.scheduleReconnect(3000);
       });
@@ -135,47 +148,54 @@ class RiotWebSocketManager {
   private handleMessage(raw: WebSocket.Data) {
     try {
       const text = raw.toString('utf-8').trim();
-      if (!text) return;
+      if (!text) return; // Ignorer les frames heartbeat vides
 
       const parsed = JSON.parse(text);
       // Format WAMP Riot: [8, "OnJsonApiEvent", { uri: string, eventType: string, data: any }]
       if (Array.isArray(parsed) && parsed.length >= 3) {
         const payload = parsed[2];
         const uri = payload?.uri || '';
+
+        // ⚠️ FILTRAGE STRICT : Ne garder que les URIs vitales pour le match et la session
+        // Évite la saturation mémoire provoquée par les centaines d'events UI/Store
+        const isTargetUri =
+          uri.includes('core-game') ||
+          uri.includes('pregame') ||
+          uri.includes('/chat/v1/session') ||
+          uri.includes('/chat/v1/presences') ||
+          uri.includes('kill') ||
+          uri.includes('scoreboard');
+
+        if (!isTargetUri) return;
+
         this.lastEventTime = Date.now();
         this.eventsCount++;
 
-        // Filtrer les événements pertinents pour les performances et le gameplay
-        if (
-          uri.includes('chat') ||
-          uri.includes('core-game') ||
-          uri.includes('pregame') ||
-          uri.includes('match') ||
-          uri.includes('presences') ||
-          uri.includes('gameplay') ||
-          uri.includes('combat')
-        ) {
-          const item: RiotEventPayload = {
-            uri,
-            eventType: payload.eventType || 'Update',
-            data: payload.data,
-            timestamp: Date.now(),
-          };
+        const item: RiotEventPayload = {
+          uri,
+          eventType: payload.eventType || 'Update',
+          data: payload.data,
+          timestamp: Date.now(),
+        };
 
-          this.recentCombatEvents.push(item);
-          if (this.recentCombatEvents.length > this.MAX_RECENT_EVENTS) {
-            this.recentCombatEvents.shift();
-          }
+        // Buffer circulaire borné à MAX_RECENT_EVENTS (FIFO)
+        this.recentEvents.push(item);
+        if (this.recentEvents.length > this.MAX_RECENT_EVENTS) {
+          this.recentEvents.shift();
         }
       }
     } catch {
-      // Ignorer les frames malformées
+      // Ignorer les frames corrompues
     }
   }
 
   private cleanup() {
     this.isConnected = false;
     this.isConnecting = false;
+    // Forcer la rotation : effacer les anciens credentials en cache
+    this.port = null;
+    this.password = null;
+
     if (this.ws) {
       try {
         this.ws.removeAllListeners();
@@ -193,7 +213,6 @@ class RiotWebSocketManager {
   }
 
   public getSummary(): RiotLiveStatsSummary {
-    // Si déconnecté, tenter de réveiller la connexion
     if (!this.isConnected && !this.isConnecting) {
       this.init();
     }
@@ -203,12 +222,12 @@ class RiotWebSocketManager {
       port: this.port,
       lastEventTime: this.lastEventTime,
       eventsCount: this.eventsCount,
-      combatEvents: [...this.recentCombatEvents],
+      combatEvents: [...this.recentEvents],
     };
   }
 }
 
-// Instance globale singleton attachée à globalThis pour persister au fil des requêtes Next.js API
+// Instance globale singleton attachée à globalThis
 declare global {
   var __riotWsManager: RiotWebSocketManager | undefined;
 }
