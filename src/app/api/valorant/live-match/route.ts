@@ -311,14 +311,29 @@ function parseLiveGameEvents(
       if (debuff) pawnToTeam.set(debuff[2], "enemy");
     }
 
-    // Résolution des doublons (mirror picks comme 2 Chambers)
-    for (const [pawnId, agent] of pawnToAgent.entries()) {
-      if (!pawnToTeam.has(pawnId)) {
-        for (const [otherId, otherAgent] of pawnToAgent.entries()) {
-          if (otherId !== pawnId && otherAgent === agent && pawnToTeam.has(otherId)) {
-            pawnToTeam.set(pawnId, pawnToTeam.get(otherId) === "ally" ? "enemy" : "ally");
-            break;
-          }
+    // Résolution des doublons (mirror picks comme 2 Chambers ou 2 Jetts)
+    const enemyIds: number[] = [];
+    for (const [pId, team] of pawnToTeam.entries()) {
+      if (team === "enemy") enemyIds.push(parseInt(pId, 10));
+    }
+    const enemyAvg = enemyIds.length ? enemyIds.reduce((a, b) => a + b, 0) / enemyIds.length : 0;
+
+    const agentPawns = new Map<string, string[]>();
+    for (const [pId, agent] of pawnToAgent.entries()) {
+      if (!agentPawns.has(agent)) agentPawns.set(agent, []);
+      agentPawns.get(agent)!.push(pId);
+    }
+
+    for (const [agent, pIds] of agentPawns.entries()) {
+      if (pIds.length === 2 && (!pawnToTeam.has(pIds[0]) || !pawnToTeam.has(pIds[1]))) {
+        if (pawnToTeam.has(pIds[0])) {
+          pawnToTeam.set(pIds[1], pawnToTeam.get(pIds[0]) === "ally" ? "enemy" : "ally");
+        } else if (pawnToTeam.has(pIds[1])) {
+          pawnToTeam.set(pIds[0], pawnToTeam.get(pIds[1]) === "ally" ? "enemy" : "ally");
+        } else if (enemyAvg > 0) {
+          pIds.sort((a, b) => Math.abs(parseInt(a, 10) - enemyAvg) - Math.abs(parseInt(b, 10) - enemyAvg));
+          pawnToTeam.set(pIds[0], "enemy");
+          pawnToTeam.set(pIds[1], "ally");
         }
       }
     }
@@ -328,6 +343,21 @@ function parseLiveGameEvents(
     const pendingAssists = new Map<string, Set<string>>(); // victimPawnId -> Set<assisterKey>
     const activeHealedAllies = new Set<string>(); // Allies avec buff de soin actif
     let isLocalAlive = true;
+    let aliveAllyIndex = 0;
+
+    const getAliveAllyKey = (): string | null => {
+      const alive: string[] = [];
+      for (const [pId, t] of pawnToTeam.entries()) {
+        if (t === "ally" && !deadThisRound.has(pId)) {
+          const ag = pawnToAgent.get(pId);
+          if (ag) alive.push(`${ag}_ally`);
+        }
+      }
+      if (alive.length === 0) return myAgentName ? `${myAgentName.toLowerCase()}_ally` : null;
+      const picked = alive[aliveAllyIndex % alive.length];
+      aliveAllyIndex++;
+      return picked;
+    };
 
     const lastDeathTimestamp: Record<string, number> = {};
     const lastKillTimestamp: Record<string, number> = {};
@@ -444,40 +474,55 @@ function parseLiveGameEvents(
           let killerPawnId = "";
           const oppTeam = victimTeam === "ally" ? "enemy" : "ally";
 
-          // 1. Recherche d'armes ou de compétences spécifiques dans les 20 lignes précédentes
-          for (let j = i - 1; j >= Math.max(0, i - 20); j--) {
-            const prev = matchLines[j];
-
-            if (prev.includes("Gun_Deadeye_X_") || prev.includes("1P_Deadeye")) {
-              killerKey = `chamber_${oppTeam}`;
-              break;
-            }
-            if (prev.includes("Pawn_Clay_E_Boomba") || prev.includes("Projectile_Clay_Q_") || prev.includes("1P_Clay")) {
-              killerKey = `raze_${oppTeam}`;
-              break;
-            }
-            if (prev.includes("Gun_Sprinter_X_")) {
-              killerKey = `neon_${oppTeam}`;
-              break;
-            }
-
-            const pMatch = prev.match(/([a-zA-Z0-9]+)_PC_C_(\d+)/);
-            if (pMatch) {
-              const candPawnId = pMatch[2];
-              const candTeam = pawnToTeam.get(candPawnId);
-              const candRaw = pMatch[1].toLowerCase();
-              const candAgent = AGENT_INTERNAL_TO_NAME[candRaw]?.toLowerCase();
-
-              if (candPawnId !== victimPawnId && candTeam === oppTeam && candAgent) {
-                if (candAgent === myAgentName?.toLowerCase() && !isLocalAlive) continue;
-                killerKey = `${candAgent}_${candTeam}`;
-                killerPawnId = candPawnId;
+          // 1. Détection Overheal Clove (Pick-Me-Up) si un allié est mort
+          if (oppTeam === "enemy") {
+            for (let k = i; k < Math.min(matchLines.length, i + 8); k++) {
+              if (matchLines[k].includes("Buff_Overheal_") || matchLines[k].includes("Buff_Smonk_4_TempHealth")) {
+                killerKey = "clove_enemy";
                 break;
               }
             }
           }
 
-          // 2. Détection tir actif du joueur local vivant
+          // 2. Recherche d'armes ou de compétences spécifiques dans les 25 lignes précédentes
+          if (!killerKey) {
+            for (let j = i - 1; j >= Math.max(0, i - 25); j--) {
+              const prev = matchLines[j];
+              // Ignorer les lignes de mort d'autres joueurs (ne pas désigner une victime comme tueur)
+              if (prev.includes("Debuff_GrievousWounds_C") || prev.includes("PostDeath_")) continue;
+
+              if (prev.includes("Gun_Deadeye_X_") || prev.includes("1P_Deadeye")) {
+                killerKey = `chamber_${oppTeam}`;
+                break;
+              }
+              if (prev.includes("Pawn_Clay_E_Boomba") || prev.includes("Projectile_Clay_Q_") || prev.includes("1P_Clay")) {
+                killerKey = `raze_${oppTeam}`;
+                break;
+              }
+              if (prev.includes("Gun_Sprinter_X_")) {
+                killerKey = `neon_${oppTeam}`;
+                break;
+              }
+
+              const pMatch = prev.match(/([a-zA-Z0-9]+)_PC_C_(\d+)/);
+              if (pMatch) {
+                const candPawnId = pMatch[2];
+                const candTeam = pawnToTeam.get(candPawnId);
+                const candRaw = pMatch[1].toLowerCase();
+                const candAgent = AGENT_INTERNAL_TO_NAME[candRaw]?.toLowerCase();
+
+                // Doit appartenir à l'équipe adverse ET ne pas être déjà mort dans cette manche
+                if (candPawnId !== victimPawnId && candTeam === oppTeam && candAgent && !deadThisRound.has(candPawnId)) {
+                  if (candAgent === myAgentName?.toLowerCase() && !isLocalAlive) continue;
+                  killerKey = `${candAgent}_${candTeam}`;
+                  killerPawnId = candPawnId;
+                  break;
+                }
+              }
+            }
+          }
+
+          // 3. Détection tir actif du joueur local vivant
           if (!killerKey && isLocalAlive && oppTeam === "ally" && myAgentName) {
             let localActive = false;
             for (let j = Math.max(0, i - 12); j < i; j++) {
@@ -497,12 +542,25 @@ function parseLiveGameEvents(
             }
           }
 
-          // 3. Fallback adversaire logique
+          // 4. Fallback sur un joueur vivant de l'équipe adverse
           if (!killerKey) {
             if (oppTeam === "ally") {
-              killerKey = isLocalAlive && myAgentName ? `${myAgentName.toLowerCase()}_ally` : "chamber_ally";
+              killerKey = getAliveAllyKey() || (myAgentName ? `${myAgentName.toLowerCase()}_ally` : "neon_ally");
+              if (killerKey && localPawnId && killerKey.startsWith(myAgentName?.toLowerCase() || "")) {
+                killerPawnId = localPawnId;
+              }
             } else {
-              killerKey = "chamber_enemy";
+              for (const [pId, t] of pawnToTeam.entries()) {
+                if (t === "enemy" && !deadThisRound.has(pId)) {
+                  const ag = pawnToAgent.get(pId);
+                  if (ag) {
+                    killerKey = `${ag}_enemy`;
+                    killerPawnId = pId;
+                    break;
+                  }
+                }
+              }
+              if (!killerKey) killerKey = "clove_enemy";
             }
           }
 
