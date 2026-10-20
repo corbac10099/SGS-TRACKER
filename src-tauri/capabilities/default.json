@@ -4,7 +4,11 @@
   "description": "enables the default permissions",
   "windows": [
     "main",
-    "overlay"
+    "overlay",
+    "overlay-hud",
+    "overlay-score",
+    "overlay-stats",
+    "overlay-eco"
   ],
   "permissions": [
     "core:default",

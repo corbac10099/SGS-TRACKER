@@ -139,7 +139,7 @@ export async function setOverlaySize(width: number, height: number): Promise<voi
       await tauri.core.invoke("set_overlay_size", { width, height });
       return;
     }
-  } catch {}
+  } catch (e) { console.error("[Desktop] set_overlay_size failed:", e); }
   try {
     const internals = (window as any).__TAURI_INTERNALS__;
     if (internals?.invoke) {
@@ -244,7 +244,7 @@ export async function setWindowVisible(label: string, visible: boolean): Promise
       await tauri.core.invoke("set_window_visible", payload);
       return;
     }
-  } catch {}
+  } catch (e) { console.error("[Desktop] set_window_visible failed:", e); }
   try {
     const internals = (window as any).__TAURI_INTERNALS__;
     if (internals?.invoke) {

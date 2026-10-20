@@ -94,7 +94,7 @@ export default function ScoreOverlayPage() {
   };
 
   return (
-    <div className="w-screen h-screen flex items-center justify-center p-1 bg-transparent select-none overflow-hidden">
+    <div className="w-full h-full flex items-center justify-center p-1 bg-transparent select-none overflow-hidden">
       <div
         onPointerDown={handlePointerDown}
         data-tauri-drag-region

@@ -283,22 +283,20 @@ fn start_resize_window(window: tauri::WebviewWindow) -> Result<(), String> {
   #[cfg(target_os = "windows")]
   {
     if let Ok(hwnd) = window.hwnd() {
-      #[link(name = "user32")]
-      extern "system" {
-        fn ReleaseCapture() -> i32;
-        fn SendMessageW(hwnd: *mut std::ffi::c_void, msg: u32, wparam: usize, lparam: isize) -> isize;
-      }
-      const WM_SYSCOMMAND: u32 = 0x0112;
-      const SC_SIZE: usize = 0xF000;
-      const WMSZ_BOTTOMRIGHT: usize = 8;
       #[repr(C)]
       struct POINT {
         x: i32,
         y: i32,
       }
+      #[link(name = "user32")]
       extern "system" {
+        fn ReleaseCapture() -> i32;
+        fn SendMessageW(hwnd: *mut std::ffi::c_void, msg: u32, wparam: usize, lparam: isize) -> isize;
         fn GetCursorPos(lpPoint: *mut POINT) -> i32;
       }
+      const WM_SYSCOMMAND: u32 = 0x0112;
+      const SC_SIZE: usize = 0xF000;
+      const WMSZ_BOTTOMRIGHT: usize = 8;
       unsafe {
         let mut pt = POINT { x: 0, y: 0 };
         GetCursorPos(&mut pt);

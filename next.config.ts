@@ -73,7 +73,7 @@ const nextConfig: NextConfig = {
       },
       // /:riotId seul (sans tab) → racine, si pas réservé
       {
-        source: '/:riotId((?!api|auth|login|register|onboarding|_next|favicon|overlay).*)',
+        source: '/:riotId((?!api|auth|login|register|onboarding|_next|favicon|overlay[^/]*).*)',
         destination: '/',
       },
     ];

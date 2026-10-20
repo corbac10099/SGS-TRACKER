@@ -29,8 +29,8 @@ export default function DesktopRgpdModal() {
   const isOverlay = typeof window !== "undefined" && window.location.pathname.startsWith("/overlay");
 
   useEffect(() => {
-    // 1. Uniquement dans l'application bureau PC (Tauri)
-    if (!isTauriEnvironment()) {
+    // 1. Uniquement dans l'application bureau PC (Tauri) et hors fenêtres d'overlay
+    if (!isTauriEnvironment() || isOverlay) {
       return;
     }
 
@@ -88,7 +88,7 @@ export default function DesktopRgpdModal() {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
-  if (!isOpen) return null;
+  if (!isOpen || isOverlay) return null;
 
   // Soumission de l'acceptation avec politique de conservation choisie
   const handleConfirm = async () => {
@@ -175,6 +175,8 @@ export default function DesktopRgpdModal() {
       setIsSubmitting(false);
     }
   };
+
+  if (!isOpen || isOverlay) return null;
 
   return (
     <div className={`fixed inset-0 z-[99999] flex items-center justify-center animate-in fade-in duration-200 ${
@@ -322,7 +324,9 @@ export default function DesktopRgpdModal() {
                   { id: "forever", label: "Illimité", sub: "Sans purge", rec: false },
                 ].map((opt) => {
                   const isSelected = dataRetentionPolicy === opt.id;
-                  return (
+                  if (!isOpen || isOverlay) return null;
+
+  return (
                     <button
                       key={opt.id}
                       type="button"

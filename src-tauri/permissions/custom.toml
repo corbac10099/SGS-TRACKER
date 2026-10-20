@@ -13,10 +13,16 @@ allow = [
   "register_overlay_shortcut",
   "toggle_overlay",
   "start_drag_window",
+  "start_resize_window",
   "set_overlay_size",
   "move_overlay_window",
   "set_overlay_position",
   "get_overlay_position",
   "set_overlay_click_through",
-  "get_app_version"
+  "set_window_visible",
+  "is_window_visible",
+  "set_window_click_through",
+  "get_app_version",
+  "is_valorant_running",
+  "emergency_close_overlay"
 ]

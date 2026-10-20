@@ -444,16 +444,11 @@ export default function OverlayPage() {
     startDragWindow();
   };
 
-  // Redimensionnement fluide interactif
+  // Redimensionnement fluide interactif bidirectionnel (Largeur + Hauteur)
   const handleResizePointerDown = (e: React.PointerEvent) => {
     if (isClickThrough || e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
-
-    if (isTauriEnvironment()) {
-      startResizeWindow();
-      return;
-    }
 
     const target = e.currentTarget as HTMLElement;
     try {
@@ -465,12 +460,15 @@ export default function OverlayPage() {
     const startW = window.innerWidth;
     const startH = window.innerHeight;
 
+    let latestW = startW;
+    let latestH = startH;
+
     const onPointerMove = (ev: PointerEvent) => {
       const dx = ev.screenX - startX;
       const dy = ev.screenY - startY;
-      const targetW = Math.max(startW + dx, 380);
-      const targetH = Math.max(startH + dy, 260);
-      setOverlaySize(targetW, targetH);
+      latestW = Math.max(startW + dx, 420);
+      latestH = Math.max(startH + dy, 280);
+      setOverlaySize(latestW, latestH);
     };
 
     const cleanup = (ev: PointerEvent) => {
@@ -480,6 +478,9 @@ export default function OverlayPage() {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", cleanup);
       window.removeEventListener("pointercancel", cleanup);
+      try {
+        localStorage.setItem("sgs_overlay_size", JSON.stringify({ width: latestW, height: latestH }));
+      } catch {}
     };
 
     window.addEventListener("pointermove", onPointerMove);
