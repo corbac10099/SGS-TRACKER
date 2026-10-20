@@ -50,10 +50,26 @@ const nextConfig: NextConfig = {
         source: '/:riotId/agents/:slug',
         destination: '/',
       },
-      // /overlay.html → /overlay
+      // Rewrites pour les fenêtres Overlay locales Tauri
       {
         source: '/overlay.html',
         destination: '/overlay',
+      },
+      {
+        source: '/overlay-hud.html',
+        destination: '/overlay/hud',
+      },
+      {
+        source: '/overlay-score.html',
+        destination: '/overlay/score',
+      },
+      {
+        source: '/overlay-stats.html',
+        destination: '/overlay/stats',
+      },
+      {
+        source: '/overlay-eco.html',
+        destination: '/overlay/eco',
       },
       // /:riotId seul (sans tab) → racine, si pas réservé
       {

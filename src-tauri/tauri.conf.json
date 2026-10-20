@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "SGS-Tracker \u2014 Valorant Performance Tracker",
+        "title": "SGS-Tracker — Valorant Performance Tracker",
         "width": 1380,
         "height": 880,
         "minWidth": 1024,
@@ -39,14 +39,15 @@
         "decorations": false,
         "visible": false,
         "skipTaskbar": true,
-        "shadow": false
+        "shadow": false,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SGS-Tracker-Desktop/1.0.0 (Tauri)"
       },
       {
         "label": "overlay-hud",
         "title": "SGS-Tracker HUD",
-        "url": "overlay.html?mode=hud",
-        "width": 330,
-        "height": 75,
+        "url": "overlay-hud.html",
+        "width": 340,
+        "height": 80,
         "x": 40,
         "y": 40,
         "resizable": false,
@@ -55,14 +56,15 @@
         "decorations": false,
         "visible": false,
         "skipTaskbar": true,
-        "shadow": false
+        "shadow": false,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SGS-Tracker-Desktop/1.0.0 (Tauri)"
       },
       {
         "label": "overlay-score",
         "title": "SGS-Tracker Score",
-        "url": "overlay.html?mode=score",
-        "width": 240,
-        "height": 110,
+        "url": "overlay-score.html",
+        "width": 250,
+        "height": 105,
         "x": 40,
         "y": 130,
         "resizable": false,
@@ -71,14 +73,15 @@
         "decorations": false,
         "visible": false,
         "skipTaskbar": true,
-        "shadow": false
+        "shadow": false,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SGS-Tracker-Desktop/1.0.0 (Tauri)"
       },
       {
         "label": "overlay-stats",
         "title": "SGS-Tracker Stats",
-        "url": "overlay.html?mode=stats",
-        "width": 270,
-        "height": 170,
+        "url": "overlay-stats.html",
+        "width": 280,
+        "height": 180,
         "x": 40,
         "y": 250,
         "resizable": false,
@@ -87,14 +90,15 @@
         "decorations": false,
         "visible": false,
         "skipTaskbar": true,
-        "shadow": false
+        "shadow": false,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SGS-Tracker-Desktop/1.0.0 (Tauri)"
       },
       {
         "label": "overlay-eco",
         "title": "SGS-Tracker Eco Advisor",
-        "url": "overlay.html?mode=eco",
-        "width": 280,
-        "height": 400,
+        "url": "overlay-eco.html",
+        "width": 290,
+        "height": 410,
         "x": 40,
         "y": 430,
         "resizable": false,
@@ -103,7 +107,8 @@
         "decorations": false,
         "visible": false,
         "skipTaskbar": true,
-        "shadow": false
+        "shadow": false,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SGS-Tracker-Desktop/1.0.0 (Tauri)"
       }
     ],
     "security": {
@@ -115,7 +120,7 @@
     "targets": "all",
     "shortDescription": "Valorant Performance Tracker & Analysis",
     "longDescription": "Suivez vos performances, statistiques et progression Valorant avec SGS-Tracker.",
-    "copyright": "Copyright \u00a9 2026 SGS",
+    "copyright": "Copyright © 2026 SGS",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

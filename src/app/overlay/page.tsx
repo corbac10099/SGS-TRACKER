@@ -152,19 +152,16 @@ export default function OverlayPage() {
     return { hud_pill: true, score: false, stats: false, eco: false };
   });
 
-  const [isMainPanelCollapsed, setIsMainPanelCollapsed] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("sgs_overlay_panel_collapsed") === "true";
-    }
-    return false;
-  });
-
-  const [isExpandedZone, setIsExpandedZone] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("sgs_overlay_expanded_zone") === "true";
-    }
-    return false;
-  });
+  useEffect(() => {
+    const handleStorage = () => {
+      try {
+        const saved = localStorage.getItem("sgs_active_mini_overlays");
+        if (saved) setActiveOverlays(JSON.parse(saved));
+      } catch {}
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   const [mainPanelPos, setMainPanelPos] = useState<{ x: number; y: number }>(() => {
     if (typeof window !== "undefined") {
@@ -426,41 +423,18 @@ export default function OverlayPage() {
       }
       if (e.key === "F9" || e.key === "F10") {
         e.preventDefault();
-        toggleF9Mode();
+        toggleClickThrough();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [inspectedPlayer, selectedAgentDetail, isClickThrough, isMainPanelCollapsed]);
+  }, [inspectedPlayer, selectedAgentDetail, isClickThrough]);
 
-  // Bascule du mode F9 : Le gros overlay part/revient, les mini-overlays restent ouverts et les clics traversent
-  const toggleF9Mode = async () => {
-    if (!isMainPanelCollapsed) {
-      // Le gros overlay était visible -> on le masque et on active les clics traversants vers Valorant
-      setIsMainPanelCollapsed(true);
-      setIsClickThrough(true);
-      await setOverlayClickThrough(true);
-    } else {
-      // Le gros overlay était masqué -> on le réaffiche et on rend l'overlay interactif
-      setIsMainPanelCollapsed(false);
-      setIsClickThrough(false);
-      await setOverlayClickThrough(false);
-    }
+  const toggleClickThrough = async () => {
+    const next = !isClickThrough;
+    setIsClickThrough(next);
+    await setOverlayClickThrough(next);
   };
-
-  const toggleMainPanel = toggleF9Mode;
-
-  const toggleExpandedZone = () => {
-    setIsExpandedZone((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("sgs_overlay_expanded_zone", String(next));
-      } catch {}
-      return next;
-    });
-  };
-
-  const toggleClickThrough = toggleF9Mode;
 
   // Déplacement natif de la fenêtre d'overlay (Tauri OS drag)
   const handleDragPointerDown = (e: React.PointerEvent) => {
@@ -529,28 +503,6 @@ export default function OverlayPage() {
     });
   }, [agentsSearch, selectedRole]);
 
-  // Détection du mode de la fenêtre (Overlay Principal vs Mini-Overlay Dédié)
-  const [currentMode, setCurrentMode] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const m = params.get("mode");
-    if (m) {
-      setCurrentMode(m);
-      return;
-    }
-    try {
-      const internals = (window as any).__TAURI_INTERNALS__;
-      const metadata = (window as any).__TAURI_METADATA__;
-      const label = internals?.metadata?.currentWindow?.label || metadata?.currentWindow?.label;
-      if (label === "overlay-hud") setCurrentMode("hud");
-      else if (label === "overlay-score") setCurrentMode("score");
-      else if (label === "overlay-stats") setCurrentMode("stats");
-      else if (label === "overlay-eco") setCurrentMode("eco");
-    } catch {}
-  }, []);
-
   // Synchronisation des fenêtres Tauri natives au démarrage de la fenêtre principale
   useEffect(() => {
     if (typeof window === "undefined" || !isTauriEnvironment()) return;
@@ -560,78 +512,12 @@ export default function OverlayPage() {
     }
   }, []);
 
-  // ─── RENDU SPÉCIFIQUE SI INSTANCIÉ EN MINI-OVERLAY DÉDIÉ (FENÊTRE TAURI DISTINCTE) ───
-  if (currentMode === "hud") {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-transparent select-none p-1">
-        <HudPillOverlay
-          allyScore={data?.score?.ally ?? 0}
-          enemyScore={data?.score?.enemy ?? 0}
-          sessionWins={data?.score?.ally}
-          sessionLosses={data?.score?.enemy}
-          hsRate={28}
-          kdRatio={1.55}
-          isInteractive={!isClickThrough}
-          onClose={() => setWindowVisible("overlay-hud", false)}
-          accentColor={accentColor}
-          themeBg={bgColor}
-          isLive={isIngame}
-        />
-      </div>
-    );
-  }
-
-  if (currentMode === "score") {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-transparent select-none p-1">
-        <ScoreLiveOverlay
-          allyScore={data?.score?.ally ?? 0}
-          enemyScore={data?.score?.enemy ?? 0}
-          round={data?.round}
-          mapName={data?.map?.name}
-          queueName={data?.queue}
-          isLive={isIngame}
-          isInteractive={!isClickThrough}
-          onClose={() => setWindowVisible("overlay-score", false)}
-          accentColor={accentColor}
-        />
-      </div>
-    );
-  }
-
-  if (currentMode === "stats") {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-transparent select-none p-1">
-        <StatsOverlay
-          isInteractive={!isClickThrough}
-          onClose={() => setWindowVisible("overlay-stats", false)}
-          accentColor={accentColor}
-          playerName={data?.players?.find((p) => p.isMe)?.name || "Vous"}
-        />
-      </div>
-    );
-  }
-
-  if (currentMode === "eco") {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-transparent select-none p-1">
-        <EcoAdvisorOverlay
-          isInteractive={!isClickThrough}
-          onClose={() => setWindowVisible("overlay-eco", false)}
-          accentColor={accentColor}
-          round={data?.round || (data?.score ? data.score.ally + data.score.enemy + 1 : 1)}
-          allyScore={data?.score?.ally ?? 0}
-          enemyScore={data?.score?.enemy ?? 0}
-        />
-      </div>
-    );
-  }
-
-  // ─── RENDU DU PANNEAU PRINCIPAL (Fenêtre 780x490) ───
+  // ─── RENDU DU PANNEAU PRINCIPAL (Fenêtre 780x490 avec marge transparente anti-débordement) ───
   return (
     <>
-      <div
-      className="w-full h-full rounded-[24px] border backdrop-blur-2xl p-3 text-white flex flex-col gap-2 overflow-hidden transition-colors font-sans select-none"
+      <div className="w-full h-full p-2 bg-transparent select-none overflow-hidden flex flex-col">
+        <div
+          className="w-full h-full rounded-[24px] border backdrop-blur-2xl p-3 text-white flex flex-col gap-2 overflow-hidden transition-colors font-sans select-none"
       style={{
         backgroundColor: `${bgColor}${Math.round(overlayOpacity * 255).toString(16).padStart(2, "0")}`,
         boxShadow: `0 20px 50px rgba(0, 0, 0, 0.85), 0 0 20px ${accentColor}25`,
@@ -1333,10 +1219,6 @@ export default function OverlayPage() {
               isInteractive={!isClickThrough}
               onToggleInteractive={toggleClickThrough}
               shortcutKey="F9"
-              isMainPanelCollapsed={isMainPanelCollapsed}
-              onToggleMainPanel={toggleMainPanel}
-              isExpandedZone={isExpandedZone}
-              onToggleExpandedZone={toggleExpandedZone}
             />
           )}
         </div>
@@ -1352,15 +1234,6 @@ export default function OverlayPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Bouton pour basculer en mode HUD Épuré sans gros panneau */}
-            <button
-              onClick={toggleMainPanel}
-              className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/15 text-[10px] text-white/80 transition-colors"
-              title="Masquer le panneau pour ne laisser que le mini-overlay"
-            >
-              Mode HUD Seul 👁️
-            </button>
-
             {/* Poignée de redimensionnement libre dans le coin inférieur droit */}
             <div
               onPointerDown={handleResizePointerDown}
@@ -1379,8 +1252,9 @@ export default function OverlayPage() {
           </div>
         </div>
       </div>
+    </div>
 
-      {/* ─── MINI-OVERLAYS FLOTTANTS (Prévisualisation navigateur web hors Tauri) ─── */}
+    {/* ─── MINI-OVERLAYS FLOTTANTS (Prévisualisation navigateur web hors Tauri) ─── */}
       {!isTauri && activeOverlays.hud_pill && (
         <HudPillOverlay
           allyScore={data?.score?.ally ?? 0}

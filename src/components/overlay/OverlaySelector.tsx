@@ -14,16 +14,16 @@ export interface OverlayCatalogItem {
 export const OVERLAY_CATALOG: OverlayCatalogItem[] = [
   {
     id: "hud_pill",
-    name: "HUD Compact (Score + HS + KD)",
+    name: "HUD Compact (Score + HS% + K/D)",
     description: "Pilule ultra compacte aux coins arrondis (Score direct, Headshot % et Ratio KD)",
     icon: "🔥",
     color: "#ff4655",
-    badge: "Style Tracker Pro",
+    badge: "Style Pro Tracker",
   },
   {
     id: "score",
-    name: "Score Live Seul",
-    description: "Score des manches en direct (API Riot locale)",
+    name: "Score Live Épuré",
+    description: "Score des manches en direct (API Valorant locale, format sobre)",
     icon: "🏆",
     color: "#22c55e",
     badge: "Temps Réel",
@@ -31,7 +31,7 @@ export const OVERLAY_CATALOG: OverlayCatalogItem[] = [
   {
     id: "stats",
     name: "Stats Joueur Détaillées",
-    description: "K/D/A, Taux Headshot avec jauge et ACS (SGS API)",
+    description: "K/D/A, Taux Headshot avec jauge et score ACS",
     icon: "🎯",
     color: "#38bdf8",
     badge: "SGS Cloud",
@@ -51,12 +51,8 @@ interface OverlaySelectorProps {
   onToggle: (id: string) => void;
   accentColor: string;
   isInteractive: boolean;
-  onToggleInteractive: () => void;
+  onToggleInteractive?: () => void;
   shortcutKey?: string;
-  isMainPanelCollapsed?: boolean;
-  onToggleMainPanel?: () => void;
-  isExpandedZone?: boolean;
-  onToggleExpandedZone?: () => void;
 }
 
 export default function OverlaySelector({
@@ -66,24 +62,11 @@ export default function OverlaySelector({
   isInteractive,
   onToggleInteractive,
   shortcutKey = "F9",
-  isMainPanelCollapsed = false,
-  onToggleMainPanel,
-  isExpandedZone = false,
-  onToggleExpandedZone,
 }: OverlaySelectorProps) {
-  const handleResetPositions = () => {
-    OVERLAY_CATALOG.forEach((item) => {
-      try {
-        localStorage.removeItem(`sgs_mini_overlay_pos_${item.id}`);
-      } catch {}
-    });
-    window.location.reload();
-  };
-
   return (
     <div className="flex-1 flex flex-col gap-3 overflow-y-auto pr-1">
-      {/* Bannière explicative F9 & Clics traversants */}
-      <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+      {/* Bannière explicative F9 & Mini-Overlays indépendants */}
+      <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
             <span
@@ -92,60 +75,25 @@ export default function OverlaySelector({
               }`}
             />
             <span className="text-xs font-black uppercase tracking-wider text-white">
-              {isInteractive ? "Mode Ajustement & Déplacement" : "Mode En Jeu (Clics Traversants)"}
+              {isInteractive ? "Mode Déplacement des Fenêtres (F9)" : "Mode Jeu Actif (Clics Traversants)"}
             </span>
           </div>
           <p className="text-[11px] text-white/50 max-w-md">
-            Les mini-overlays activés restent affichés au-dessus du jeu. Ils sont{" "}
-            <strong className="text-white">traversables par vos tirs</strong> tant que vous n'appuyez pas sur{" "}
-            <kbd className="px-1.5 py-0.5 rounded bg-white/15 text-white font-mono text-[10px] font-bold">
-              {shortcutKey}
-            </kbd>
-            .
+            Les mini-overlays activés restent affichés sur votre écran même lorsque le grand panneau est masqué.
+            Ils sont <strong className="text-white">traversables par vos tirs</strong> en pleine partie.
           </p>
         </div>
 
-        <button
-          onClick={onToggleInteractive}
-          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border shrink-0 ${
-            isInteractive
-              ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.2)]"
-              : "bg-white/10 text-white hover:bg-white/15 border-white/10"
-          }`}
-        >
-          {isInteractive ? "Verrouiller (F9)" : "Déplacer (F9)"}
-        </button>
-      </div>
-
-      {/* Options d'affichage avancées (Plein écran & Réduire) */}
-      <div className="grid grid-cols-2 gap-2">
-        {onToggleMainPanel && (
+        {onToggleInteractive && (
           <button
-            onClick={onToggleMainPanel}
-            className="p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 flex items-center justify-between text-left transition-colors"
-          >
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-white">Mode HUD Épuré</span>
-              <span className="text-[10px] text-white/40">Masque le gros panneau pour ne laisser que le mini-overlay</span>
-            </div>
-            <span className="text-sm">👁️</span>
-          </button>
-        )}
-
-        {onToggleExpandedZone && (
-          <button
-            onClick={onToggleExpandedZone}
-            className={`p-2.5 rounded-xl border flex items-center justify-between text-left transition-colors ${
-              isExpandedZone
-                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
-                : "bg-white/[0.03] hover:bg-white/[0.08] border-white/10 text-white"
+            onClick={onToggleInteractive}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border shrink-0 cursor-pointer ${
+              isInteractive
+                ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+                : "bg-white/10 text-white hover:bg-white/15 border-white/10"
             }`}
           >
-            <div className="flex flex-col">
-              <span className="text-xs font-bold">Zone Tout-Écran</span>
-              <span className="text-[10px] opacity-60">Permet de glisser les mini-overlays partout sur votre écran</span>
-            </div>
-            <span className="text-sm">{isExpandedZone ? "✓" : "⛶"}</span>
+            {isInteractive ? "Verrouiller (F9)" : "Déplacer (F9)"}
           </button>
         )}
       </div>
@@ -153,7 +101,7 @@ export default function OverlaySelector({
       {/* Liste des mini-overlays disponibles */}
       <div className="space-y-2">
         <div className="text-[10px] uppercase tracking-widest font-black text-white/40 px-1">
-          Mini-Overlays Disponibles :
+          Mini-Overlays Flottants Disponibles :
         </div>
 
         {OVERLAY_CATALOG.map((item) => {
@@ -163,18 +111,18 @@ export default function OverlaySelector({
             <div
               key={item.id}
               onClick={() => onToggle(item.id)}
-              className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+              className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                 isActive
                   ? "bg-white/[0.04] shadow-lg"
                   : "bg-black/20 hover:bg-white/[0.02] border-white/5 opacity-70"
               }`}
               style={{
-                borderColor: isActive ? `${item.color}60` : undefined,
+                borderColor: isActive ? `${item.color}70` : undefined,
               }}
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-lg border flex-shrink-0"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-lg border shrink-0"
                   style={{
                     backgroundColor: `${item.color}15`,
                     borderColor: `${item.color}35`,
@@ -206,9 +154,9 @@ export default function OverlaySelector({
                 </div>
               </div>
 
-              {/* Bouton switch */}
+              {/* Bouton switch élégant */}
               <div
-                className={`w-10 h-6 rounded-full transition-colors p-0.5 relative flex items-center ${
+                className={`w-11 h-6 rounded-full transition-colors p-0.5 relative flex items-center shrink-0 ${
                   isActive ? "justify-end" : "justify-start bg-white/10"
                 }`}
                 style={{
@@ -220,19 +168,6 @@ export default function OverlaySelector({
             </div>
           );
         })}
-      </div>
-
-      {/* Bouton de réinitialisation des positions */}
-      <div className="pt-2 mt-auto border-t border-white/5 flex items-center justify-between">
-        <span className="text-[10px] text-white/30">
-          Les positions sur l'écran sont sauvegardées localement.
-        </span>
-        <button
-          onClick={handleResetPositions}
-          className="text-[10px] font-bold uppercase tracking-wider text-white/40 hover:text-white transition-colors underline cursor-pointer"
-        >
-          Réinitialiser les positions
-        </button>
       </div>
     </div>
   );
